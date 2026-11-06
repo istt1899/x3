@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "id": "marku_x3_coding",
+  "version": "0.1.0",
+  "tree": "marku_x3_coding@0.1.0",
+  "mguHmi": [
+    "ID7"
+  ],
+  "modules": [
+    "src/coding_app.js",
+    "src/catalog.js",
+    "src/view_model.js",
+    "src/diagnostics.js",
+    "src/someip_signals.js"
+  ],
+  "sdk": [
+    "oap-sdk/src/core/OnlineApp.js",
+    "oap-sdk/src/logging/logging"
+  ]
+}

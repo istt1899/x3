@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.3.0",
+  "application": {
+    "uuid": "38a8cc17-b988-4f3e-93f6-a0821e5d92f6",
+    "type": "OnlineApp",
+    "name": "marku_x3_coding",
+    "vendor": "Marku local project",
+    "version": "0.1.0",
+    "defaultLanguage": "ru_RU",
+    "uiDescriptions": [
+      {
+        "applicationFilePath": "./uiDescriptions/ID7/application.xml",
+        "uiDescriptionFilePath": "./uiDescriptions/ID7/uiDescription.json",
+        "hmi": [
+          "ID7"
+        ]
+      }
+    ],
+    "stringBundleUuid": "e071cb80-8914-4c76-a33d-820f9b0eea44",
+    "resourceBundleUuid": "11329cec-717e-48ab-87e5-59c795cdb158",
+    "variantGroups": [
+      {
+        "stringsPath": "./variantGroups/Common/texts",
+        "resourcesPath": "./variantGroups/Common/images",
+        "hmi": [
+          "ID7"
+        ],
+        "brands": [
+          "BMW"
+        ]
+      }
+    ],
+    "entryPoints": [
+      {
+        "name": "marku_x3_coding",
+        "uuid": "19354110-9606-41df-862e-bbdc5f1d9aa7",
+        "textId": "SID_MARKU_X3_CODING_TITLE",
+        "icon": "x3_coding.png",
+        "insertionStateId": 20976,
+        "insertionFocusId": 2,
+        "insertionMode": "INSERT_BELOW",
+        "insertionOrder": 0,
+        "insertionPriority": 0,
+        "previewType": "NONE",
+        "bookmarkable": true,
+        "private": null,
+        "appearance": "DEFAULT",
+        "isGroupHeader": false,
+        "insertionGroup": 0
+      }
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "marku_x3_coding",
+  "version": "0.1.0",
+  "description": "X3 G01 coding research catalogue and read-only ECU discovery for BMW ID7",
+  "private": false,
+  "main": "javascript/runner.js",
+  "oapAppSettings": {
+    "maxDiskUsage": 10485760,
+    "cpuLimit": 15,
+    "memoryThresholdKB": 65536,
+    "priority": "PRIO_MEDIUM",
+    "visibility": "FOREGROUND",
+    "latencyClass": "FOREGROUND",
+    "loggingId": "MX3C",
+    "userLoginRequired": false,
+    "backgroundPriority": 150,
+    "someipManifest": "manifest.json"
+  },
+  "files": [
+    "config",
+    "rhmiData",
+    "package.json",
+    "npm-shrinkwrap.json",
+    "permissions.json",
+    "javascript",
+    "manifest.json",
+    "LICENSE",
+    "LICENSE.MIT",
+    "NOTICE"
+  ],
+  "dependencies": {
+    "oap-sdk": "24.10.2"
+  },
+  "engines": {
+    "node": ">=8.7.0"
+  },
+  "author": "Marku custom local project",
+  "license": "GPL-3.0-or-later",
+  "mguLocalOnly": true,
+  "productName": "Кодировки • X3",
+  "mguHmi": [
+    "ID7"
+  ]
+}

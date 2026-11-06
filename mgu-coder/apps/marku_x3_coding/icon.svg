@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-label="Кодировки X3">
+  <rect x="4" y="4" width="120" height="120" rx="27" fill="#152A3D"/>
+  <rect x="4.75" y="4.75" width="118.5" height="118.5" rx="26.25" fill="none" stroke="#4D6D86" stroke-width="1.5"/>
+  <path d="M30 33h14m-14 31h14m-14 31h14M84 33h14M84 64h14M84 95h14" stroke="#4095D5" stroke-width="4" stroke-linecap="round"/>
+  <rect x="42" y="25" width="44" height="78" rx="9" fill="#EAF4FA"/>
+  <rect x="48" y="33" width="32" height="16" rx="4" fill="#205A84"/>
+  <rect x="48" y="56" width="32" height="16" rx="4" fill="#4095D5"/>
+  <rect x="48" y="79" width="32" height="16" rx="4" fill="#205A84"/>
+  <circle cx="73" cy="41" r="3" fill="#EAF4FA"/>
+  <circle cx="73" cy="64" r="3" fill="#EAF4FA"/>
+  <circle cx="73" cy="87" r="3" fill="#EAF4FA"/>
+</svg>

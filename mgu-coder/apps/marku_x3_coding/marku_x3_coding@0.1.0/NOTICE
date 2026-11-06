@@ -1,0 +1,5 @@
+Кодировки • X3 0.1.0
+Application: GPL-3.0-or-later.
+RHMI lifecycle adapted from the GPL-3.0-or-later Kaluga Cameras project.
+Diagnostic request and transport shape studied from the MIT-licensed cauliflowermossgrape/idrive7-apps project; see LICENSE.MIT.
+No BMW SDK, proprietary CAFD/NCD mappings, vehicle identifiers or BimmerCode code/data are included.

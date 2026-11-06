@@ -1,0 +1,26 @@
+{
+  "schema": 2,
+  "components": [
+    {
+      "id": "marku_x3_coding",
+      "kind": "app",
+      "version": "0.1.0",
+      "title": "Кодировки • X3",
+      "description": "Каталог 10 функций G01 и чтение доступных блоков; запись кодировок отключена",
+      "build": "unit",
+      "requires": {
+        "mgu-deploy": "0.7.11"
+      },
+      "uninstallable": true,
+      "mguHmi": [
+        "ID7"
+      ],
+      "artifact": {
+        "name": "marku_x3_coding@0.1.0.tgz",
+        "size": 29326,
+        "sha256": "8ab6bf27e2af878c586672796ad4a268be5b7e4bb715f6d6da70fd82618bc170",
+        "url": "marku_x3_coding@0.1.0.tgz"
+      }
+    }
+  ]
+}

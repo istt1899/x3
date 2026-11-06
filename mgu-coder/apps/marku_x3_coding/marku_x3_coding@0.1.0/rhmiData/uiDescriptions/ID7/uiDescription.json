@@ -1,0 +1,433 @@
+{
+  "schemaVersion": "1.3.0",
+  "containers": {
+    "1": {
+      "type": "state",
+      "name": "ST_OnlineApps_MarkuX3Coding",
+      "components": {
+        "10": {
+          "type": "title",
+          "name": "codingTitle",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Кодировки • X3",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "20": {
+          "type": "label",
+          "name": "codingStatus",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Диагностика ещё не запущена",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "21": {
+          "type": "label",
+          "name": "codingGate",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Чтение блоков • запись пока недоступна",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "22": {
+          "type": "label",
+          "name": "codingPage",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Функции 1–5 из 10",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "23": {
+          "type": "label",
+          "name": "codingFooter",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Для записи нужны проверенные NCD, CAFD и I-Level этой машины",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "30": {
+          "type": "button",
+          "name": "codingScan",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            },
+            "Speedlockable": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Проверить блоки на стоянке",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "31": {
+          "type": "button",
+          "name": "codingSlot1",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Старт-стоп  ·  DME",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "32": {
+          "type": "button",
+          "name": "codingSlot2",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Режим при запуске  ·  BDC_BODY3",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "33": {
+          "type": "button",
+          "name": "codingSlot3",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Сигнал ремня  ·  ACSM5",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "34": {
+          "type": "button",
+          "name": "codingSlot4",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Цвета подсветки  ·  BDC_BODY3",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "35": {
+          "type": "button",
+          "name": "codingSlot5",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Складывание зеркал  ·  BDC_BODY3",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "36": {
+          "type": "button",
+          "name": "codingPrev",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Предыдущие функции",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "37": {
+          "type": "button",
+          "name": "codingNext",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Следующие функции",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "40": {
+          "type": "label",
+          "name": "detailEcu",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Блок",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "41": {
+          "type": "label",
+          "name": "detailSummary",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Описание",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "42": {
+          "type": "label",
+          "name": "detailRequirement",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Условие",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "43": {
+          "type": "label",
+          "name": "detailCaution",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Проверить",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "44": {
+          "type": "label",
+          "name": "detailStatus",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Доступность не проверена",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "45": {
+          "type": "button",
+          "name": "codingBack",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "К списку функций",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "build": "node ../../tools/build.js",
+  "requires": {
+    "mgu-deploy": "0.7.11"
+  },
+  "uninstallable": true,
+  "mguHmi": [
+    "ID7"
+  ]
+}
