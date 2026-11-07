@@ -730,12 +730,15 @@ async function main() {
         await sleep(300); fs.writeFileSync(ytlog, ''); setMode('ok');
         await playing();
         await waitUntil(() => ytdecLines().some((l) => / argv /.test(l)));
+        const zoomAt = Date.now();
         tick(4000);
         c.send({ cmd: 'fill', on: true });
         await waitUntil(() => ytdecLines().filter((l) => / argv /.test(l)).length === 2);
         const argv = ytdecLines().filter((l) => / argv /.test(l));
         assert.ok(!/--fill/.test(argv[0]) && /--rect 1280x720 --fill /.test(argv[1]), argv.join('\n'));
-        assert.ok(ytdecLines().some((l) => / in seek 40\d\d$/.test(l)), 'at the clock');
+        await waitUntil(() => ytdecLines().some((l) => / in seek [4-9]\d{3}$/.test(l)));
+        const seek = ytdecLines().map((l) => / in seek (\d+)$/.exec(l)).filter(Boolean).map((m) => Number(m[1])).filter((ms) => ms >= 4000)[0];
+        assert.ok(seek <= 4000 + Date.now() - zoomAt + 100, 'at the clock: ' + seek);
         c.send({ cmd: 'fill', on: true });
         await sleep(300);
         assert.strictEqual(ytdecLines().filter((l) => / argv /.test(l)).length, 2);
