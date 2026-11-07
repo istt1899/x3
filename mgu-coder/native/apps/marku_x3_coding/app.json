@@ -1,0 +1,52 @@
+{
+  "id": "marku_x3_coding",
+  "title": "Bimmer Code",
+  "description": "Каталог кодировок BMW X3 и проверка доступных блоков",
+  "version": "0.2.0",
+  "license": "GPL-3.0-or-later",
+  "vendor": "custom",
+  "loggingId": "MX3C",
+  "iconGlyph": "BC",
+  "signals": {
+    "com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu": {
+      "_instances": "SystemFunctionsInternalTasuInst1",
+      "_methods": ["sendTasuRequest"],
+      "_broadcasts": ["sendTasuResponse"]
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "menu",
+      "title": "Bimmer Code",
+      "items": [
+        ["text", "codingStatus", "Диагностика ещё не запущена"],
+        ["text", "codingGate", "Чтение блоков; запись пока недоступна"],
+        ["button", "codingScan", "Проверить блоки на стоянке"],
+        ["text", "codingPage", "Функции 1–5 из 10"],
+        ["button", "codingSlot1", "Старт-стоп  ·  DME"],
+        ["button", "codingSlot2", "Режим при запуске  ·  BDC_BODY3"],
+        ["button", "codingSlot3", "Сигнал ремня  ·  ACSM5"],
+        ["button", "codingSlot4", "Цвета подсветки  ·  BDC_BODY3"],
+        ["button", "codingSlot5", "Складывание зеркал  ·  BDC_BODY3"],
+        ["button", "codingPrev", "Предыдущие функции"],
+        ["button", "codingNext", "Следующие функции"],
+        ["text", "codingFooter", "Только на стоянке; скорость приложением не проверяется"]
+      ]
+    },
+    {
+      "name": "DETAIL",
+      "kind": "menu",
+      "title": "Bimmer Code",
+      "items": [
+        ["header", "detailTitle", "Функция"],
+        ["text", "detailEcu", ""],
+        ["text3", "detailSummary", ""],
+        ["text3", "detailRequirement", ""],
+        ["text3", "detailCaution", ""],
+        ["text3", "detailStatus", ""],
+        ["button", "codingBack", "К списку функций"]
+      ]
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 'use strict';
 
 const assert = require('assert');
-const { ReadOnlyDiagnostics, DiagnosticProbe, ERROR_CODES } = require('../apps/marku_x3_coding/src/diagnostics');
-const { createSomeipSignals } = require('../apps/marku_x3_coding/src/someip_signals');
+const { ReadOnlyDiagnostics, DiagnosticProbe, ERROR_CODES } = require('../native/apps/marku_x3_coding/diagnostics');
+const { createSomeipSignals } = require('../native/apps/marku_x3_coding/someip_signals');
 
 const IFACE = 'com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu';
 const INSTANCE = 'SystemFunctionsInternalTasuInst1';

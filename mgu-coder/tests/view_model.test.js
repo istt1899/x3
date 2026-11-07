@@ -1,8 +1,8 @@
 'use strict';
 const assert = require('assert');
-const { FEATURES } = require('../apps/marku_x3_coding/src/catalog');
-const { model } = require('../apps/marku_x3_coding/src/view_model');
-const { ERROR_CODES } = require('../apps/marku_x3_coding/src/diagnostics');
+const { FEATURES } = require('../native/apps/marku_x3_coding/catalog');
+const { model } = require('../native/apps/marku_x3_coding/view_model');
+const { ERROR_CODES } = require('../native/apps/marku_x3_coding/diagnostics');
 
 assert.strictEqual(FEATURES.length, 10);
 assert.strictEqual(new Set(FEATURES.map((item) => item.id)).size, 10);

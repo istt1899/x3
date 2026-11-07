@@ -4,10 +4,9 @@
     {
       "id": "marku_x3_coding",
       "kind": "app",
-      "version": "0.1.5",
+      "version": "0.2.0",
       "title": "Bimmer Code",
       "description": "Каталог 10 функций G01 и чтение доступных блоков; запись кодировок отключена",
-      "build": "unit",
       "requires": {
         "mgu-deploy": "0.7.11"
       },
@@ -16,10 +15,10 @@
         "ID7"
       ],
       "artifact": {
-        "name": "marku_x3_coding@0.1.5.tgz",
-        "size": 31152,
-        "sha256": "cf227ca4f22a3a191d3fac249a63bdd9a9b43b3e6b47b6f3920211aa66ca4ef3",
-        "url": "https://github.com/istt1899/x3/releases/download/marku_x3_coding@0.1.5/marku_x3_coding@0.1.5.tgz"
+        "name": "marku_x3_coding@0.2.0.tgz",
+        "size": 1255225,
+        "sha256": "998f30b137e8420d42f1b828d33fc8ac955d11b38f65643b3391063a9451e5b7",
+        "url": "https://github.com/istt1899/x3/releases/download/marku_x3_coding@0.2.0/marku_x3_coding@0.2.0.tgz"
       }
     },
     {

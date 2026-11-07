@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "mode": "App Kit module-mode",
+  "nodeHost": "v24.22.2",
+  "python": "3.13.15",
+  "runtimeTestNode": "8.17.0",
+  "sdk": "contract-shaped test stub; real donor NOT TESTED",
+  "carOpening": "NOT TESTED",
+  "ecuReadOnCar": "NOT TESTED",
+  "coding": "NOT IMPLEMENTED",
+  "sourceAndFlatImports": 33,
+  "node8JsFiles": 22,
+  "tests": [
+    "diagnostics",
+    "view_model",
+    "native_app",
+    "native_runtime",
+    "native_package",
+    "catalog",
+    "publish_catalog"
+  ],
+  "repeatedBuildSha256": "998f30b137e8420d42f1b828d33fc8ac955d11b38f65643b3391063a9451e5b7"
+}
