@@ -11,7 +11,7 @@ const VERSION = require('../package.json').version;
 const TREE = path.join(APP, 'marku_x3_coding@' + VERSION);
 const RHMI = path.join(TREE, 'rhmiData');
 const SID = 'SID_MARKU_X3_CODING_TITLE';
-const TITLE = 'Кодировки X3';
+const TITLE = 'Bimmer Code';
 const IFACE = 'com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu';
 
 function write(file, value) {
@@ -88,7 +88,7 @@ function makeRhmi() {
   };
   write(path.join(RHMI, 'application.json'), application);
   ['ru_RU', 'en_GB'].forEach((lang) => write(path.join(RHMI, 'variantGroups', 'Common', 'texts', lang + '.json'),
-    { [SID]: lang === 'ru_RU' ? TITLE : 'Coding X3' }));
+    { [SID]: lang === 'ru_RU' ? TITLE : 'Bimmer Code' }));
 }
 
 function makePackage() {
@@ -123,7 +123,7 @@ function makePackage() {
     methods: ['sendTasuRequest'], broadcasts: ['sendTasuResponse'] };
   write(path.join(TREE, 'manifest.json'), manifest);
   write(path.join(TREE, 'NOTICE'),
-    'Кодировки X3 ' + VERSION + '\nApplication: GPL-3.0-or-later.\n' +
+    'Bimmer Code ' + VERSION + '\nApplication: GPL-3.0-or-later.\n' +
     'RHMI lifecycle adapted from the GPL-3.0-or-later Kaluga Cameras project.\n' +
     'Diagnostic request and transport shape studied from the MIT-licensed cauliflowermossgrape/idrive7-apps project; see LICENSE.MIT.\n' +
     'No BMW SDK, proprietary CAFD/NCD mappings, vehicle identifiers or BimmerCode code/data are included.\n');

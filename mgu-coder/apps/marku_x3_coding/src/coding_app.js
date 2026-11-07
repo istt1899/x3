@@ -128,11 +128,15 @@ class X3CodingApp extends OnlineApp {
   }
   set(name, kind, value) {
     if (this.written[kind + ':' + name] === value) return;
-    this.written[kind + ':' + name] = value;
     const component = this.components[name];
-    const action = kind === 'text' ? component.setValue(0, 'Text', value, 'Text') :
-      kind === 'visible' ? component.setProperty('Visible', value ? 1 : 0, 'UInt') : component.setEnabled(value);
-    Promise.resolve(action).catch((err) => logger.warn('X3 coding UI ' + name + ': ' + err.message));
+    // Both synchronous SDK errors and rejected writes must remain local to
+    // rendering; they must not abort entry-point registration at startup.
+    return Promise.resolve().then(() => kind === 'text' ? component.setValue(0, 'Text', value, 'Text') :
+      kind === 'visible' ? component.setProperty('Visible', value ? 1 : 0, 'UInt') :
+        typeof component.setEnabled === 'function' ? component.setEnabled(value) :
+          component.setProperty('Enabled', value ? 1 : 0, 'UInt'))
+      .then(() => { this.written[kind + ':' + name] = value; })
+      .catch((err) => logger.warn('X3 coding UI ' + name + ': ' + err.message));
   }
   render() {
     if (!this.state || this.shutdownPromise) return;
