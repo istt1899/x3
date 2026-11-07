@@ -18,7 +18,7 @@ import zlib
 
 MEDIA = Path(__file__).resolve().parents[1]
 CORE = MEDIA / "core"
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 SERVICES = {
     "vk": {"id": "vk", "appId": "marku_vk_video", "title": "VK Видео", "accent": "#0077FF",
            "loggingId": "MKV1", "iconGlyph": "VK", "socket": "/run/jap-ridetube-d/vk.sock",
@@ -137,6 +137,9 @@ def main():
         package = CORE / "dist" / f"{service['appId']}@{VERSION}.tgz"
         uuids.append(inspect_package(package, service))
         print(f"Verified SDK-free source package: {package}")
+    builder.build('jap_ridetube', source_only=True)
+    with tarfile.open(CORE / 'dist/jap_ridetube@0.3.14.tgz') as archive:
+        assert not any('oap-sdk' in name for name in archive.getnames())
     assert len(set(uuids)) == len(SERVICES), "The app entry points must be independent"
 
 

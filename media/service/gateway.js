@@ -460,6 +460,12 @@ class DaemonPlayer {
         while (this.retiring.size) {
             await Promise.all(Array.from(this.retiring).map((child) => waitForExit(child).then(() => this.retiring.delete(child))));
         }
+        // The decoder leaves its last frame behind. A later owner must never
+        // show that frame while its own decoder is still starting.
+        try {
+            const st = fs.lstatSync(this.cluster.file);
+            if (st.isFile() && (st.uid === 0 || st.uid === 65534)) fs.unlinkSync(this.cluster.file);
+        } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
     setYouTubeProvider(provider) {
         if (!provider.daemon) return;

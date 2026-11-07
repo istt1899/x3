@@ -15,7 +15,7 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[2]
 MEDIA = ROOT / 'media'
 OUT = MEDIA / 'dist/release'
-VERSION = '0.4.1'
+VERSION = '0.4.2'
 RELEASE_TAG = 'catalog'
 BASE_SHA = '984429e16be494d8e17e53f2606c7aaf38ea5ea049e86046f4aafe8cebf7bb75'
 
@@ -56,6 +56,7 @@ def service(base, ffmpeg, source_bundle):
         if file.is_file() and (file.suffix in ('.pem', '.json', '.txt') or file.name.startswith(('LICENSE', 'NOTICE'))):
             files['runtime/' + file.name] = (file.read_bytes(), 0o644)
     files['runtime/test_ffmpeg.py'] = ((MEDIA / 'runtime/test_ffmpeg.py').read_bytes(), 0o644)
+    files['runtime/test_cluster_socket.js'] = ((MEDIA / 'service/test_cluster_socket.js').read_bytes(), 0o644)
     for fixture in (MEDIA / 'runtime/test-fixtures').iterdir():
         if fixture.is_file() and fixture.name in ('sample.mp4', 'sample.ts'):
             files['runtime/test-fixtures/' + fixture.name] = (fixture.read_bytes(), 0o644)
@@ -128,6 +129,13 @@ def main():
     assert 'marku_x3_coding' in components
     original = json.loads((MEDIA / 'core/catalog.json').read_text(encoding='utf-8'))
     youtube = next(component for component in original['components'] if component['id'] == 'jap_ridetube')
+    youtube = copy.deepcopy(youtube)
+    youtube_file = OUT / 'jap_ridetube@0.3.14.tgz'
+    shutil.copyfile(MEDIA / 'core/dist' / youtube_file.name, youtube_file)
+    youtube['version'] = '0.3.14'
+    youtube['artifact'] = artifact(youtube_file)
+    youtube['requires']['jap-ridetube-d'] = VERSION
+    youtube['requires']['mgu-deploy'] = '0.7.11'
     components.setdefault('jap_ridetube', youtube)
     for app in ['marku_vk_video', 'marku_rutube']:
         spec = json.loads((MEDIA / 'core/apps' / app / 'app.json').read_text(encoding='utf-8'))
@@ -148,7 +156,7 @@ def main():
     requires = json.loads((MEDIA / 'core/native/jap-ridetube-d/component.json').read_text(encoding='utf-8'))['requires']
     components['jap-ridetube-d'] = {'id': 'jap-ridetube-d', 'kind': 'tool', 'title': 'MGU Video service',
                                   'version': VERSION, 'description': 'Тестовый общий проигрыватель: YouTube через прежний прокси, VK Видео и RUTUBE напрямую. Раздельные аккаунты.',
-                                  'requires': dict(requires, **{'mgu-deploy': '0.7.11'}),
+                                  'requires': dict(requires, **{'mgu-deploy': '0.7.11', 'cluster-render': '0.4.0'}),
                                   'artifact': artifact(tool), 'uninstallable': True, 'mguHmi': ['ID7']}
     runtime = json.loads((MEDIA / 'core/tools/runtime-providers.json').read_text(encoding='utf-8'))
     for provider in runtime:

@@ -34,10 +34,10 @@ for original in coding['components']:
     assert components[original['id']] == original, 'existing coding component changed'
 youtube = json.loads((MEDIA / 'core/catalog.json').read_text(encoding='utf-8'))
 original_app = next(c for c in youtube['components'] if c['id'] == 'jap_ridetube')
-assert components['jap_ridetube'] == original_app, 'stable YouTube app changed'
-assert components['jap_ridetube']['version'] == '0.3.13'
+assert components['jap_ridetube']['version'] == '0.3.14'
+assert components['jap_ridetube']['requires']['jap-ridetube-d'] == '0.4.2'
 
-for app in ('marku_vk_video', 'marku_rutube', 'jap-ridetube-d'):
+for app in ('marku_vk_video', 'marku_rutube', 'jap_ridetube', 'jap-ridetube-d'):
     spec = components[app]
     artifact = spec['artifact']
     package = OUT / artifact['name']
@@ -51,7 +51,7 @@ for app in ('marku_vk_video', 'marku_rutube', 'jap-ridetube-d'):
 
 with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as archive:
     manifest = json.load(archive.extractfile('component.json'))
-    assert manifest['id'] == 'jap-ridetube-d' and manifest['version'] == '0.4.1'
+    assert manifest['id'] == 'jap-ridetube-d' and manifest['version'] == '0.4.2'
     assert manifest['internet'] is True and manifest['uids'] == 'state/internet-uids'
     assert manifest['units'] == [{'name': 'jap-ridetube-d.service'}]
     assert manifest['check'] == ['service/check.sh']
@@ -60,7 +60,7 @@ with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as arc
     expected = {'component.json', 'units/jap-ridetube-d.service'}
     for item in manifest['files']:
         assert 'from' not in item
-        assert 'test_' not in item['path'] or item['path'] == 'runtime/test_ffmpeg.py'
+        assert 'test_' not in item['path'] or item['path'] in ('runtime/test_ffmpeg.py', 'runtime/test_cluster_socket.js')
         name = 'files/' + item['path']
         expected.add(name)
         member = archive.getmember(name)
@@ -70,6 +70,8 @@ with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as arc
         current = MEDIA / item['path']
         if item['path'] in ('LICENSE', 'THIRD_PARTY_LICENSES'):
             current = MEDIA / 'core' / item['path']
+        if item['path'] == 'runtime/test_cluster_socket.js':
+            current = MEDIA / 'service/test_cluster_socket.js'
         if current.is_file():
             assert contents == current.read_bytes(), 'stale service build: ' + item['path']
         else:
@@ -96,10 +98,10 @@ with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as arc
 uuids = []
 for app, provider in [('marku_vk_video', 'vk'), ('marku_rutube', 'rutube')]:
     spec = components[app]
-    assert spec['requires']['jap-ridetube-d'] == '0.4.1'
+    assert spec['requires']['jap-ridetube-d'] == '0.4.2'
     with tarfile.open(OUT / spec['artifact']['name']) as archive:
         app_json = json.load(archive.extractfile('package/rhmiData/application.json'))['application']
-        assert app_json['name'] == app and app_json['version'] == '0.1.1'
+        assert app_json['name'] == app and app_json['version'] == '0.1.2'
         uuids.append(app_json['uuid'])
         settings = archive.extractfile('package/javascript/service-config.js').read().decode()
         assert '/run/jap-ridetube-d/' + provider + '.sock' in settings
