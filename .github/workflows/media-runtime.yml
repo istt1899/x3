@@ -156,14 +156,21 @@ jobs:
       - name: Run the shipped install check in an isolated Linux network namespace
         shell: bash
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           package="$RUNNER_TEMP/mgu-media-runtime/unpacked/files"
           evidence="$RUNNER_TEMP/mgu-media-runtime/evidence"
+          node="$(command -v node)"
+          test -x "$node"
+          # The hosted runner puts Node on PATH, not necessarily in /usr/bin.
+          # Supply the MGU alias only on this disposable runner, without an install.
+          if [ ! -e /usr/bin/node ] && [ ! -L /usr/bin/node ]; then
+            sudo ln -s "$node" /usr/bin/node
+          fi
           # Namespace-local mounts provide the MGU absolute Python path. They do
           # not install a service, run the daemon, or change the runner's mounts.
           test -x /usr/bin/node
           sudo unshare --mount --net --propagation private /bin/bash -euo pipefail -s -- \
-            "$package" "$(command -v python3)" "$(command -v node)" "$evidence" <<'SH'
+            "$package" "$(command -v python3)" "$node" "$evidence" <<'SH'
           package=$1
           python=$2
           node=$3
