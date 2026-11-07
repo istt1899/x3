@@ -7,6 +7,9 @@ const EventEmitter = require('events');
 const appRoot = path.join(__dirname, '..', 'apps', 'marku_x3_coding');
 const manifest = JSON.parse(fs.readFileSync(path.join(appRoot, 'mgu-app.json'), 'utf8'));
 const description = JSON.parse(fs.readFileSync(path.join(appRoot, manifest.tree, 'rhmiData', 'application.json'), 'utf8'));
+const config = JSON.parse(fs.readFileSync(path.join(appRoot, manifest.tree, 'config', 'base.json'), 'utf8'));
+// Reproduce SDK donors that disable conditional RHMI/entry-point loading.
+const sdkConfig = Object.assign({ rhmiLoadingEnabled: false, entryPointLoadingEnabled: false }, config);
 const calls = [], warnings = [];
 let app;
 class OnlineApp extends EventEmitter {
@@ -25,10 +28,12 @@ class OnlineApp extends EventEmitter {
       getByName: name => name === 'ST_OnlineApps_MarkuX3Coding' ? state : component(),
       mapEntryState: () => { calls.push('map'); return Promise.resolve(); }
     });
+    if (!sdkConfig.rhmiLoadingEnabled) this.rhmiApplication = null;
   }
   start() { app = this; return Promise.resolve(); }
   initialized() { calls.push('initialized'); return Promise.resolve(); }
   getEntryPoints() {
+    if (!sdkConfig.entryPointLoadingEnabled) return [];
     return [{ getDescription: () => description.application.entryPoints[0],
       init: () => { calls.push('entry-init'); return Promise.resolve(); },
       entryPoint: { setText: () => Promise.resolve(), setIcon: () => Promise.resolve() },
@@ -50,6 +55,9 @@ app.appInitialized().then(() => new Promise(resolve => setImmediate(resolve))).t
   assert(calls.includes('Enabled'), 'components without setEnabled must use the property API');
   assert(warnings.some(message => message.includes('render failure fixture')));
   assert.strictEqual(description.application.entryPoints.length, 1);
+  assert.strictEqual(description.application.entryPoints[0].insertionStateId, 20974,
+    'use the same installed-app menu anchor as working VK/RUTUBE');
+  assert.strictEqual(description.application.entryPoints[0].private, false);
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(appRoot, manifest.tree,
     'rhmiData', 'variantGroups', 'Common', 'texts', 'ru_RU.json'), 'utf8'))
     .SID_MARKU_X3_CODING_TITLE, 'Bimmer Code');

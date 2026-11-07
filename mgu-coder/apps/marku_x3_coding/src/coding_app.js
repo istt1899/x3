@@ -40,7 +40,8 @@ class X3CodingApp extends OnlineApp {
     return reasons.indexOf((data && data.reason) || this.startReason) >= 0;
   }
   appInitialized() {
-    if (!this.rhmiApplication) return this.initialized();
+    if (!this.rhmiApplication) return Promise.reject(new Error(
+      'RHMI not loaded: check config/base.json rhmiLoadingEnabled and entryPointLoadingEnabled'));
     const foreground = this.startedForeground();
     return this.setupRhmi().then(() => this.registerEntryPoint()).then(() => {
       if (foreground) return this.registerActive();

@@ -72,7 +72,7 @@ function makeRhmi() {
     schemaVersion: '1.3.0', application: {
       uuid: '38a8cc17-b988-4f3e-93f6-a0821e5d92f6', type: 'OnlineApp',
       name: 'marku_x3_coding', vendor: 'Marku local project', version: VERSION,
-      defaultLanguage: 'ru_RU',
+      defaultLanguage: 'en_GB',
       uiDescriptions: [{ applicationFilePath: './uiDescriptions/ID7/application.xml',
         uiDescriptionFilePath: './uiDescriptions/ID7/uiDescription.json', hmi: ['ID7'] }],
       stringBundleUuid: 'e071cb80-8914-4c76-a33d-820f9b0eea44',
@@ -80,10 +80,10 @@ function makeRhmi() {
       variantGroups: [{ stringsPath: './variantGroups/Common/texts',
         resourcesPath: './variantGroups/Common/images', hmi: ['ID7'], brands: ['BMW'] }],
       entryPoints: [{ name: 'marku_x3_coding', uuid: '19354110-9606-41df-862e-bbdc5f1d9aa7',
-        textId: SID, icon: 'x3_coding.png', insertionStateId: 20976,
+        textId: SID, icon: 'x3_coding.png', insertionStateId: 20974,
         insertionFocusId: 2, insertionMode: 'INSERT_BELOW', insertionOrder: 0,
         insertionPriority: 0, previewType: 'NONE', bookmarkable: true,
-        private: null, appearance: 'DEFAULT', isGroupHeader: false, insertionGroup: 0 }]
+        private: false, appearance: 'DEFAULT', isGroupHeader: false, insertionGroup: 0 }]
     }
   };
   write(path.join(RHMI, 'application.json'), application);
@@ -92,6 +92,12 @@ function makeRhmi() {
 }
 
 function makePackage() {
+  // Match the SDK configuration used by the working VK/RUTUBE App Kit
+  // packages. Some donor SDKs default both loaders to false.
+  write(path.join(TREE, 'config', 'base.json'), {
+    rhmiLoadingEnabled: true, entryPointLoadingEnabled: true,
+    settings: { marku_x3_coding: {} }
+  });
   write(path.join(APP, 'mgu-app.json'), {
     schema: 1, id: 'marku_x3_coding', version: VERSION, tree: 'marku_x3_coding@' + VERSION,
     mguHmi: ['ID7'], modules: ['src/coding_app.js', 'src/catalog.js', 'src/view_model.js',

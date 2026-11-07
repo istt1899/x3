@@ -1,5 +1,13 @@
 # Исправления по аудиту 0.1.0 → 0.1.1
 
+## 0.1.4: сравнение с работающими VK/RUTUBE
+
+Сравнены `media/core/kit/tools/build.py`, runtime App Kit и сформированные параметры Bimmer Code. Найдено существенное отличие: `config/base.json` был пустым. App Kit явно включает `rhmiLoadingEnabled` и `entryPointLoadingEnabled`, поскольку некоторые SDK donor отключают эти загрузчики по умолчанию. Описание той же проблемы есть в upstream idrive7-apps issue #39 и комментариях build.py: https://github.com/cauliflowermossgrape/idrive7-apps/blob/main/kit/tools/build.py.
+
+Генератор теперь всегда пишет оба флага true. Параметры entry point приведены к работающему kit: insertionStateId=20974, private=false, defaultLanguage=en_GB. Идентификаторы приложения и UUID сохранены для обновления существующей установки.
+
+startup.test моделирует SDK с обоими выключенными loader defaults; тест реальной линковки проверяет эти флаги в установленном config/base.json выходного архива. Отсутствие rhmiApplication больше не считается успешной инициализацией без плитки. Эти проверки подтверждают исправление конфигурации, но окончательное появление плитки проверяет владелец на MGU.
+
 ## 0.1.3: имя Bimmer Code и изоляция ошибок UI
 
 Имя изменено в каталоге Store, RHMI, строковых ресурсах и package metadata; ID приложения остаётся `marku_x3_coding`. На фото подтверждена установка 0.1.2, но плитки нет даже после перезапуска. Без журнала запуска причина на MGU неизвестна.

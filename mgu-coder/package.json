@@ -1,6 +1,6 @@
 {
   "name": "bmw-x3-mgu-coding-research",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "license": "GPL-3.0-or-later",
   "description": "X3 G01 MGU coding catalogue and read-only ECU discovery",
