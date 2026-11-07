@@ -13,12 +13,12 @@ import json
 from pathlib import Path
 import shutil
 import struct
+import subprocess
 import tarfile
-import zlib
 
 MEDIA = Path(__file__).resolve().parents[1]
 CORE = MEDIA / "core"
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 SERVICES = {
     "vk": {"id": "vk", "appId": "marku_vk_video", "title": "VK Видео", "accent": "#0077FF",
            "loggingId": "MKV1", "iconGlyph": "VK", "socket": "/run/jap-ridetube-d/vk.sock",
@@ -31,35 +31,11 @@ SERVICES = {
 
 
 def icon(service, target):
-    """Dependency-free 256px source icon, using a small original monogram bitmap."""
-    glyphs = {"V": ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
-              "K": ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
-              "R": ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
-              "U": ["10001", "10001", "10001", "10001", "10001", "10001", "01110"]}
-    color = tuple(bytes.fromhex(service["accent"][1:]))
-    background = color if service["id"] == "vk" else (20, 35, 51)
-    pixels = bytearray(bytes(background + (255,)) * 256 * 256)
-
-    def rect(x, y, width, height, rgb):
-        for row in range(max(0, y), min(256, y + height)):
-            start = (row * 256 + max(0, x)) * 4
-            end = (row * 256 + min(256, x + width)) * 4
-            pixels[start:end] = bytes(rgb + (255,)) * ((end - start) // 4)
-
-    for column, char in enumerate(service["iconGlyph"]):
-        for y, row in enumerate(glyphs[char]):
-            for x, value in enumerate(row):
-                if value == "1":
-                    rect(35 + column * 102 + x * 16, 63 + y * 18, 15, 17, (255, 255, 255))
-    if service["id"] == "rutube":
-        rect(34, 207, 188, 9, color)
-
-    def chunk(kind, payload):
-        return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
-
-    raw = b"".join(b"\0" + pixels[y * 1024:(y + 1) * 1024] for y in range(256))
-    target.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 256, 256, 8, 6, 0, 0, 0))
-                       + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+    """Use the kit's native 140px transparent, anti-aliased HMI icon canvas."""
+    subprocess.run(["node", str(MEDIA / "tools/make_video_icon.js"), service["id"], str(target)], check=True)
+    data = target.read_bytes()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    assert struct.unpack(">IIBB", data[16:26]) == (140, 140, 8, 6), "HMI icons must be 140px RGBA"
 
 
 def app_spec(service):
@@ -116,6 +92,9 @@ def inspect_package(package, service):
         assert "package/javascript/kit/fonts/cyrillic.json" in names
         app = json.load(archive.extractfile("package/rhmiData/application.json"))["application"]
         assert app["name"] == service["appId"] and app["version"] == VERSION
+        expected_icon = (CORE / "apps" / service["appId"] / "icon.png").read_bytes()
+        packaged_icon = archive.extractfile("package/rhmiData/variantGroups/Common/images/" + service["appId"] + "_icon.png").read()
+        assert packaged_icon == expected_icon, "The HMI resource must use the standard-sized source icon"
         return app["uuid"]
 
 

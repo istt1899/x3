@@ -2,7 +2,7 @@
   "id": "marku_vk_video",
   "title": "VK Видео",
   "description": "VK Видео: тестовый выпуск для MGU, поиск и видео напрямую, вход с телефона.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "license": "GPL-3.0-or-later",
   "vendor": "custom",
   "loggingId": "MKV1",

@@ -4,17 +4,12 @@
   "repo": "istt1899/x3",
   "channel": "catalog",
   "service_version": "0.4.2",
-  "apps_version": "0.1.2",
+  "apps_version": "0.1.3",
   "preserved": {
     "coding": "0.1.2",
     "youtube": "0.3.14"
   },
   "artifacts": [
-    {
-      "name": "catalog.json",
-      "size": 5463,
-      "sha256": "626be7c2f2db24ece7c1f52a0aeb1c2cea4fe28daa97ee5390b2c94968d029af"
-    },
     {
       "name": "jap-ridetube-d@0.4.2.tgz",
       "size": 10653377,
@@ -26,24 +21,29 @@
       "sha256": "81521be11210be0f06e482745c60126b705ba894e8f38f75f60b34103508f6bf"
     },
     {
-      "name": "marku_rutube@0.1.2.png",
-      "size": 1183,
-      "sha256": "a04b4b8058da853aa4bffa7bd9af5aa740f134ec57508dedd49dca79d78e2612"
+      "name": "catalog.json",
+      "size": 5463,
+      "sha256": "1c7d05c3152530766312700ddd0aedcef911d4eb275eac677f57fc7b54cae7d1"
     },
     {
-      "name": "marku_rutube@0.1.2.tgz",
-      "size": 1271185,
-      "sha256": "5cf8d772fbb83136198a44dc5c18627558b49a2932fec1d1186a31da33a5aa39"
+      "name": "marku_rutube@0.1.3.png",
+      "size": 1662,
+      "sha256": "7fd5f5e022633b7f66cef1a57fc40b248b3346a3f5bc29fefb75c41cb41b85ac"
     },
     {
-      "name": "marku_vk_video@0.1.2.png",
-      "size": 1124,
-      "sha256": "b5189a4e1dd44b6d43360afd0b752cd9de1517bb49ec49b4fbc73919b61873c6"
+      "name": "marku_rutube@0.1.3.tgz",
+      "size": 1272674,
+      "sha256": "16c02bf437b38cd940adfd645943e153bfa2aea0e644f591d78e5e2ed1b3b23b"
     },
     {
-      "name": "marku_vk_video@0.1.2.tgz",
-      "size": 1271232,
-      "sha256": "63097c142663563e75aa4a45f4e5162873d1b3d5fdcca03c93880ae110d80d11"
+      "name": "marku_vk_video@0.1.3.png",
+      "size": 1920,
+      "sha256": "c1fbca216dc8bd1076678272fa417c927de444121c2fe25feced24b960f6c612"
+    },
+    {
+      "name": "marku_vk_video@0.1.3.tgz",
+      "size": 1273063,
+      "sha256": "e5a4a4ecaf6ec3838c12a2fca90d8bd619db86b421b450ec13aa3ca339af8f53"
     }
   ],
   "checks": {
@@ -86,7 +86,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "626be7c2f2db24ece7c1f52a0aeb1c2cea4fe28daa97ee5390b2c94968d029af"
+      "sha256": "1c7d05c3152530766312700ddd0aedcef911d4eb275eac677f57fc7b54cae7d1"
     },
     "istt1899/ridetube": {
       "sha256": "77d77c2f240f39822828801a9690e361be833c60db6ebf33ef95736989a0f919"
@@ -100,5 +100,13 @@
     "real_socket_test": true,
     "target": "map",
     "mgu_patch_applied": false
+  },
+  "icons_hotfix": {
+    "version": "0.1.3",
+    "size": "140x140",
+    "transparent": true,
+    "runtime_js_unchanged": true,
+    "installer_evidence": "validation/app-install-0.1.3.json",
+    "hardware_icon_verified": false
   }
 }
