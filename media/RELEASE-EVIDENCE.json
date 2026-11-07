@@ -3,47 +3,47 @@
   "date": "2026-11-07",
   "repo": "istt1899/x3",
   "channel": "catalog",
-  "service_version": "0.4.1",
-  "apps_version": "0.1.1",
+  "service_version": "0.4.2",
+  "apps_version": "0.1.2",
   "preserved": {
     "coding": "0.1.2",
-    "youtube": "0.3.13"
+    "youtube": "0.3.14"
   },
   "artifacts": [
     {
       "name": "catalog.json",
-      "size": 5403,
-      "sha256": "b36173f81f5fbca844d5fb92e7b8d3a6817f427f3944f6335e5f8640af802e32"
+      "size": 5463,
+      "sha256": "626be7c2f2db24ece7c1f52a0aeb1c2cea4fe28daa97ee5390b2c94968d029af"
     },
     {
-      "name": "ffmpeg-9.0.2-mgu-media-sources.tar.xz",
-      "size": 12125968,
-      "sha256": "6f164f34bdbec44d842e399815319969a0972fc534ec652cee4018ff61d23798"
+      "name": "jap-ridetube-d@0.4.2.tgz",
+      "size": 10653377,
+      "sha256": "d8da3ba5ff55d8574b0622a8884b471a733af5a1056ae4278a31da13d0759677"
     },
     {
-      "name": "jap-ridetube-d@0.4.1.tgz",
-      "size": 10649904,
-      "sha256": "dec49368a6bd1db4329ad2ce82c0de22e95ed73f80a73b0a49969cb50cb395a9"
+      "name": "jap_ridetube@0.3.14.tgz",
+      "size": 1286917,
+      "sha256": "81521be11210be0f06e482745c60126b705ba894e8f38f75f60b34103508f6bf"
     },
     {
-      "name": "marku_rutube@0.1.1.png",
+      "name": "marku_rutube@0.1.2.png",
       "size": 1183,
       "sha256": "a04b4b8058da853aa4bffa7bd9af5aa740f134ec57508dedd49dca79d78e2612"
     },
     {
-      "name": "marku_rutube@0.1.1.tgz",
-      "size": 1270509,
-      "sha256": "f72b281f24d60885b075bd40628ef82e7c9164a606af3255c63c042ca775e8ee"
+      "name": "marku_rutube@0.1.2.tgz",
+      "size": 1271185,
+      "sha256": "5cf8d772fbb83136198a44dc5c18627558b49a2932fec1d1186a31da33a5aa39"
     },
     {
-      "name": "marku_vk_video@0.1.1.png",
+      "name": "marku_vk_video@0.1.2.png",
       "size": 1124,
       "sha256": "b5189a4e1dd44b6d43360afd0b752cd9de1517bb49ec49b4fbc73919b61873c6"
     },
     {
-      "name": "marku_vk_video@0.1.1.tgz",
-      "size": 1270585,
-      "sha256": "772b4134e871685eeab9084661c8116398487fc4cc38f430bbe92ac7d46ed96d"
+      "name": "marku_vk_video@0.1.2.tgz",
+      "size": 1271232,
+      "sha256": "63097c142663563e75aa4a45f4e5162873d1b3d5fdcca03c93880ae110d80d11"
     }
   ],
   "checks": {
@@ -76,8 +76,8 @@
     "ffmpeg_sha256": "f95ade609cc31a6808c0df683dc77a55937ad58ccb7822ac88d5627de7dca1ea",
     "linux_elf_executed": true,
     "first_linux_evidence": "validation/linux-runtime-0.4.0.json",
-    "exact_package_evidence": "validation/linux-runtime-0.4.1.json",
-    "workflow_run": "https://github.com/istt1899/x3/actions/runs/42357646426"
+    "exact_package_evidence": "validation/linux-runtime-0.4.2.json",
+    "workflow_run": "https://github.com/istt1899/x3/actions/runs/42360556482"
   },
   "not_verified": {
     "mgu_playback": true,
@@ -86,12 +86,19 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "b36173f81f5fbca844d5fb92e7b8d3a6817f427f3944f6335e5f8640af802e32",
-      "source": "catalog.json"
+      "sha256": "626be7c2f2db24ece7c1f52a0aeb1c2cea4fe28daa97ee5390b2c94968d029af"
     },
     "istt1899/ridetube": {
-      "sha256": "882c5a59cdf7b80b4f0b26422b6a5a5e9484a80c5d6268623978ddb0e9c39160",
-      "source": "https://github.com/istt1899/ridetube/blob/main/catalog.json"
+      "sha256": "77d77c2f240f39822828801a9690e361be833c60db6ebf33ef95736989a0f919"
     }
+  },
+  "cluster": {
+    "owner_map_confirmed": true,
+    "video_hardware_tested": false,
+    "fps_limit": 5,
+    "frame_size": "544x240",
+    "real_socket_test": true,
+    "target": "map",
+    "mgu_patch_applied": false
   }
 }
