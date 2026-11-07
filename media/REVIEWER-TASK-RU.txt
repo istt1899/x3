@@ -1,0 +1,44 @@
+ЗАДАНИЕ НЕЗАВИСИМОМУ АГЕНТУ: VK ВИДЕО И RUTUBE ДЛЯ MGU
+
+Репозиторий: https://github.com/istt1899/x3
+Ветка: feature/mgu-vk-rutube
+Тестовый релиз: https://github.com/istt1899/x3/releases/tag/media-preview-0.4.0
+
+Склонируй репозиторий и переключись на указанную ветку. Прочитай media/SPEC-RU.md,
+media/REVIEW-RU.md, media/INSTALL-RU.md и media/RELEASE-EVIDENCE.json.
+
+Не считай эту публикацию стабильным обновлением автомобиля. Обычный catalog не
+переключён. Нужны MGU-приёмка и внешняя настройка VK ID с разрешениями Video API.
+Личный контент VK пока не реализован. RUTUBE проверен только до настоящего code +
+pending, без подтверждения аккаунтом владельца. Linux FFmpeg статически проверен,
+но на Linux/MGU не исполнялся.
+
+Проверь следующие зоны независимо:
+1. Реальные пакеты из prerelease: размер/SHA-256 и каждый файл manifest против
+   текущего исходника. Запусти media/tools/test_release.py после локальной сборки.
+2. Одна общая служба, один аудиоисточник/decoder. Быстрые quality/Stop/Play другого
+   провайдера и failPlayback не оставляют живой старый decoder. Недоступность
+   fresh resolve сохраняет старое воспроизведение и кэш.
+3. YouTube сохраняет исходный аккаунт и прокси; VK/RUTUBE работают DIRECT даже с
+   HTTP_PROXY. Нельзя пересылать секреты, signed media URL или приватные auth JSON
+   в сокет UI, argv, журнал, GitHub или отчёт.
+4. Временный сбой VK refresh/profile сохраняет refresh token, включая ротированный;
+   invalid_grant очищает аккаунт. Публичный signed_in требует настоящей проверки.
+   Auth из content-error и поиск/resolve не теряются и не воскрешают старый вход.
+5. RUTUBE: актуальное first-party device flow, interval/expiry, профиль после token,
+   refresh и auth_required. Проверь реальные личные функции только после явного
+   подтверждения владельца. Не выдавай mock за рабочий личный аккаунт.
+6. VK: собственные APP_ID/redirect/HTTPS relay, PKCE/state, одноразовый callback,
+   тайм-ауты, разрешённые user token права. Нужны реальные video.get И video.search.
+   Наличие VK ID профиля не гарантирует Video API.
+7. MP4/HLS → FFmpeg packet copy → AAC/MGYI/H264: качество, UA, CA, приватные HLS
+   fragments, остановка детей, длинный ролик, перемотка и пауза.
+8. Node 8 — настоящий процесс. Приложения SDK-free, отдельные UUID и sockets,
+   кириллица, неизвестная скорость запрещает картинку. Никаких кодировок машины.
+9. Для stable общая служба обновляется и в исходном istt1899/ridetube, иначе origin
+   установленного компонента заблокирует обновление из x3. Coding и YouTube должны
+   сохраниться при объединении каталогов.
+
+Верни конкретные дефекты с файлами/строками, воспроизведением и риском. Отдельно
+укажи реальные network/target проверки и синтетические fixtures. Не меняй stable,
+не подключайся к машине и не публикуй account/proxy/config JSON без явной задачи.

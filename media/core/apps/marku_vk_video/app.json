@@ -1,0 +1,174 @@
+{
+  "id": "marku_vk_video",
+  "title": "VK Видео",
+  "description": "VK Видео: отдельное приложение для MGU, поиск и видео напрямую, отдельный аккаунт.",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "vendor": "custom",
+  "loggingId": "MKV1",
+  "iconGlyph": "VK",
+  "signals": {
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "statusCarSpeed2": "rs"
+    },
+    "de.bmw.infotainment.vehicle.CDS": {
+      "statusBattery2": "rs"
+    }
+  },
+  "screens": [
+    {
+      "name": "VIEW",
+      "kind": "canvas",
+      "title": "VK Видео",
+      "hmi": false,
+      "bg": "#0f0f0f",
+      "buttons": [
+        [
+          "BTN_PLAY",
+          "Играть"
+        ],
+        [
+          "BTN_RW",
+          "−10 с"
+        ],
+        [
+          "BTN_FF",
+          "+10 с"
+        ],
+        [
+          "BTN_LIST",
+          "Плеер"
+        ],
+        [
+          "BTN_FIND",
+          "Поиск"
+        ]
+      ]
+    },
+    {
+      "name": "MAIN",
+      "kind": "menu",
+      "title": "VK Видео: поиск",
+      "settings": true,
+      "items": [
+        [
+          "button",
+          "BTN_SEARCH",
+          "Найти видео"
+        ],
+        [
+          "text",
+          "MAIN_INFO",
+          ""
+        ],
+        [
+          "button",
+          "BTN_NOW",
+          "Сейчас играет"
+        ],
+        [
+          "button",
+          "BTN_RESULTS",
+          "Результаты поиска"
+        ],
+        [
+          "button",
+          "BTN_HOME",
+          "Видео"
+        ],
+        [
+          "button",
+          "BTN_ACCOUNT",
+          "Аккаунт"
+        ],
+        [
+          "button",
+          "BTN_S1",
+          ""
+        ],
+        [
+          "button",
+          "BTN_S2",
+          ""
+        ],
+        [
+          "button",
+          "BTN_S3",
+          ""
+        ],
+        [
+          "button",
+          "BTN_S4",
+          ""
+        ],
+        [
+          "button",
+          "BTN_S5",
+          ""
+        ],
+        [
+          "button",
+          "BTN_S6",
+          ""
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "fill",
+      "label": "Заполнить экран (обрезать края)",
+      "type": "bool",
+      "default": false,
+      "reset": 2
+    },
+    {
+      "key": "quality",
+      "label": "Качество видео",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Авто"
+        ],
+        [
+          "720",
+          "720p"
+        ],
+        [
+          "480",
+          "480p"
+        ],
+        [
+          "360",
+          "360p"
+        ]
+      ]
+    },
+    {
+      "key": "battery",
+      "label": "Пауза при низком заряде 12 В",
+      "type": "choice",
+      "default": "65",
+      "options": [
+        [
+          "60",
+          "60 %"
+        ],
+        [
+          "65",
+          "65 %"
+        ],
+        [
+          "70",
+          "70 %"
+        ],
+        [
+          "0",
+          "Never"
+        ]
+      ]
+    }
+  ]
+}

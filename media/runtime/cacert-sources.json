@@ -1,0 +1,9 @@
+{
+  "version": "2026.06.17",
+  "producer": "certifi/python-certifi",
+  "url": "https://raw.githubusercontent.com/certifi/python-certifi/2026.06.17/certifi/cacert.pem",
+  "sha256": "bbc7e9c01d7551bb8a159b5dedd989b8ee3ce105aff522b68eb1b01bf854cab0",
+  "license": "MPL-2.0",
+  "license_file": "LICENSE.certifi",
+  "tls_verification_disabled": false
+}

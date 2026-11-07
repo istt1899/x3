@@ -1,0 +1,18 @@
+[Unit]
+Description=MGU video: YouTube, VK Video, RUTUBE (one playback owner)
+RequiresMountsFor=/var/opt
+After=local-fs.target
+
+[Service]
+User=root
+ExecStartPre=-/bin/sh -c 'mkdir -p /var/opt/jap-ridetube-d/cache /var/opt/jap-ridetube-d/log /var/opt/jap-ridetube-d/state && chmod 0755 /var/opt/jap-ridetube-d && chmod 0711 /var/opt/jap-ridetube-d/cache && chmod 0700 /var/opt/jap-ridetube-d/state'
+ExecStart=/usr/bin/node --max-http-header-size=65536 /var/opt/jap-ridetube-d/current/service/main.js
+RuntimeDirectory=jap-ridetube-d
+RuntimeDirectoryMode=0755
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+LimitCORE=1
+
+[Install]
+WantedBy=multi-user.target

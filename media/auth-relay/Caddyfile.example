@@ -1,0 +1,14 @@
+# Dedicated Caddy instance. If sharing Caddy with other sites, merge deliberately:
+# callback query strings must never go to access, runtime, CDN or WAF logs.
+{
+    log default {
+        output discard
+    }
+}
+
+vk-login.example.com {
+    log {
+        output discard
+    }
+    reverse_proxy 127.0.0.1:8787
+}

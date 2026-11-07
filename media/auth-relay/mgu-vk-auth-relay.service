@@ -1,0 +1,27 @@
+[Unit]
+Description=MGU VK ID PKCE callback relay
+After=network.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+WorkingDirectory=/opt/mgu-vk-auth-relay
+EnvironmentFile=/etc/mgu-vk-auth-relay.env
+ExecStart=/usr/bin/node /opt/mgu-vk-auth-relay/server.js
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_UNIX
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target
