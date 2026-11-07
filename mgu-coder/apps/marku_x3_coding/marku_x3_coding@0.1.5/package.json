@@ -1,6 +1,6 @@
 {
   "name": "marku_x3_coding",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "X3 G01 coding research catalogue and read-only ECU discovery for BMW ID7",
   "private": false,
   "main": "javascript/runner.js",

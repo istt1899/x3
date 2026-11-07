@@ -8,21 +8,11 @@
         "10": {
           "type": "title",
           "name": "codingTitle",
-          "properties": {
-            "Visible": {
-              "value": 1,
-              "type": "UInt"
-            },
-            "Focusable": {
-              "value": 0,
-              "type": "UInt"
-            }
-          },
           "rows": [
             {
               "Text": {
-                "value": "Bimmer Code",
-                "type": "Text"
+                "value": "SID_MARKU_X3_CODINGTITLE",
+                "type": "StringId"
               }
             }
           ]
@@ -30,6 +20,14 @@
         "20": {
           "type": "label",
           "name": "codingStatus",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGSTATUS",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 1,
@@ -39,19 +37,19 @@
               "value": 0,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Диагностика ещё не запущена",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "21": {
           "type": "label",
           "name": "codingGate",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGGATE",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 1,
@@ -61,19 +59,19 @@
               "value": 0,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Чтение блоков; запись пока недоступна",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "22": {
           "type": "label",
           "name": "codingPage",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGPAGE",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 1,
@@ -83,19 +81,19 @@
               "value": 0,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Функции 1–5 из 10",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "23": {
           "type": "label",
           "name": "codingFooter",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGFOOTER",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 1,
@@ -105,19 +103,19 @@
               "value": 0,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Только на стоянке; скорость приложением не проверяется",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "30": {
           "type": "button",
           "name": "codingScan",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGSCAN",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 1,
@@ -131,19 +129,19 @@
               "value": 1,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Проверить блоки на стоянке",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "31": {
           "type": "button",
           "name": "codingSlot1",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGSLOT1",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 1,
@@ -153,19 +151,19 @@
               "value": 3,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Старт-стоп  ·  DME",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "32": {
           "type": "button",
           "name": "codingSlot2",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGSLOT2",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 1,
@@ -175,19 +173,19 @@
               "value": 3,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Режим при запуске  ·  BDC_BODY3",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "33": {
           "type": "button",
           "name": "codingSlot3",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGSLOT3",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 1,
@@ -197,19 +195,19 @@
               "value": 3,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Сигнал ремня  ·  ACSM5",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "34": {
           "type": "button",
           "name": "codingSlot4",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGSLOT4",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 1,
@@ -219,19 +217,19 @@
               "value": 3,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Цвета подсветки  ·  BDC_BODY3",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "35": {
           "type": "button",
           "name": "codingSlot5",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGSLOT5",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 1,
@@ -241,19 +239,19 @@
               "value": 3,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Складывание зеркал  ·  BDC_BODY3",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "36": {
           "type": "button",
           "name": "codingPrev",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGPREV",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 0,
@@ -263,19 +261,19 @@
               "value": 3,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Предыдущие функции",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "37": {
           "type": "button",
           "name": "codingNext",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGNEXT",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 1,
@@ -285,19 +283,19 @@
               "value": 3,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Следующие функции",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "40": {
           "type": "label",
           "name": "detailEcu",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_DETAILECU",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 0,
@@ -307,19 +305,19 @@
               "value": 0,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Блок",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "41": {
           "type": "label",
           "name": "detailSummary",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_DETAILSUMMARY",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 0,
@@ -329,19 +327,19 @@
               "value": 0,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Описание",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "42": {
           "type": "label",
           "name": "detailRequirement",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_DETAILREQUIREMENT",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 0,
@@ -351,19 +349,19 @@
               "value": 0,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Условие",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "43": {
           "type": "label",
           "name": "detailCaution",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_DETAILCAUTION",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 0,
@@ -373,19 +371,19 @@
               "value": 0,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Проверить",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "44": {
           "type": "label",
           "name": "detailStatus",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_DETAILSTATUS",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 0,
@@ -395,19 +393,19 @@
               "value": 0,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "Доступность не проверена",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         },
         "45": {
           "type": "button",
           "name": "codingBack",
+          "rows": [
+            {
+              "Text": {
+                "value": "SID_MARKU_X3_CODINGBACK",
+                "type": "StringId"
+              }
+            }
+          ],
           "properties": {
             "Visible": {
               "value": 0,
@@ -417,15 +415,7 @@
               "value": 3,
               "type": "UInt"
             }
-          },
-          "rows": [
-            {
-              "Text": {
-                "value": "К списку функций",
-                "type": "Text"
-              }
-            }
-          ]
+          }
         }
       }
     }

@@ -27,6 +27,9 @@ class X3CodingApp extends OnlineApp {
     this.page = 0;
     this.selected = null;
     this.scanResult = null;
+    this.ready = false;
+    this.pendingEntry = null;
+    this.opening = null;
     this.probe = new DiagnosticProbe();
     this.on('initialized', () => this.appInitialized().catch((err) => logger.error('X3 coding init: ' + err.message)));
     this.on('shutdown', () => this.handleShutdown());
@@ -43,12 +46,26 @@ class X3CodingApp extends OnlineApp {
     if (!this.rhmiApplication) return Promise.reject(new Error(
       'RHMI not loaded: check config/base.json rhmiLoadingEnabled and entryPointLoadingEnabled'));
     const foreground = this.startedForeground();
-    return this.setupRhmi().then(() => this.registerEntryPoint()).then(() => {
-      if (foreground) return this.registerActive();
+    return this.setupRhmi().then(() => this.step('entry registration', () => this.registerEntryPoint())).then(() => {
+      if (foreground) return this.step('active status', () => this.registerActive());
     }).then(() => this.initialized()).then(() => {
+      this.ready = true;
       if (foreground || this.visible) { this.sawForeground = true; this.setAppVisible(true); }
       const uuid = this.getLastExecutedEntryPointUuid && this.getLastExecutedEntryPointUuid();
-      return uuid ? this.openEntry(uuid) : undefined;
+      const first = this.appDescription.application.entryPoints[0];
+      const target = this.pendingEntry || uuid || (foreground && first && first.uuid);
+      this.pendingEntry = null;
+      return target ? this.openEntry(target) : undefined;
+    });
+  }
+  step(name, action, required) {
+    let timer;
+    return Promise.race([Promise.resolve().then(action), new Promise((resolve, reject) => {
+      timer = setTimeout(() => { const err = new Error(name + ' timed out'); required ? reject(err) : resolve(); }, 4000);
+    })]).then(value => { clearTimeout(timer); return value; }, err => {
+      clearTimeout(timer);
+      if (required) throw err;
+      logger.warn('Bimmer Code ' + name + ': ' + err.message);
     });
   }
   setupRhmi() {
@@ -84,7 +101,7 @@ class X3CodingApp extends OnlineApp {
       if (visible) this.sawForeground = true;
       this.setAppVisible(visible);
     });
-    return Promise.resolve(this.state.updateResources()).then(() => this.render());
+    return this.step('screen resources', () => this.state.updateResources()).then(() => this.render());
   }
   registerEntryPoint() {
     const descriptions = (this.appDescription && this.appDescription.application.entryPoints) || [];
@@ -99,9 +116,23 @@ class X3CodingApp extends OnlineApp {
   }
   openEntry(uuid) {
     if (this.shutdownPromise || !this.rhmiApplication || !uuid) return Promise.resolve();
-    this.sawForeground = true; this.setAppVisible(true);
-    return Promise.resolve(this.rhmiApplication.openEntryState(uuid))
-      .catch((err) => logger.warn('X3 coding open: ' + err.message));
+    if (!this.ready || !this.state) { this.pendingEntry = uuid; return Promise.resolve(); }
+    if (this.opening) return this.opening;
+    const attempt = (remaining) => {
+      if (this.shutdownPromise) return Promise.resolve();
+      return this.step('open mapping', () => this.rhmiApplication.mapEntryState(uuid, this.state), true)
+        .then(() => this.step('open resources', () => this.state.updateResources()))
+        .then(() => this.step('open state', () => this.rhmiApplication.openEntryState(uuid), true))
+        .then(() => { this.sawForeground = true; this.setAppVisible(true); })
+        .catch(err => {
+          if (remaining > 1 && /INVALID/.test(String(err && err.message || err) + JSON.stringify(err || {}))) {
+            return new Promise(resolve => setTimeout(resolve, 800)).then(() => attempt(remaining - 1));
+          }
+          logger.warn('Bimmer Code open failed: ' + String(err && err.message || err));
+        });
+    };
+    this.opening = attempt(6).then(() => { this.opening = null; });
+    return this.opening;
   }
   setAppVisible(visible) {
     if (this.shutdownPromise) return;

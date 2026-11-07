@@ -12,6 +12,7 @@ const TREE = path.join(APP, 'marku_x3_coding@' + VERSION);
 const RHMI = path.join(TREE, 'rhmiData');
 const SID = 'SID_MARKU_X3_CODING_TITLE';
 const TITLE = 'Bimmer Code';
+const TEXTS = { [SID]: TITLE };
 const IFACE = 'com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu';
 
 function write(file, value) {
@@ -47,11 +48,19 @@ function makeRhmi() {
     '    <layoutGroup id="100" name="Titlebar">'];
   function component(def) {
     const [id, name, type, value, visible] = def;
+    const textId = 'SID_MARKU_X3_' + name.toUpperCase();
+    TEXTS[textId] = value;
     const props = { Visible: { value: visible ? 1 : 0, type: 'UInt' },
       Focusable: { value: type === 'button' ? 3 : 0, type: 'UInt' } };
     if (name === 'codingScan') props.Speedlockable = { value: 1, type: 'UInt' };
-    state.components[String(id)] = { type, name, properties: props,
-      rows: [{ Text: { value, type: 'Text' } }] };
+    state.components[String(id)] = { type, name,
+      rows: [{ Text: { value: textId, type: 'StringId' } }] };
+    if (type === 'title') {
+      // Match the title component shape emitted by the working App Kit.
+      lines.push('      <component id="' + id + '" type="title"/>');
+      return;
+    }
+    state.components[String(id)].properties = props;
     const widget = type === 'title' ? '' :
       ' widget="' + (type === 'button' ? 'LT_Button_1Row' : 'LT_Label_1Row') + '"';
     lines.push('      <component id="' + id + '" type="' + type + '"' + widget + '>');
@@ -88,7 +97,7 @@ function makeRhmi() {
   };
   write(path.join(RHMI, 'application.json'), application);
   ['ru_RU', 'en_GB'].forEach((lang) => write(path.join(RHMI, 'variantGroups', 'Common', 'texts', lang + '.json'),
-    { [SID]: lang === 'ru_RU' ? TITLE : 'Bimmer Code' }));
+    TEXTS));
 }
 
 function makePackage() {
