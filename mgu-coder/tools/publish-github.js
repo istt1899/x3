@@ -92,6 +92,13 @@ async function checkExistingCatalog(api, opts, incomingBytes) {
   const bytes = Buffer.from(await response.arrayBuffer());
   if (bytes.length > 1024 * 1024) throw new Error('Existing shared catalog is too large');
   assertCatalogPreservesExisting(JSON.parse(incomingBytes.toString('utf8')), JSON.parse(bytes.toString('utf8')));
+  const incoming = JSON.parse(incomingBytes.toString('utf8'));
+  for (const component of JSON.parse(bytes.toString('utf8')).components) {
+    if (component.id !== 'marku_x3_coding' && JSON.stringify(component) !==
+      JSON.stringify(incoming.components.find(item => item.id === component.id))) {
+      throw new Error('Other shared catalog component changed; refresh catalog before coding publication: ' + component.id);
+    }
+  }
 }
 
 function loadCatalog(opts) {
@@ -333,8 +340,20 @@ async function ensureCatalogAsset(api, opts, release, bytes) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
-  const { items, catalogBytes } = loadCatalog(opts);
-  if (opts.mode === 'publish') assertCleanSource(opts, items, catalogBytes);
+  const { items, catalogBytes: codingBytes } = loadCatalog(opts);
+  const sharedFile = path.join(path.dirname(ROOT), 'catalog.json');
+  const catalogBytes = fs.existsSync(sharedFile) ? fs.readFileSync(sharedFile) : codingBytes;
+  const shared = JSON.parse(catalogBytes.toString('utf8'));
+  for (const item of items) {
+    if (JSON.stringify(shared.components.find(component => component.id === item.component.id)) !== JSON.stringify(item.component)) {
+      throw new Error('Update the coding component in the committed shared catalog.json before publishing');
+    }
+  }
+  if (opts.mode === 'publish') {
+    assertCleanSource(opts, items, codingBytes);
+    if (fs.existsSync(sharedFile) && !cp.execFileSync('git', ['show', 'HEAD:catalog.json'],
+      { cwd: path.dirname(ROOT), windowsHide: true }).equals(catalogBytes)) throw new Error('Shared catalog differs from commit');
+  }
   const credential = cachedCredential();
   const api = makeApi(credential.token);
   const user = await api('GET', '/user');

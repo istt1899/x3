@@ -52,6 +52,9 @@ try {
   assert.equal(result.version, manifest.version);
   assert.equal(result.moduleCount, manifest.sdk.length + manifest.modules.length);
   const members = link.untar(fs.readFileSync(built));
+  const installedConfig = JSON.parse(members.find(member => member.name === 'config/base.json').data.toString('utf8'));
+  assert.equal(installedConfig.rhmiLoadingEnabled, true, 'linked package must enable screens even with disabled donor defaults');
+  assert.equal(installedConfig.entryPointLoadingEnabled, true, 'linked package must enable launcher entries');
   const bundle = members.find(member => member.name === 'javascript/app.js');
   assert(bundle, 'real linker must write javascript/app.js');
   assert(bundle.data.toString('utf8').includes('"./diagnostics.js":'),

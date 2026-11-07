@@ -11,7 +11,8 @@ const VERSION = require('../package.json').version;
 const TREE = path.join(APP, 'marku_x3_coding@' + VERSION);
 const RHMI = path.join(TREE, 'rhmiData');
 const SID = 'SID_MARKU_X3_CODING_TITLE';
-const TITLE = 'Кодировки X3';
+const TITLE = 'Bimmer Code';
+const TEXTS = { [SID]: TITLE };
 const IFACE = 'com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu';
 
 function write(file, value) {
@@ -47,11 +48,19 @@ function makeRhmi() {
     '    <layoutGroup id="100" name="Titlebar">'];
   function component(def) {
     const [id, name, type, value, visible] = def;
+    const textId = 'SID_MARKU_X3_' + name.toUpperCase();
+    TEXTS[textId] = value;
     const props = { Visible: { value: visible ? 1 : 0, type: 'UInt' },
       Focusable: { value: type === 'button' ? 3 : 0, type: 'UInt' } };
     if (name === 'codingScan') props.Speedlockable = { value: 1, type: 'UInt' };
-    state.components[String(id)] = { type, name, properties: props,
-      rows: [{ Text: { value, type: 'Text' } }] };
+    state.components[String(id)] = { type, name,
+      rows: [{ Text: { value: textId, type: 'StringId' } }] };
+    if (type === 'title') {
+      // Match the title component shape emitted by the working App Kit.
+      lines.push('      <component id="' + id + '" type="title"/>');
+      return;
+    }
+    state.components[String(id)].properties = props;
     const widget = type === 'title' ? '' :
       ' widget="' + (type === 'button' ? 'LT_Button_1Row' : 'LT_Label_1Row') + '"';
     lines.push('      <component id="' + id + '" type="' + type + '"' + widget + '>');
@@ -72,7 +81,7 @@ function makeRhmi() {
     schemaVersion: '1.3.0', application: {
       uuid: '38a8cc17-b988-4f3e-93f6-a0821e5d92f6', type: 'OnlineApp',
       name: 'marku_x3_coding', vendor: 'Marku local project', version: VERSION,
-      defaultLanguage: 'ru_RU',
+      defaultLanguage: 'en_GB',
       uiDescriptions: [{ applicationFilePath: './uiDescriptions/ID7/application.xml',
         uiDescriptionFilePath: './uiDescriptions/ID7/uiDescription.json', hmi: ['ID7'] }],
       stringBundleUuid: 'e071cb80-8914-4c76-a33d-820f9b0eea44',
@@ -80,18 +89,24 @@ function makeRhmi() {
       variantGroups: [{ stringsPath: './variantGroups/Common/texts',
         resourcesPath: './variantGroups/Common/images', hmi: ['ID7'], brands: ['BMW'] }],
       entryPoints: [{ name: 'marku_x3_coding', uuid: '19354110-9606-41df-862e-bbdc5f1d9aa7',
-        textId: SID, icon: 'x3_coding.png', insertionStateId: 20976,
+        textId: SID, icon: 'x3_coding.png', insertionStateId: 20974,
         insertionFocusId: 2, insertionMode: 'INSERT_BELOW', insertionOrder: 0,
         insertionPriority: 0, previewType: 'NONE', bookmarkable: true,
-        private: null, appearance: 'DEFAULT', isGroupHeader: false, insertionGroup: 0 }]
+        private: false, appearance: 'DEFAULT', isGroupHeader: false, insertionGroup: 0 }]
     }
   };
   write(path.join(RHMI, 'application.json'), application);
   ['ru_RU', 'en_GB'].forEach((lang) => write(path.join(RHMI, 'variantGroups', 'Common', 'texts', lang + '.json'),
-    { [SID]: lang === 'ru_RU' ? TITLE : 'Coding X3' }));
+    TEXTS));
 }
 
 function makePackage() {
+  // Match the SDK configuration used by the working VK/RUTUBE App Kit
+  // packages. Some donor SDKs default both loaders to false.
+  write(path.join(TREE, 'config', 'base.json'), {
+    rhmiLoadingEnabled: true, entryPointLoadingEnabled: true,
+    settings: { marku_x3_coding: {} }
+  });
   write(path.join(APP, 'mgu-app.json'), {
     schema: 1, id: 'marku_x3_coding', version: VERSION, tree: 'marku_x3_coding@' + VERSION,
     mguHmi: ['ID7'], modules: ['src/coding_app.js', 'src/catalog.js', 'src/view_model.js',
@@ -123,7 +138,7 @@ function makePackage() {
     methods: ['sendTasuRequest'], broadcasts: ['sendTasuResponse'] };
   write(path.join(TREE, 'manifest.json'), manifest);
   write(path.join(TREE, 'NOTICE'),
-    'Кодировки X3 ' + VERSION + '\nApplication: GPL-3.0-or-later.\n' +
+    'Bimmer Code ' + VERSION + '\nApplication: GPL-3.0-or-later.\n' +
     'RHMI lifecycle adapted from the GPL-3.0-or-later Kaluga Cameras project.\n' +
     'Diagnostic request and transport shape studied from the MIT-licensed cauliflowermossgrape/idrive7-apps project; see LICENSE.MIT.\n' +
     'No BMW SDK, proprietary CAFD/NCD mappings, vehicle identifiers or BimmerCode code/data are included.\n');

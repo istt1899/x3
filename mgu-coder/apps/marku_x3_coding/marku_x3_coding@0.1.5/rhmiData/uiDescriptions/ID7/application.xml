@@ -2,10 +2,7 @@
 <application>
   <container id="1" type="state" widget="LT_State_Wide">
     <layoutGroup id="100" name="Titlebar">
-      <component id="10" type="title">
-        <property id="2" value="1"/>
-        <property id="3" value="0"/>
-      </component>
+      <component id="10" type="title"/>
     </layoutGroup>
     <layoutGroup id="200" name="List">
       <property id="3" value="1"/>

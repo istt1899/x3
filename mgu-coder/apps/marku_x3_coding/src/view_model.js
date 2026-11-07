@@ -39,7 +39,7 @@ function model(scan, page, selected) {
   const start = Math.max(0, Math.min(1, page || 0)) * PAGE_SIZE;
   const items = FEATURES.slice(start, start + PAGE_SIZE);
   const text = {
-    codingTitle: detail ? detail.title : 'Кодировки X3',
+    codingTitle: detail ? detail.title : 'Bimmer Code',
     codingStatus: status,
     codingGate: 'Чтение блоков; запись пока недоступна',
     codingPage: 'Функции ' + (start + 1) + '–' + (start + items.length) + ' из ' + FEATURES.length,

@@ -1,0 +1,22 @@
+{
+  "SID_MARKU_X3_CODING_TITLE": "Bimmer Code",
+  "SID_MARKU_X3_CODINGTITLE": "Bimmer Code",
+  "SID_MARKU_X3_CODINGSTATUS": "Диагностика ещё не запущена",
+  "SID_MARKU_X3_CODINGGATE": "Чтение блоков; запись пока недоступна",
+  "SID_MARKU_X3_CODINGSCAN": "Проверить блоки на стоянке",
+  "SID_MARKU_X3_CODINGPAGE": "Функции 1–5 из 10",
+  "SID_MARKU_X3_CODINGSLOT1": "Старт-стоп  ·  DME",
+  "SID_MARKU_X3_CODINGSLOT2": "Режим при запуске  ·  BDC_BODY3",
+  "SID_MARKU_X3_CODINGSLOT3": "Сигнал ремня  ·  ACSM5",
+  "SID_MARKU_X3_CODINGSLOT4": "Цвета подсветки  ·  BDC_BODY3",
+  "SID_MARKU_X3_CODINGSLOT5": "Складывание зеркал  ·  BDC_BODY3",
+  "SID_MARKU_X3_CODINGPREV": "Предыдущие функции",
+  "SID_MARKU_X3_CODINGNEXT": "Следующие функции",
+  "SID_MARKU_X3_DETAILECU": "Блок",
+  "SID_MARKU_X3_DETAILSUMMARY": "Описание",
+  "SID_MARKU_X3_DETAILREQUIREMENT": "Условие",
+  "SID_MARKU_X3_DETAILCAUTION": "Проверить",
+  "SID_MARKU_X3_DETAILSTATUS": "Доступность не проверена",
+  "SID_MARKU_X3_CODINGBACK": "К списку функций",
+  "SID_MARKU_X3_CODINGFOOTER": "Только на стоянке; скорость приложением не проверяется"
+}
