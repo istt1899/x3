@@ -115,7 +115,7 @@ class Model {
 
     setConnected(on) {
         this.connected = on;
-        if (on) { this.authT = Date.now(); this.send({ cmd: 'status' }); this.send({ cmd: 'auth_status' }); this.send({ cmd: 'positions' }); this.videoOn = null; this._video(); } else {
+        if (on) { this.authT = Date.now(); this.send({ cmd: 'status' }); this.send({ cmd: 'auth_status' }); this.send({ cmd: 'positions' }); this.videoOn = null; this.outputTarget = null; this._video(); } else {
             this.searching = false; this.state = 'idle'; this.pending.clear();
             this.auth = { state: 'unknown', code: null, url: null, msg: null };
             this.authT = 0;
@@ -125,6 +125,12 @@ class Model {
     }
     /** a daemon event */
     onMsg(m) {
+        if (m.ev === 'display') {
+            this.displayState = m.state;
+            if (['unavailable','unsupported','error'].indexOf(m.state) >= 0)
+                this.toast = { text: 'Вывод на приборку недоступен. Проверьте cluster-render.', until: Date.now() + 5000 };
+            this._changed(); return;
+        }
         if (m.ev === 'results') {
             if (this.q !== null && m.q !== undefined && m.q !== this.q) return;     // an older search's answer
             this.searching = false; this.searchError = null;
@@ -149,7 +155,7 @@ class Model {
             if (this.state !== 'preparing') this.retry = 0;
             if (this.state === 'idle' || (was !== 'preparing' && this.state === 'preparing')) { this.elapsed = 0; this.total = 0; }
             // a fresh ytdec starts with video on: tell it again where we are
-            if (this.state === 'playing' && was !== 'playing' && was !== 'paused') { this.videoOn = null; this._video(); }
+            if (this.state === 'playing' && was !== 'playing' && was !== 'paused') { this.videoOn = null; this.outputTarget = null; this._video(); }
         } else if (m.ev === 'auth') {
             this.auth = { state: String(m.state || 'signed_out'), code: m.code ? String(m.code) : null, url: typeof m.url === 'string' ? m.url : null, msg: m.msg ? String(m.msg) : null };
             if (this.auth.state !== 'asking') this.authT = 0;
@@ -363,7 +369,19 @@ class Model {
         return false;
     }
     /** video wanted (player on screen and the car parked): tells the daemon when that changes */
-    setWantVideo(on) { this.wantVideo = !!on; this._video(); }
+    setDisplayTarget(target) {
+        if (this.connected && this.outputTarget !== target) {
+            this.send({ cmd: 'display', target }); this.outputTarget = target;
+        }
+    }
+    setWantVideo(on) {
+        this.wantVideo = !!on;
+        if (this.outputTarget !== 'main' && Date.now() - (this.outputBeat || 0) >= 500) {
+            this.outputBeat = Date.now();
+            if (this.connected) this.send({ cmd: 'video', on: this.wantVideo });
+        }
+        this._video();
+    }
     _video() {
         if (!this.connected || this.videoOn === this.wantVideo) return;
         if (this.send({ cmd: 'video', on: this.wantVideo })) this.videoOn = this.wantVideo;

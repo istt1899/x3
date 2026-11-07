@@ -247,11 +247,13 @@ mgu.run({
         const gpu = () => (ctx.display && ctx.display.gpu && ctx.display.gpu.native ? ctx.display.gpu : null);
         function sync() {
             const shown = ui.isVisible('VIEW') && (!ui.hasFocus || ui.hasFocus('VIEW'));
-            const want = mode === 'player' && shown && !noVideo();
+            const target = settings.get('display') || 'main';
+            model.setDisplayTarget(target);
+            const want = mode === 'player' && shown && !noVideo() && (target === 'main' || !parked.moving());
             model.setWantVideo(want);
             // the file ytdec writes; a new one (ytdec restarted) is named to the renderer again
             let cur = null;
-            if (want && (model.state === 'playing' || model.state === 'paused')) {
+            if (want && target !== 'cluster' && (model.state === 'playing' || model.state === 'paused')) {
                 try { const st = fs.statSync(VPATH); cur = st.isFile() ? st.ino : null; } catch (e) { cur = null; }
             }
             const g = gpu();
@@ -629,7 +631,7 @@ mgu.run({
             else if (!model.active()) mid = model.state === 'ended' ? 'Просмотр завершён' : 'Выберите видео в списке или поиске';
             else if (noVideo()) mid = 'Во время движения доступен только звук';
             else if (!cv.place || !gpu()) mid = 'Изображение недоступно. Проверьте mgu-render в магазине';
-            else if (!videoShown) mid = 'Готовим изображение…';
+            else if (!videoShown) mid = settings.get('display') === 'cluster' ? 'Выбран вывод на приборку' : 'Готовим изображение…';
             if (model.state === 'paused' && !mid) { cv.circle(cx, cy, 60, '#000000a0'); cv.arc(cx, cy, 57, 60, 0, 360, '#ffffff50'); tri(cv, cx + 5, cy, 46, '#ffffff'); }
             if (mid) {
                 if (model.state === 'paused') { cv.circle(cx, cy - 40, 46, '#000000a0'); tri(cv, cx + 4, cy - 40, 36, '#ffffff'); }
@@ -792,7 +794,7 @@ mgu.run({
             } else if (!act && model.state !== 'error') mid = model.state === 'ended' ? 'Просмотр завершён' : 'Выберите видео в списке или поиске';
             else if (noVideo()) mid = 'Во время движения доступен только звук';
             else if (!gpu()) mid = 'Изображение недоступно. Проверьте mgu-render в магазине';
-            else if (live && !videoShown) mid = 'Готовим изображение…';
+            else if (live && !videoShown) mid = settings.get('display') === 'cluster' ? 'Выбран вывод на приборку' : 'Готовим изображение…';
             if (model.state === 'preparing') {
                 const p = Math.max(0, Math.min(100, model.pct || 0));
                 cv.circle(cx, cy, 56, '#00000099');

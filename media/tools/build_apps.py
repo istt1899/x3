@@ -77,10 +77,10 @@ def app_spec(service):
                       ["button", "BTN_HOME", "Видео"], ["button", "BTN_ACCOUNT", "Аккаунт"]]
             + [["button", f"BTN_S{i}", ""] for i in range(1, 7)]}
     base["screens"] = [view, main]
-    base["settings"] = [entry for entry in base["settings"] if entry["key"] in ("fill", "quality", "battery")]
+    base["settings"] = [entry for entry in base["settings"] if entry["key"] in ("fill", "quality", "battery", "display")]
     labels = {"fill": "Заполнить экран (обрезать края)", "quality": "Качество видео", "battery": "Пауза при низком заряде 12 В"}
     for entry in base["settings"]:
-        entry["label"] = labels[entry["key"]]
+        entry["label"] = labels.get(entry["key"], entry.get("label", entry["key"]))
         if entry["key"] == "quality":
             entry["options"] = [["auto", "Авто"], ["720", "720p"], ["480", "480p"], ["360", "360p"]]
     return base

@@ -14,7 +14,7 @@ const net = require('net');
 const path = require('path');
 const SAFE_ID = /^[A-Za-z0-9_-]{1,80}$/;
 const PROVIDERS = ['youtube', 'vk', 'rutube'];
-const CONTROL = ['pause', 'resume', 'seek', 'stop', 'video', 'fill', 'quality'];
+const CONTROL = ['pause', 'resume', 'seek', 'stop', 'video', 'fill', 'quality', 'display'];
 const MAX_LINE = 65536;
 
 function mkdir(dir, mode) {
@@ -200,6 +200,10 @@ class Gateway {
         const authEpoch = this.authEpoch[session.providerId] || 0;
         const currentAuth = () => authEpoch === (this.authEpoch[session.providerId] || 0) && !this.signingOut[session.providerId];
         if (cmd === 'video') session.videoOn = !!message.on;
+        if (cmd === 'display') {
+            if (['main', 'cluster', 'both'].indexOf(message.target) < 0) throw new Error('Неизвестный экран');
+            session.displayTarget = message.target;
+        }
         if (cmd === 'play') return this._play(session, message, provider, ctx);
         if (CONTROL.indexOf(cmd) >= 0) {
             if (cmd === 'stop' && this.pendingPlay && this.pendingPlay.session === session) {
@@ -368,6 +372,7 @@ class Gateway {
                 if (this.owner && this.owner.epoch === epoch && !session.closed && currentAuth()) this._send(session, event);
             };
             this.player.configure(context, emit);
+            if (session.displayTarget) await this.player.command('display', { target: session.displayTarget });
             await this.player.command('video', { on: session.videoOn });
             if (this.closed || session.closed || !this.owner || this.owner.epoch !== epoch || ticket !== this.ticket || !currentAuth()) return;
             // Loading can take seconds: do not block a newer play/stop behind it.
@@ -418,6 +423,11 @@ class DaemonPlayer {
         this.baseOptions = Object.assign({}, this.engine.opts);
         this.emit = null;
         this.retiring = new Set();
+        const ClusterOutput = require('./cluster_output').ClusterOutput;
+        this.displayTarget = 'main';
+        this.cluster = new ClusterOutput({ active: () => !!(this.engine.child && this.engine.cur &&
+            this.engine.videoOn && ['playing', 'paused'].indexOf(this.engine.state) >= 0),
+            report: (state) => { if (this.emit) this.emit({ ev: 'display', target: this.displayTarget, state }); } });
         // Core paths such as requality/failPlayback clear engine.child as soon as
         // they send quit. Keep every decoder until its process has actually left,
         // including decoders released outside the gateway's retire() call.
@@ -459,6 +469,7 @@ class DaemonPlayer {
     }
     start() { return this.engine.start(); }
     async retire() {
+        this.cluster.heartbeat(false);
         const d = this.engine;
         const decoder = d.child, extras = [d.spare, d.extracting].filter(Boolean).map((x) => x.child);
         [decoder].concat(extras).forEach((child) => this._trackRetirement(child));
@@ -488,6 +499,7 @@ class DaemonPlayer {
         d.opts.stateDir = this.fixedStateDir;
         d.pos = null; d.cur = null; d.fullReady = false;
         d.videoOn = false;
+        this.displayTarget = 'main';
     }
     play(message) { return this.engine.play(String(message.id), message.rect, !!message.fill, message.at, message.quality, message.skip); }
     command(cmd, message) {
@@ -495,7 +507,17 @@ class DaemonPlayer {
         if (cmd === 'pause') return d.pause();
         if (cmd === 'resume') return d.resume();
         if (cmd === 'seek') return d.seek(message.ms);
-        if (cmd === 'video') return d.setVideo(!!message.on);
+        if (cmd === 'video') {
+            this.cluster.heartbeat(!!message.on && this.displayTarget !== 'main');
+            return d.setVideo(!!message.on);
+        }
+        if (cmd === 'display') {
+            if (message.target !== 'main' && !this.cluster.available())
+                throw new Error('Для приборки нужен установленный cluster-render. Выберите основной экран.');
+            this.displayTarget = message.target;
+            this.cluster.heartbeat(false);
+            return;
+        }
         if (cmd === 'fill') {
             const current = d.cur, on = !!message.on;
             if (!current || current.fill === on) return;
@@ -518,7 +540,7 @@ class DaemonPlayer {
         return { state: d.state, id: d.cur && d.cur.id || null, title: d.cur && d.cur.title || null,
             elapsed: d.elapsed, total: d.total, buffering: d.isBuffering() };
     }
-    close() { this.emit = null; return this.engine.close(); }
+    close() { this.cluster.close(); this.emit = null; return this.engine.close(); }
 }
 
 function createYouTubeProvider(options) {

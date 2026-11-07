@@ -103,7 +103,7 @@ class Model {
 
     setConnected(on) {
         this.connected = on;
-        if (on) { this.authT = Date.now(); this.positionsEpoch = this.accountEpoch; this.send({ cmd: 'status' }); this.send({ cmd: 'auth_status' }); this.send({ cmd: 'positions' }); this.videoOn = null; this._video(); } else {
+        if (on) { this.authT = Date.now(); this.positionsEpoch = this.accountEpoch; this.send({ cmd: 'status' }); this.send({ cmd: 'auth_status' }); this.send({ cmd: 'positions' }); this.videoOn = null; this.outputTarget = null; this._video(); } else {
             if (SERVICE.id === 'vk') this._forgetAccount(true);
             this.logoutPending = false;
             this.searching = false; this.state = 'idle'; this.pending.clear();
@@ -115,6 +115,12 @@ class Model {
     }
     /** a daemon event */
     onMsg(m) {
+        if (m.ev === 'display') {
+            this.displayState = m.state;
+            if (['unavailable','unsupported','error'].indexOf(m.state) >= 0)
+                this.toast = { text: 'Вывод на приборку недоступен. Проверьте cluster-render.', until: Date.now() + 5000 };
+            this._changed(); return;
+        }
         if (!m || (m.provider && m.provider !== SERVICE.id)) return;
         if (m.ev === 'results') {
             if (SERVICE.id === 'vk' && (this.logoutPending || this.searchEpoch !== this.accountEpoch)) return;
@@ -143,7 +149,7 @@ class Model {
             if (this.state !== 'preparing') this.retry = 0;
             if (this.state === 'idle' || (was !== 'preparing' && this.state === 'preparing')) { this.elapsed = 0; this.total = 0; }
             // a fresh ytdec starts with video on: tell it again where we are
-            if (this.state === 'playing' && was !== 'playing' && was !== 'paused') { this.videoOn = null; this._video(); }
+            if (this.state === 'playing' && was !== 'playing' && was !== 'paused') { this.videoOn = null; this.outputTarget = null; this._video(); }
         } else if (m.ev === 'auth') {
             if (SERVICE.id === 'vk' && this.logoutPending && m.state !== 'signed_out') return;
             if (SERVICE.id === 'vk' && ((this.auth.state === 'signed_in') !== (m.state === 'signed_in') || this.logoutPending)) {
@@ -406,7 +412,19 @@ class Model {
         return false;
     }
     /** video wanted (player on screen and the car parked): tells the daemon when that changes */
-    setWantVideo(on) { this.wantVideo = !!on; this._video(); }
+    setDisplayTarget(target) {
+        if (this.connected && this.outputTarget !== target) {
+            this.send({ cmd: 'display', target }); this.outputTarget = target;
+        }
+    }
+    setWantVideo(on) {
+        this.wantVideo = !!on;
+        if (this.outputTarget !== 'main' && Date.now() - (this.outputBeat || 0) >= 500) {
+            this.outputBeat = Date.now();
+            if (this.connected) this.send({ cmd: 'video', on: this.wantVideo });
+        }
+        this._video();
+    }
     _video() {
         if (!this.connected || this.videoOn === this.wantVideo) return;
         if (this.send({ cmd: 'video', on: this.wantVideo })) this.videoOn = this.wantVideo;

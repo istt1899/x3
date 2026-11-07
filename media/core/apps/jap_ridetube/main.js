@@ -296,11 +296,13 @@ mgu.run({
         const gpu = () => (ctx.display && ctx.display.gpu && ctx.display.gpu.native ? ctx.display.gpu : null);
         function sync() {
             const shown = ui.isVisible('VIEW') && (!ui.hasFocus || ui.hasFocus('VIEW'));
-            const want = mode === 'player' && shown && !noVideo();
+            const target = settings.get('display') || 'main';
+            model.setDisplayTarget(target);
+            const want = mode === 'player' && shown && !noVideo() && (target === 'main' || !parked.moving());
             model.setWantVideo(want);
             // the file ytdec writes; a new one (ytdec restarted) is named to the renderer again
             let cur = null;
-            if (want && (model.state === 'playing' || model.state === 'paused')) {
+            if (want && target !== 'cluster' && (model.state === 'playing' || model.state === 'paused')) {
                 try { const st = fs.statSync(VPATH); cur = st.isFile() ? st.ino : null; } catch (e) { cur = null; }
             }
             const g = gpu();
