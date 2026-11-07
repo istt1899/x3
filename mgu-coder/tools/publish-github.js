@@ -70,6 +70,30 @@ function sha256(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
+function assertCatalogPreservesExisting(incoming, existing) {
+  if (!existing) return;
+  if (existing.schema !== 2 || !Array.isArray(existing.components)) throw new Error('Existing shared catalog is invalid');
+  const ids = new Set(incoming.components.map(component => component.id));
+  const missing = existing.components.map(component => component.id).filter(id => !ids.has(id));
+  if (missing.length) {
+    throw new Error('Refusing to remove other apps from the shared Store catalog: ' + missing.join(', ')
+      + '. Publish a merged catalog that preserves them; the coding-only publisher cannot replace this shared catalog.');
+  }
+}
+
+async function checkExistingCatalog(api, opts, incomingBytes) {
+  const release = await releaseByTag(api, opts, 'catalog');
+  const asset = release && release.assets.find(item => item.name === 'catalog.json');
+  if (!asset) return;
+  const url = new URL(asset.browser_download_url);
+  url.searchParams.set('verify_asset', String(asset.id));
+  const response = await fetch(url, { headers: { 'User-Agent': USER_AGENT, 'Cache-Control': 'no-cache' } });
+  if (!response.ok) throw new Error('Cannot check existing shared catalog before publishing');
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.length > 1024 * 1024) throw new Error('Existing shared catalog is too large');
+  assertCatalogPreservesExisting(JSON.parse(incomingBytes.toString('utf8')), JSON.parse(bytes.toString('utf8')));
+}
+
 function loadCatalog(opts) {
   const file = path.join(opts.assets, 'catalog.github.json');
   assertFile(file);
@@ -341,6 +365,7 @@ async function main() {
     throw new Error('GitHub main commit does not match the expected source commit');
   }
   console.log('Verified GitHub main commit: ' + mainCommit.data.sha);
+  await checkExistingCatalog(api, opts, catalogBytes);
   for (const item of items) {
     const release = await ensureRelease(api, opts, item.tag, `${item.component.id} ${item.component.version}`, notes);
     await ensureImmutableAsset(api, opts, release, item.component.artifact.name, item.bytes);
@@ -363,4 +388,4 @@ if (require.main === module) main().catch(error => {
   process.exitCode = 1;
 });
 
-module.exports = { loadCatalog, assertCleanSource };
+module.exports = { loadCatalog, assertCleanSource, assertCatalogPreservesExisting };
