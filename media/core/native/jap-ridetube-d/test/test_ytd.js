@@ -1005,6 +1005,18 @@ async function main() {
         assert.strictEqual(pickFetchUid(uo), 30000, "iDrive 8's MainApp runs: above its range");
     });
 
+    await t('native UID is reserved separately and never registered with the external uplink', async () => {
+        const file = path.join(fsRoot, 'var/opt/mgu-uplink/uids.d/jap-ridetube-d');
+        const before = fs.readFileSync(file, 'utf8');
+        const native = pickFetchUid(Object.assign({}, uo, { uidRole: 'builtin' }));
+        assert.strictEqual(native, 30001);
+        assert.strictEqual(fs.readFileSync(file, 'utf8'), before);
+        assert.strictEqual(fs.readFileSync(path.join(uo.stateDir, 'internet-uids'), 'utf8'), before);
+        assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(uo.stateDir, 'uids.json'))), { fetch: 30000, builtin: 30001 });
+        assert.strictEqual(pickFetchUid(uo), 30000);
+        assert.strictEqual(pickFetchUid(Object.assign({}, uo, { uidRole: 'builtin' })), native);
+    });
+
     const fakeFetch = path.join(__dirname, 'fake_fetch.js');
     // as root (Docker): a real switch to a uid nothing has; else no switch (only root can)
     const root = process.getuid() === 0, me = root ? 12345 : process.getuid();

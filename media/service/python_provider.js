@@ -201,7 +201,7 @@ class PythonProvider {
     }
     _config(ctx, dirs) {
         const stored = readJson(path.join(ctx.stateDir, 'config.json'), 65536);
-        const config = { cache_dir: dirs.ytc, pyz: this.pyz, ca_bundle: this.caBundle, lease_file: this.leaseFile };
+        const config = { cache_dir: dirs.ytc, pyz: this.pyz, ca_bundle: this.caBundle, lease_file: ctx.leaseFile || this.leaseFile };
         // Never forward Store/YouTube proxy settings or arbitrary worker configuration.
         ['client_id', 'app_id', 'redirect_uri', 'scope', 'api_version', 'callback_broker', 'broker_key', 'auth_mode'].forEach((key) => {
             if (typeof stored[key] === 'string' || typeof stored[key] === 'number') config[key] = stored[key];
@@ -457,6 +457,11 @@ class PythonProvider {
         return Object.freeze(Object.assign({}, ctx, { cacheDir: path.join(ctx.cacheDir, 'account-' + scope) }));
     }
     _purgeAccountCache(ctx, previous) {
+        if (Array.isArray(ctx.alternateCacheDirs)) {
+            ctx.alternateCacheDirs.filter((dir) => dir !== ctx.cacheDir).forEach((dir) => {
+                this._purgeAccountCache(Object.assign({}, ctx, { cacheDir: dir, alternateCacheDirs: null }), previous);
+            });
+        }
         const scope = this._cacheScope(previous), base = path.resolve(ctx.cacheDir);
         const names = scope ? ['account-' + scope] : [];
         try { fs.readdirSync(base).forEach((name) => { if (/^account-[a-f0-9]{32}$/.test(name) && names.indexOf(name) < 0) names.push(name); }); }
@@ -524,7 +529,8 @@ class PythonProvider {
         const dirs = this._dirs(ctx);
         return { id: id, cacheDir: ctx.cacheDir, metadata: metadata,
             fetcher: [this.python, this.mediafetchPath, '--provider', this.id, '--job-dir', dirs.jobs,
-                '--ffmpeg', this.ffmpeg, '--pyz', this.pyz, '--ca-file', this.caBundle], thumbCmd: null };
+                '--ffmpeg', this.ffmpeg, '--pyz', this.pyz, '--ca-file', this.caBundle,
+                '--lease', ctx.leaseFile || this.leaseFile], thumbCmd: null };
     }
     preparePlayback(id, ctx) { return this._preparePlayback(id, ctx, false); }
     refreshPlayback(id, ctx) { return this._preparePlayback(id, ctx, true); }
@@ -560,6 +566,7 @@ class PythonProvider {
         const metadata = this._card(job) || this._card(this.cards.get(id));
         return this._prepared(id, ctx, metadata);
     }
+    networkChanged() { this._advance(); }
     close() {
         if (this.closed) return;
         this.closed = true;

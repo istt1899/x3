@@ -15,7 +15,7 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[2]
 MEDIA = ROOT / 'media'
 OUT = MEDIA / 'dist/release'
-VERSION = '0.4.2'
+VERSION = '0.4.3'
 RELEASE_TAG = 'catalog'
 BASE_SHA = '984429e16be494d8e17e53f2606c7aaf38ea5ea049e86046f4aafe8cebf7bb75'
 
@@ -46,7 +46,7 @@ def service(base, ffmpeg, source_bundle):
             binaries['core/native/jap-ridetube-d/' + name] = old.extractfile('files/' + name).read()
     files = {}
     core = MEDIA / 'core/native/jap-ridetube-d'
-    for file in [core / n for n in ['ytd.js', 'proxy.js', 'thumb.js', 'ytfetch.py', 'vendor/jpeg-js/decoder.js', 'vendor/jpeg-js/LICENSE']]:
+    for file in [core / n for n in ['ytd.js', 'proxy.js', 'thumb.js', 'ytfetch.py', 'network_native.js', 'network_native.py', 'vendor/jpeg-js/decoder.js', 'vendor/jpeg-js/LICENSE']]:
         files['core/native/jap-ridetube-d/' + file.relative_to(core).as_posix()] = (file.read_bytes(), 0o644)
     for directory in ['service', 'providers']:
         for file in (MEDIA / directory).glob('*'):
@@ -122,21 +122,21 @@ def main():
     # permanent /catalog/ URL in runtime provenance is published as well, without
     # replacing the stable Store catalog or its component artifacts.
     source_name = json.loads((MEDIA / 'runtime/ffmpeg-sources.json').read_text(encoding='utf-8'))['source_bundle']['name']
-    shutil.copyfile(args.source_bundle, OUT / source_name)
-    catalog = json.loads((ROOT / 'mgu-coder/dist/publish/x3-coding/catalog.github.json').read_text(encoding='utf-8'))
+    if args.source_bundle.resolve() != (OUT / source_name).resolve():
+        shutil.copyfile(args.source_bundle, OUT / source_name)
+    catalog = json.loads((ROOT / 'catalog.json').read_text(encoding='utf-8'))
     # Preserve every pre-existing component; fail instead of silently replacing coding.
     components = {component['id']: component for component in catalog['components']}
     assert 'marku_x3_coding' in components
-    original = json.loads((MEDIA / 'core/catalog.json').read_text(encoding='utf-8'))
-    youtube = next(component for component in original['components'] if component['id'] == 'jap_ridetube')
+    youtube = components['jap_ridetube']
     youtube = copy.deepcopy(youtube)
-    youtube_file = OUT / 'jap_ridetube@0.3.14.tgz'
+    youtube_file = OUT / 'jap_ridetube@0.3.15.tgz'
     shutil.copyfile(MEDIA / 'core/dist' / youtube_file.name, youtube_file)
-    youtube['version'] = '0.3.14'
+    youtube['version'] = '0.3.15'
     youtube['artifact'] = artifact(youtube_file)
     youtube['requires']['jap-ridetube-d'] = VERSION
     youtube['requires']['mgu-deploy'] = '0.7.11'
-    components.setdefault('jap_ridetube', youtube)
+    components['jap_ridetube'] = youtube
     for app in ['marku_vk_video', 'marku_rutube']:
         spec = json.loads((MEDIA / 'core/apps' / app / 'app.json').read_text(encoding='utf-8'))
         source = MEDIA / 'core/dist' / f"{app}@{spec['version']}.tgz"

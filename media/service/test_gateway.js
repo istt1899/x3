@@ -210,12 +210,12 @@ function adapter(id, gates) {
     assert.strictEqual(decoder.exitCode, 0); assert.strictEqual(spare.exitCode, 0); assert.strictEqual(extracting.exitCode, 0);
     bridge.configure(context, () => {});
     assert.strictEqual(bridge.engine.opts.stateDir, path.join(tmp, 'uid-state'), 'root UID state never follows provider');
-    assert.deepStrictEqual(bridge.engine.proxyArgs(), [], 'direct providers cannot inherit the YouTube proxy');
-    ['ytdlp', 'thumbs', 'jobs', 'ytc', 'runtime-tools', 'a'.repeat(32)].forEach((name) => fs.mkdirSync(path.join(context.cacheDir, name)));
+    assert.deepStrictEqual(bridge.engine.proxyArgs(), ['--lease', '/run/mgu-uplink/lease.json'], 'direct providers receive DNS context but cannot inherit the YouTube proxy');
+    ['ytdlp', 'thumbs', 'jobs', 'ytc', 'runtime-tools', 'network-builtin', 'a'.repeat(32)].forEach((name) => fs.mkdirSync(path.join(context.cacheDir, name)));
     bridge.engine.prune();
     assert.ok(fs.existsSync(path.join(context.cacheDir, 'ytdlp')));
     assert.ok(fs.existsSync(path.join(context.cacheDir, 'thumbs')));
-    ['jobs', 'ytc', 'runtime-tools'].forEach((name) => assert.ok(fs.existsSync(path.join(context.cacheDir, name)), 'private helper directory survives pruning: ' + name));
+    ['jobs', 'ytc', 'runtime-tools', 'network-builtin'].forEach((name) => assert.ok(fs.existsSync(path.join(context.cacheDir, name)), 'private helper directory survives pruning: ' + name));
     assert.strictEqual(fs.existsSync(path.join(context.cacheDir, 'a'.repeat(32))), false, 'generic media cache prunes videos, not helper directories');
     const yt = createYouTubeProvider({ noSetuid: true, stateDir: path.join(tmp, 'yt-state'), cacheDir: path.join(tmp, 'yt-cache'), log: () => {} });
     assert.strictEqual(yt.daemon.server, undefined, 'query adapter never starts a socket or SOME/IP');

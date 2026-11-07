@@ -155,9 +155,21 @@ def _is_ip(h):
 
 def install_dns(lease):
     """The system resolver answers no internet names on the car: ask the uplink's DNS servers."""
+    try:
+        with open(lease, encoding='utf-8') as stream:
+            network = json.load(stream)
+    except (OSError, ValueError):
+        if os.path.basename(lease) == 'builtin-lease.json':
+            raise OSError('Native channel lease is unavailable')
+        network = {}
+    if network.get('networkSource') == 'builtin':
+        import network_native
+        network_native.install(network)
     if getattr(socket.getaddrinfo, '_lease', None) == lease:  # serve installed it
         return lease_servers(lease)
     servers = lease_servers(lease)
+    if network.get('networkSource') == 'builtin' and not servers:
+        raise OSError('Native DNS is unavailable')
     if not servers:
         return []
     orig, cache = socket.getaddrinfo, {}
@@ -1161,7 +1173,9 @@ def main(argv=None):
         if not isinstance(job, list) or not job or job[0] not in ('fetch', 'extract'):
             fail('bad job')
         # the job line never carries credentials: keep this warm process' --proxy-file
-        return main([str(x) for x in job] + (['--proxy-file', a.proxy_file] if a.proxy_file else []))
+        split = job.index('--') if '--' in job else len(job)
+        options = ['--cache-dir', a.cache_dir, '--node', a.node, '--lease', a.lease] + (['--pyz', a.pyz] if a.pyz else []) + (['--proxy-file', a.proxy_file] if a.proxy_file else [])
+        return main([str(x) for x in job[:split]] + options + [str(x) for x in job[split:]])
     if not a.id or not a.dir:
         fail('usage: fetch|extract <id> <dir|info.json> --cache-dir <d>')
     return extract_cmd(a) if a.cmd == 'extract' else fetch(a)

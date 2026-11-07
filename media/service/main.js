@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { Gateway, DaemonPlayer, createYouTubeProvider } = require('./gateway');
 const { PythonProvider } = require('./python_provider');
+const { NetworkAccess } = require('./network_access');
 
 function create(options) {
     const o = options || {};
@@ -24,7 +25,14 @@ function create(options) {
         fetchCmd: [process.execPath, '--max-http-header-size=65536', path.join(core, 'ytd.js'), '--fetch']
     }, o.engine || {});
     const player = new DaemonPlayer(engine);
+    const externalUid = player.engine.uid.bind(player.engine);
+    const network = new NetworkAccess({ stateDir, cacheDir, python, getExternalUid: externalUid,
+        uidOptions: player.engine.opts });
+    player.engine.uid = () => network.uid();
     const youtube = createYouTubeProvider(engine);
+    youtube.daemon.uid = () => network.uid();
+    youtube.networkChanged({ cacheDir: network.cache(youtube.context.cacheDir),
+        leaseFile: network.source === 'builtin' ? path.join(network.runtimeDir, 'builtin-lease.json') : '/run/mgu-uplink/lease.json' });
     const bridgeOptions = {
         python, node22, log, getUid: () => player.engine.uid(),
         pyz: path.join(core, 'ytdlp.pyz'), caBundle: path.join(root, 'runtime', 'cacert.pem'),
@@ -32,7 +40,7 @@ function create(options) {
     };
     const vk = new PythonProvider(Object.assign({}, bridgeOptions, { id: 'vk' }));
     const rutube = new PythonProvider(Object.assign({}, bridgeOptions, { id: 'rutube' }));
-    return new Gateway({ player, providers: [youtube, vk, rutube], stateDir, cacheDir,
+    return new Gateway({ player, providers: [youtube, vk, rutube], stateDir, cacheDir, network,
         sockets: o.sockets, log });
 }
 

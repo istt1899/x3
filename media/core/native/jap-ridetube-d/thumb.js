@@ -7,6 +7,7 @@ const https = require('https');
 const tls = require('tls');
 const fs = require('fs');
 const proxyMod = require('./proxy.js');
+const nativeNetwork = require('./network_native.js');
 const decode = require('./vendor/jpeg-js/decoder.js');
 
 const W = 320, H = 180, MAX = 2 * 1024 * 1024, TIMEOUT_MS = 8000;
@@ -24,13 +25,13 @@ function uplinkLookup(leaseFile) {
     };
 }
 
-function fetchJpeg(id, lookup, via) {
+function fetchJpeg(id, lookup, via, native) {
     return new Promise((resolve, reject) => {
         const ask = (cc) => {
             const req = https.request({
                 host: 'i.ytimg.com', port: 443, defaultPort: 443,
                 path: '/vi/' + id + '/mqdefault.jpg', lookup, headers: { 'user-agent': 'Mozilla/5.0' },
-                createConnection: cc || undefined
+                localAddress: native && native.localAddress || undefined, createConnection: cc || undefined
             }, (res) => {
                 // 404 is YouTube's placeholder for private/removed videos; redirects are not followed
                 if (res.statusCode !== 200) { res.resume(); return reject(new Error('http ' + res.statusCode)); }
@@ -46,7 +47,8 @@ function fetchJpeg(id, lookup, via) {
             req.end();
         };
         if (!via) return ask(null);
-        proxyMod.connect(via, 'i.ytimg.com', 443, { timeoutMs: TIMEOUT_MS, lookup }, (e, sock) => {
+        if (native && require('net').isIP(via.host)) nativeNetwork.assertRoute(native, via.host);
+        proxyMod.connect(via, 'i.ytimg.com', 443, { timeoutMs: TIMEOUT_MS, lookup, localAddress: native && native.localAddress || undefined }, (e, sock) => {
             if (e) return reject(e);
             ask(() => tls.connect({ socket: sock, servername: 'i.ytimg.com' }));
         });
@@ -85,7 +87,8 @@ if (require.main === module) {
     if (!/^[A-Za-z0-9_-]{11}$/.test(id || '')) fail('bad id');
     if (li > 0 && !a[li + 1]) fail('--lease needs a path');
     if (pi > 0 && !a[pi + 1]) fail('--proxy-file needs a path');
-    fetchJpeg(id, uplinkLookup(li > 0 ? a[li + 1] : undefined), proxyFrom(pi > 0 ? a[pi + 1] : undefined))
+    const native = nativeNetwork.fromLease(li > 0 ? a[li + 1] : undefined);
+    fetchJpeg(id, nativeNetwork.lookupGuard(uplinkLookup(li > 0 ? a[li + 1] : undefined), native), proxyFrom(pi > 0 ? a[pi + 1] : undefined), native)
         .then((jpeg) => { const b = thumbRgba(jpeg); process.stdout.write(b, () => process.exit(0)); })
         .catch((e) => fail(e.message));
 }

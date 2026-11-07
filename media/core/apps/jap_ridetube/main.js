@@ -1,4 +1,5 @@
 'use strict';
+const { attachNetwork } = require('./network-view');
 /**
  * RideTube - search and play videos through the car daemon jap-ridetube-d (ytd.js, a root service), which
  * fetches them on the car itself, plays the sound through BMW's own media player (the car's audio source)
@@ -96,6 +97,9 @@ mgu.run({
             if (mode === 'home') model.feed('wl');
             if (mode === 'subs') model.loadChannels();                    // Home's last shelf (one request at a time: idempotent)
         };
+        const networkUI = attachNetwork(ctx, ctl, () => {
+            model.setConnected(false); model.setConnected(true); openFeed(); changed();
+        });
         const backKey = {};                              // page -> the tile the controller was on when it was left
         function show(m) {
             if (m !== mode) { dirty = true; if (laid.mode === mode && laid.where[focusKey]) backKey[mode] = focusKey; }   // (a tile of this page)
@@ -381,6 +385,7 @@ mgu.run({
 
         /* the left rail: Search, Home, Subscriptions, Watch later */
         const RAIL = [
+            ['network', 'Интернет', (cv, x, y, c) => { [10,18,26].forEach((h,i) => cv.roundRect(x-17+i*13,y+14-h,8,h,2,c)); }],
             ['search', 'Search', (cv, x, y, c) => { cv.arc(x - 4, y - 4, 9, 12.5, 0, 360, c); cv.line(x + 4.5, y + 4.5, x + 14, y + 14, 4.5, c); }],
             ['home', 'Home', (cv, x, y, c, bg) => {
                 cv.quad([[x, y - 18], [x + 19, y - 1], [x - 19, y - 1], [x, y - 18]], c);
@@ -400,10 +405,11 @@ mgu.run({
             const pitch = Math.min(100, (bottom - 156) / (items.length - 1));   // (the page down to the screen's bottom where it reaches)
             items.forEach(([m, name, glyph], i) => {
                 const cx = 62, cy = 96 + Math.round(i * pitch), on = m === sel, bg = on ? '#2c2c2c' : C.bg, c = on ? '#ffffff' : C.dim;
-                if (on) { cv.roundRect(18, cy - 38, 90, 84, 16, bg); cv.roundRect(18, cy - 14, 5, 28, 2.5, C.red); }
+                const half = Math.min(42, (pitch - 4) / 2);
+                if (on) { cv.roundRect(18, cy - half, 90, half * 2, 16, bg); cv.roundRect(18, cy - 14, 5, 28, 2.5, C.red); }
                 glyph(cv, cx, cy - 8, c, bg);
-                cv.text(name === 'Subscriptions' ? 'Subs' : name, cx, cy + 34, 18, c, { literal: true, align: 'center', font: on ? 'bold' : 'label' });
-                if (cv.own) cv.target(16, cy - 38, 92, 84, () => (m === 'search' ? ui.open('MAIN') : show(m)), 'rail:' + m, 16);
+                cv.text(name === 'Subscriptions' ? 'Subs' : name, cx, cy + Math.min(34, half - 7), 18, c, { literal: true, align: 'center', font: on ? 'bold' : 'label' });
+                if (cv.own) cv.target(16, cy - half, 92, half * 2, () => (m === 'search' ? ui.open('MAIN') : m === 'network' ? networkUI.open() : show(m)), 'rail:' + m, 16);
             });
         }
 

@@ -18,7 +18,7 @@ import tarfile
 
 MEDIA = Path(__file__).resolve().parents[1]
 CORE = MEDIA / "core"
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 SERVICES = {
     "vk": {"id": "vk", "appId": "marku_vk_video", "title": "VK Видео", "accent": "#0077FF",
            "loggingId": "MKV1", "iconGlyph": "VK", "socket": "/run/jap-ridetube-d/vk.sock",
@@ -50,9 +50,10 @@ def app_spec(service):
     main = {"name": "MAIN", "kind": "menu", "title": service["title"] + ": поиск", "settings": True,
             "items": [["button", "BTN_SEARCH", "Найти видео"], ["text", "MAIN_INFO", ""],
                       ["button", "BTN_NOW", "Сейчас играет"], ["button", "BTN_RESULTS", "Результаты поиска"],
-                      ["button", "BTN_HOME", "Видео"], ["button", "BTN_ACCOUNT", "Аккаунт"]]
+                      ["button", "BTN_HOME", "Видео"], ["button", "BTN_ACCOUNT", "Аккаунт"],
+                      ["button", "BTN_NETWORK", "Интернет и скорость"]]
             + [["button", f"BTN_S{i}", ""] for i in range(1, 7)]}
-    base["screens"] = [view, main]
+    base["screens"] = [view, main, json.loads((MEDIA / "ui/network-screen.json").read_text(encoding="utf-8"))]
     base["settings"] = [entry for entry in base["settings"] if entry["key"] in ("fill", "quality", "battery", "display")]
     labels = {"fill": "Заполнить экран (обрезать края)", "quality": "Качество видео", "battery": "Пауза при низком заряде 12 В"}
     for entry in base["settings"]:
@@ -63,12 +64,23 @@ def app_spec(service):
 
 
 def prepare():
+    youtube = CORE / "apps/jap_ridetube"
+    spec_file = youtube / "app.json"
+    spec = json.loads(spec_file.read_text(encoding="utf-8"))
+    spec["version"] = "0.3.15"
+    spec["screens"] = [s for s in spec["screens"] if s["name"] != "NETWORK"]
+    for screen in spec["screens"]:
+        if screen["name"] == "MAIN" and not any(item[1] == "BTN_NETWORK" for item in screen["items"]):
+            screen["items"].append(["button", "BTN_NETWORK", "Интернет и скорость"])
+    spec["screens"].append(json.loads((MEDIA / "ui/network-screen.json").read_text(encoding="utf-8")))
+    spec_file.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+    shutil.copyfile(MEDIA / "ui/network-view.js", youtube / "network-view.js")
     result = []
     for service in SERVICES.values():
         app = CORE / "apps" / service["appId"]
         app.mkdir(parents=True, exist_ok=True)
         (app / "app.json").write_text(json.dumps(app_spec(service), ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
-        for source, target in [("main.js", "main.js"), ("model.js", "yt.js"), ("account-view.js", "account-view.js")]:
+        for source, target in [("main.js", "main.js"), ("model.js", "yt.js"), ("account-view.js", "account-view.js"), ("network-view.js", "network-view.js")]:
             shutil.copyfile(MEDIA / "ui" / source, app / target)
         shutil.copyfile(CORE / "apps/jap_ridetube/speller.js", app / "speller.js")
         public = {key: value for key, value in service.items() if key not in ("loggingId", "iconGlyph")}
@@ -117,7 +129,7 @@ def main():
         uuids.append(inspect_package(package, service))
         print(f"Verified SDK-free source package: {package}")
     builder.build('jap_ridetube', source_only=True)
-    with tarfile.open(CORE / 'dist/jap_ridetube@0.3.14.tgz') as archive:
+    with tarfile.open(CORE / 'dist/jap_ridetube@0.3.15.tgz') as archive:
         assert not any('oap-sdk' in name for name in archive.getnames())
     assert len(set(uuids)) == len(SERVICES), "The app entry points must be independent"
 

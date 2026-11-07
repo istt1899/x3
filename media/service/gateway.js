@@ -56,6 +56,7 @@ class Gateway {
         const o = options || {};
         if (!o.player) throw new Error('gateway requires a player');
         this.player = o.player;
+        this.network = o.network || null;
         this.log = o.log || function () {};
         this.stateDir = o.stateDir || '/var/opt/jap-ridetube-d/state';
         this.cacheDir = o.cacheDir || '/var/opt/jap-ridetube-d/cache';
@@ -101,7 +102,11 @@ class Gateway {
         this.clients.forEach((s) => { if (s.providerId === id) this._send(s, event); });
     }
     _context(session) {
-        return Object.freeze(Object.assign({}, this.contexts[session.providerId], {
+        const base = this.contexts[session.providerId];
+        return Object.freeze(Object.assign({}, base, this.network ? {
+            cacheDir: this.network.cache(base.cacheDir), leaseFile: this.network.leaseFile(),
+            alternateCacheDirs: [base.cacheDir, this.network.cache(base.cacheDir, 'builtin')]
+        } : {}, {
             sessionId: session.id, emit: (event) => this._send(session, event)
         }));
     }
@@ -173,6 +178,7 @@ class Gateway {
     }
     disconnect(session) {
         if (session.closed) return;
+        if (this.network && this.networkSession === session) this.network.cancel();
         session.closed = true;
         this.clients.delete(session.id);
         if (this.owner && this.owner.session === session) {
@@ -194,6 +200,9 @@ class Gateway {
     async dispatch(session, message) {
         if (this.closed || session.closed) return;
         if (!message || typeof message.cmd !== 'string') throw new Error('no cmd');
+        if (/^network_/.test(message.cmd)) return this._network(session, message);
+        if (this.network && this.network.busy && CONTROL.indexOf(message.cmd) < 0 && message.cmd !== 'status')
+            throw new Error('Дождитесь окончания проверки интернета');
         const provider = this.providers[session.providerId], ctx = this._context(session), cmd = message.cmd;
         if (cmd === 'sign_out') return this._signOut(session, provider, ctx);
         if (this.signingOut[session.providerId]) return;
@@ -280,6 +289,40 @@ class Gateway {
         if ((cmd === 'channels' || cmd === 'channel') && typeof provider[cmd] === 'function') return provider[cmd](message.id, ctx);
         throw new Error('unknown cmd ' + cmd);
     }
+    async _network(session, message) {
+        const n = this.network;
+        if (!n) { this._send(session, { ev: 'network', error: 'Обновите MGU Video service', source: 'external' }); return; }
+        if (message.cmd === 'network_status') { this._send(session, n.state()); return; }
+        if (message.cmd === 'network_cancel') { n.cancel(); return; }
+        if (['network_set', 'network_test'].indexOf(message.cmd) < 0) throw new Error('Неизвестная команда интернета');
+        const broadcast = (event) => this.clients.forEach((client) => this._send(client, event));
+        if (n.busy) { this._send(session, Object.assign(n.state(), { error: 'Проверка уже выполняется' })); return; }
+        if (message.cmd === 'network_set' && ['external', 'builtin'].indexOf(message.source) < 0) throw new Error('Неизвестный источник интернета');
+        n.busy = true;
+        this.networkSession = session;
+        broadcast(n.state());
+        try {
+            this.ticket++; this.pendingPlay = null;
+            Object.keys(this.providers).forEach((id) => {
+                this.authEpoch[id] = (this.authEpoch[id] || 0) + 1;
+                if (typeof this.providers[id].networkChanged === 'function') this.providers[id].networkChanged();
+            });
+            await this._enqueue(async () => {
+                const old = this.owner;
+                await this.player.retire(); this.owner = null;
+                if (old) this._send(old.session, { ev: 'state', state: 'idle', id: null });
+            });
+            if (message.cmd === 'network_test') await n.test(session.providerId, broadcast);
+            else {
+                await n.select(message.source, session.providerId);
+                Object.keys(this.providers).forEach((id) => {
+                    const p = this.providers[id];
+                    if (typeof p.networkChanged === 'function') p.networkChanged({ cacheDir: n.cache(this.contexts[id].cacheDir), leaseFile: n.leaseFile() });
+                });
+            }
+        } catch (e) { broadcast(Object.assign(n.state(), { error: cleanError(e) })); }
+        finally { n.busy = false; this.networkSession = null; broadcast(n.state()); }
+    }
     _signOut(session, provider, ctx) {
         const id = session.providerId;
         if (this.signingOut[id]) return this.signingOut[id].promise;
@@ -356,6 +399,7 @@ class Gateway {
         if (!Array.isArray(prepared.fetcher) || !prepared.fetcher.length || prepared.fetcher.some((a) => typeof a !== 'string' || a.indexOf('\0') >= 0)) throw new Error('invalid fetch helper');
         if (ctx.proxyPolicy === 'direct' && prepared.fetcher.some((a) => /^--proxy(?:=|-file(?:=|$)|$)/.test(a))) throw new Error('direct provider cannot use a proxy');
         const context = Object.freeze({ providerId: session.providerId, id, cacheDir: prepared.cacheDir,
+            leaseFile: ctx.leaseFile,
             fetcher: Object.freeze(prepared.fetcher.slice()), thumbCmd: prepared.thumbCmd && Object.freeze(prepared.thumbCmd.slice()),
             metadata: prepared.metadata ? video(prepared.metadata) : null, proxyPolicy: ctx.proxyPolicy });
         return this._enqueue(async () => {
@@ -382,6 +426,7 @@ class Gateway {
     async close() {
         if (this.closed) return;
         this.closed = true;
+        if (this.network) this.network.close();
         this.ticket++;
         this.clients.forEach((s) => { s.closed = true; s.socket.destroy(); });
         this.clients.clear();
@@ -500,6 +545,7 @@ class DaemonPlayer {
             : context.providerId === 'youtube' ? this.baseOptions.thumbCmd.slice() : null;
         d.opts.providerId = context.providerId;
         d.opts.proxyPolicy = context.proxyPolicy;
+        d.opts.leaseFile = context.leaseFile || this.baseOptions.leaseFile;
         d.opts.genericMediaIds = context.providerId !== 'youtube';
         d.opts.initialMetadata = context.metadata;
         d.opts.stateDir = this.fixedStateDir;
@@ -567,6 +613,15 @@ function createYouTubeProvider(options) {
         preparePlayback: async (id) => {
             if (!/^[A-Za-z0-9_-]{11}$/.test(id)) throw new Error('bad YouTube id');
             return { id, cacheDir: daemon.opts.cacheDir, fetcher: daemon.opts.fetcher.slice(), thumbCmd: daemon.opts.thumbCmd.slice() };
+        },
+        networkChanged: (settings) => {
+            daemon.pos = null;
+            if (settings) {
+                daemon.opts.cacheDir = settings.cacheDir;
+                mkdir(settings.cacheDir, 0o711);
+                daemon.opts.leaseFile = settings.leaseFile;
+                daemon._proxyMtime = null;
+            }
         },
         close: () => daemon.close()
     };

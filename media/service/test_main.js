@@ -17,13 +17,14 @@ async function scenario(event, closeFails) {
     } };
     const providers = {
         Gateway: function () { return gateway; },
-        DaemonPlayer: function () {},
-        createYouTubeProvider: () => ({ id: 'youtube' })
+        DaemonPlayer: function () { this.engine = { uid: () => 12345, opts: {} }; },
+        createYouTubeProvider: () => ({ id: 'youtube', context: {}, daemon: {}, networkChanged() {} })
     };
     const sandbox = { module: { exports: {} }, __dirname,
         process: processFixture, console: { error() {} },
         require: (name) => name === './gateway' ? providers : name === './python_provider'
-            ? { PythonProvider: function () {} } : require(name) };
+            ? { PythonProvider: function () {} } : name === './network_access'
+            ? { NetworkAccess: function () { this.cache = (p) => p; } } : require(name) };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8'), sandbox);
     await sandbox.module.exports.main();
     processFixture.emit(event, new Error('synthetic fault'));

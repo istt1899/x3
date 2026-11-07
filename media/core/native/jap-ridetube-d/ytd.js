@@ -16,12 +16,13 @@ const crypto = require('crypto');
 const cp = require('child_process');
 const readline = require('readline');
 const proxyMod = require('./proxy.js');
+const nativeNetwork = require('./network_native.js');
 
 const ID_RE = /^[A-Za-z0-9_-]{11}$/;
 const MEDIA_ID_RE = /^[A-Za-z0-9_-]{1,80}$/;
 const SOURCE_ID = 1046, SINK_ID = 1024;
 const MEDIA_FILES = ['audio.m4a', 'index.bin', 'video.h264'];
-const CACHE_INTERNAL = ['ytdlp', 'ytc', 'jobs', 'runtime-tools', 'thumbs', 'ytfetch-check', 'youtube', 'vk', 'rutube'];
+const CACHE_INTERNAL = ['ytdlp', 'ytc', 'jobs', 'runtime-tools', 'thumbs', 'ytfetch-check', 'youtube', 'vk', 'rutube', 'network-builtin'];
 // thumb.rgba length -> [w, h]: 160x90 in caches from older proxies, 320x180 since 0.1.6
 const THUMB_SIZES = { 57600: [160, 90], 230400: [320, 180] };
 
@@ -213,6 +214,12 @@ function takenIds(o, cfg, procs) {
         .forEach((n) => lines(path.join(dropins, n)).forEach((l) => l.split('#')[0].split(/[\s,]+/).forEach(add)));
     const upd = readJson(path.join(o.toolRoot, 'mgu-updater', 'state', 'uids.json')) || {};
     Object.keys(upd).forEach((k) => add(upd[k]));
+    // A native UID has no uplink drop-in. Reserve other components' persistent
+    // UID files as well, so a later idle service cannot be assigned our UID.
+    list(o.toolRoot).filter((name) => name !== SELF && /^[A-Za-z0-9_.-]{1,100}$/.test(name)).forEach((name) => {
+        const stored = readJson(path.join(o.toolRoot, name, 'state', 'uids.json')) || {};
+        Object.keys(stored).forEach((key) => add(stored[key]));
+    });
     (cfg ? cfg.own : []).forEach(add);
     if (procs) {
         list(o.procDir).filter((n) => /^\d+$/.test(n)).forEach((pid) => lines(path.join(o.procDir, pid, 'status')).forEach((l) => {
@@ -229,15 +236,18 @@ function writeIfChanged(file, text, mode) {
 }
 // the kept fetch uid while nothing else holds it, else a new pick; written for the uplink. null: none (logged)
 function pickFetchUid(o) {
-    const kept = Number((readJson(path.join(o.stateDir, 'uids.json')) || {}).fetch);
+    const role = o.uidRole === 'builtin' ? 'builtin' : 'fetch';
+    const saved = readJson(path.join(o.stateDir, 'uids.json')) || {};
+    const kept = Number(saved[role]);
+    const reserved = Number(saved[role === 'builtin' ? 'fetch' : 'builtin']);
     const cfg = mainappRanges(o);
     const inRange = (u) => !!cfg && cfg.ranges.some((r) => u >= r.min && u <= r.max);
     let uid = null;
-    if (isId(kept) && !takenIds(o, cfg, false)[kept] && !inRange(kept)) uid = kept;
+    if (isId(kept) && kept !== reserved && !takenIds(o, cfg, false)[kept] && !inRange(kept)) uid = kept;
     else if (cfg) {
         const all = takenIds(o, cfg, true);
         let u = Math.max.apply(null, cfg.ranges.map((r) => r.max)) + 1;
-        while (u <= MAX_UID && (all[u] || inRange(u))) u++;
+        while (u <= MAX_UID && (all[u] || u === reserved || inRange(u))) u++;
         if (u <= MAX_UID) { uid = u; o.log('internet uid: ' + u + (isId(kept) ? ' (' + kept + ' is taken)' : '')); }
     }
     if (uid === null) {
@@ -245,7 +255,10 @@ function pickFetchUid(o) {
         return null;
     }
     if (!fs.existsSync(o.stateDir)) { mkdirp(path.dirname(o.stateDir)); fs.mkdirSync(o.stateDir, 0o700); }
-    writeIfChanged(path.join(o.stateDir, 'uids.json'), JSON.stringify({ fetch: uid }) + '\n', 0o644);
+    saved[role] = uid;
+    writeIfChanged(path.join(o.stateDir, 'uids.json'), JSON.stringify(saved) + '\n', 0o644);
+    // Native requests must never enter the external uplink's UID routing table.
+    if (role === 'builtin') return uid;
     writeIfChanged(path.join(o.stateDir, 'internet-uids'), uid + '\n', 0o644);
     const uplink = path.join(o.toolRoot, 'mgu-uplink');
     if (fs.existsSync(path.join(uplink, 'current')) || fs.existsSync(path.join(uplink, 'uids.d'))) {
@@ -288,7 +301,7 @@ function fetchRequest(o, uid, req, proxyUrl) {
             if (r.error) return finish(new Error(r.error));
             return finish(null, { status: r.status, body: String(r.body) });
         });
-        child.stdin.end(JSON.stringify(proxyUrl ? Object.assign({}, req, { proxy: proxyUrl }) : req));
+        child.stdin.end(JSON.stringify(Object.assign({}, req, { leaseFile: o.leaseFile }, proxyUrl ? { proxy: proxyUrl } : {})));
     });
 }
 
@@ -309,7 +322,7 @@ const FEED_MAX = 50;
 // method, url, headers, body (object or null) -> {status, body (utf8)}.
 // OAuth accepts form fields; InnerTube uses JSON. No redirects on these URLs.
 // via (a parsed proxy from proxy.js): CONNECT/SOCKS5 to it first; DNS then happens behind the proxy.
-function ytRequest(method, url, headers, body, timeoutMs, lookup, via) {
+function ytRequest(method, url, headers, body, timeoutMs, lookup, via, native) {
     return new Promise(function (resolve, reject) {
         const u = require('url').parse(url);
         const oauth = /^\/o\/oauth2\//.test(u.pathname);
@@ -343,14 +356,15 @@ function ytRequest(method, url, headers, body, timeoutMs, lookup, via) {
             // A custom connection has no HTTPS agent to supply its default port.
             // Without this, Node sends Host: www.youtube.com:80 over the TLS tunnel.
             req = https.request({ hostname: u.hostname, port: Number(u.port) || 443, defaultPort: 443,
-                path: u.path, method: method, headers: h, lookup: lookup, createConnection: cc || undefined }, onResponse);
+                path: u.path, method: method, headers: h, lookup: lookup, localAddress: native && native.localAddress || undefined, createConnection: cc || undefined }, onResponse);
             req.on('error', fail);
             if (data) req.write(data);
             req.end();
         };
         let cc = null;
         if (via) {
-            proxyMod.connect(via, u.hostname, Number(u.port) || 443, { timeoutMs: timeoutMs || 10000, lookup: lookup }, function (e, sock) {
+            if (native && net.isIP(via.host)) nativeNetwork.assertRoute(native, via.host);
+            proxyMod.connect(via, u.hostname, Number(u.port) || 443, { timeoutMs: timeoutMs || 10000, lookup: lookup, localAddress: native && native.localAddress || undefined }, function (e, sock) {
                 if (e) return fail(e);
                 cc = function () { return tls.connect({ socket: sock, servername: u.hostname }); };
                 start();
@@ -910,7 +924,10 @@ Daemon.prototype.proxy = function () {
 // the fetch-uid-readable copy for the helper children (cacheDir is 0711, the file 0600 their uid)
 Daemon.prototype.proxyRunFile = function () { return path.join(this.opts.cacheDir, 'proxy.json'); };
 // extra argv for the helper children; only a path, never credentials
-Daemon.prototype.proxyArgs = function () { return this.proxy() ? ['--proxy-file', this.proxyRunFile()] : []; };
+Daemon.prototype.proxyArgs = function () {
+    const args = ['--lease', this.opts.leaseFile];
+    return this.proxy() ? args.concat(['--proxy-file', this.proxyRunFile()]) : args;
+};
 // a helper (ytfetch.py, thumb.js) as the fetch uid, as fetchRequest spawns its child
 Daemon.prototype.spawnFetchUid = function (cmd, args, stdin) {
     const ids = this.opts.noSetuid ? {} : { uid: this.uid(), gid: this.uid() };
@@ -1032,7 +1049,9 @@ Daemon.prototype.spawnJob = function (job) {
         return s.child;
     }
     if (s) { try { s.child.kill('SIGKILL'); } catch (e) { /* gone */ } }
-    return this.spawnFetchUid(this.opts.fetcher, job.concat(this.proxyArgs()));
+    const split = job.indexOf('--');
+    const args = split < 0 ? job.concat(this.proxyArgs()) : job.slice(0, split).concat(this.proxyArgs(), job.slice(split));
+    return this.spawnFetchUid(this.opts.fetcher, args);
 };
 // from tick: a spare while the app is in use and no fetch is starting; none past warmMs
 Daemon.prototype.keepWarm = function () {
@@ -1805,7 +1824,11 @@ if (require.main === module && process.argv[2] === '--fetch') {
                 : proxyMod.parse(typeof q.proxy === 'string' ? q.proxy : (q.proxy && q.proxy.url));
             if (!via) return out({ error: 'bad proxy' });
         }
-        return ytRequest(q.method, q.url, q.headers, q.body, q.timeoutMs, uplinkLookup(), via).then(out, (e) => out({ error: e.message }));
+        try {
+            const native = nativeNetwork.fromLease(q.leaseFile);
+            const lookup = nativeNetwork.lookupGuard(uplinkLookup(q.leaseFile), native);
+            return ytRequest(q.method, q.url, q.headers, q.body, q.timeoutMs, lookup, via, native).then(out, (e) => out({ error: e.message }));
+        } catch (e) { return out({ error: 'Native channel is unavailable' }); }
     });
 } else if (require.main === module) {
     const d = new Daemon();

@@ -197,7 +197,7 @@ def normalize(a, job, source=None):
     if source is None:
         cmd = [sys.executable, '-I', str(Path(__file__).resolve()), 'stream', a.id,
                '--provider', a.provider, '--job-dir', a.job_dir,
-               '--cache-dir', a.cache_dir, '--height', str(a.height), '--node', a.node]
+               '--cache-dir', a.cache_dir, '--height', str(a.height), '--node', a.node, '--lease', a.lease]
         if a.pyz:
             cmd += ['--pyz', a.pyz]
         if a.ca_file:
@@ -300,10 +300,11 @@ def main(argv=None):
         suffix = ['--provider', a.provider, '--job-dir', a.job_dir] if a.job_dir else ['--provider', a.provider]
         if a.pyz:
             suffix += ['--pyz', a.pyz]
-        suffix += ['--ffmpeg', a.ffmpeg]
+        suffix += ['--ffmpeg', a.ffmpeg, '--lease', a.lease]
         if a.ca_file:
             suffix += ['--ca-file', a.ca_file]
-        return main([str(x) for x in job] + suffix)
+        split = job.index('--') if '--' in job else len(job)
+        return main([str(x) for x in job[:split]] + suffix + [str(x) for x in job[split:]])
     job, _ = load_job(a)
     if a.cmd == 'stream':
         return stream(a, job)

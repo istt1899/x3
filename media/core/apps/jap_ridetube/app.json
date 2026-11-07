@@ -2,7 +2,7 @@
   "id": "jap_ridetube",
   "title": "RideTube",
   "description": "Video in the car: an unofficial client for YouTube. Your Home, Subscriptions and Watch later (signed in on the car), search, channels and chapters; the sound through the car's media player, the picture only while parked (a podcast view while driving). Needs the jap-ridetube-d tool.",
-  "version": "0.3.14",
+  "version": "0.3.15",
   "license": "GPL-3.0-or-later",
   "vendor": "custom",
   "loggingId": "OAA6",
@@ -125,6 +125,73 @@
           "text",
           "MAIN_SB",
           "Skip data: SponsorBlock (sponsor.ajay.app), CC BY-NC-SA 4.0"
+        ],
+        [
+          "button",
+          "BTN_NETWORK",
+          "Интернет и скорость"
+        ]
+      ]
+    },
+    {
+      "name": "NETWORK",
+      "kind": "menu",
+      "title": "Интернет и скорость",
+      "items": [
+        [
+          "text",
+          "NET_CURRENT",
+          "Источник: получаем состояние службы…"
+        ],
+        [
+          "text",
+          "NET_NOTE",
+          "Общий выбор для трёх приложений. Смена и тест остановят видео."
+        ],
+        [
+          "button",
+          "BTN_NET_EXTERNAL",
+          "Использовать внешнее подключение MGU Store"
+        ],
+        [
+          "button",
+          "BTN_NET_BUILTIN",
+          "Использовать встроенное соединение BMW"
+        ],
+        [
+          "button",
+          "BTN_NET_TEST",
+          "Сравнить скорость двух каналов (~8 МБ)"
+        ],
+        [
+          "button",
+          "BTN_NET_CANCEL",
+          "Отменить проверку"
+        ],
+        [
+          "text",
+          "NET_EXTERNAL",
+          "Внешний канал: ещё не проверен"
+        ],
+        [
+          "text",
+          "NET_BUILTIN",
+          "BMW: нужна первичная проверка MGU"
+        ],
+        [
+          "text",
+          "NET_WINNER",
+          "Загрузка без прокси; доступ к выбранному видеосервису проверяется отдельно."
+        ],
+        [
+          "text",
+          "NET_ERROR",
+          ""
+        ],
+        [
+          "button",
+          "BTN_NET_BACK",
+          "Вернуться к видео"
         ]
       ]
     }

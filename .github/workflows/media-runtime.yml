@@ -4,11 +4,13 @@ name: Released MGU media runtime
 # This tests the published, hash-pinned package, not a substitute host FFmpeg.
 on:
   push:
-    branches: [feature/cluster-video]
+    branches: [feature/cluster-video, feature/network-source-speed]
     paths:
       - .github/workflows/media-runtime.yml
       - media/runtime/**
       - media/service/**
+      - media/core/native/**
+      - media/ui/**
   workflow_dispatch:
     inputs:
       release_tag:
@@ -35,7 +37,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  network-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Test current network sources with real Node 8 and Python
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir source
+          curl --fail --silent --show-error --location "https://codeload.github.com/${GITHUB_REPOSITORY}/tar.gz/${GITHUB_SHA}" | tar -xz --strip-components=1 -C source
+          cd "$RUNNER_TEMP"
+          curl --fail --silent --show-error --location https://nodejs.org/dist/v8.17.0/SHASUMS256.txt -o SHASUMS256.txt
+          curl --fail --silent --show-error --location https://nodejs.org/dist/v8.17.0/node-v8.17.0-linux-x64.tar.xz -o node-v8.17.0-linux-x64.tar.xz
+          awk '$2 == "node-v8.17.0-linux-x64.tar.xz"' SHASUMS256.txt | sha256sum -c -
+          tar -xJf node-v8.17.0-linux-x64.tar.xz
+          export PATH="$RUNNER_TEMP/node-v8.17.0-linux-x64/bin:$PATH"
+          cd "$GITHUB_WORKSPACE/source"
+          node --version
+          node media/service/test_network_access.js
+          node media/service/test_network_gateway.js
+          node media/service/test_native_binding.js
+          node media/service/test_helper_arguments.js
+          node media/ui/test_network_view.js
+          node media/service/test_gateway.js
+          node media/service/test_python_provider.js
+          node media/core/native/jap-ridetube-d/test/test_ytd.js
+          python3 -m unittest discover -s media/service -p 'test_*.py' -q
+          python3 -m unittest discover -s media/providers/tests -q
   released-runtime:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:

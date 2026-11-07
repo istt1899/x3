@@ -34,8 +34,8 @@ for original in coding['components']:
     assert components[original['id']] == original, 'existing coding component changed'
 youtube = json.loads((MEDIA / 'core/catalog.json').read_text(encoding='utf-8'))
 original_app = next(c for c in youtube['components'] if c['id'] == 'jap_ridetube')
-assert components['jap_ridetube']['version'] == '0.3.14'
-assert components['jap_ridetube']['requires']['jap-ridetube-d'] == '0.4.2'
+assert components['jap_ridetube']['version'] == '0.3.15'
+assert components['jap_ridetube']['requires']['jap-ridetube-d'] == '0.4.3'
 
 for app in ('marku_vk_video', 'marku_rutube', 'jap_ridetube', 'jap-ridetube-d'):
     spec = components[app]
@@ -51,7 +51,7 @@ for app in ('marku_vk_video', 'marku_rutube', 'jap_ridetube', 'jap-ridetube-d'):
 
 with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as archive:
     manifest = json.load(archive.extractfile('component.json'))
-    assert manifest['id'] == 'jap-ridetube-d' and manifest['version'] == '0.4.2'
+    assert manifest['id'] == 'jap-ridetube-d' and manifest['version'] == '0.4.3'
     assert manifest['internet'] is True and manifest['uids'] == 'state/internet-uids'
     assert manifest['units'] == [{'name': 'jap-ridetube-d.service'}]
     assert manifest['check'] == ['service/check.sh']
@@ -98,15 +98,15 @@ with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as arc
 uuids = []
 for app, provider in [('marku_vk_video', 'vk'), ('marku_rutube', 'rutube')]:
     spec = components[app]
-    assert spec['requires']['jap-ridetube-d'] == '0.4.2'
+    assert spec['requires']['jap-ridetube-d'] == '0.4.3'
     with tarfile.open(OUT / spec['artifact']['name']) as archive:
         app_json = json.load(archive.extractfile('package/rhmiData/application.json'))['application']
-        assert app_json['name'] == app and app_json['version'] == '0.1.2'
+        assert app_json['name'] == app and app_json['version'] == '0.1.4'
         uuids.append(app_json['uuid'])
         settings = archive.extractfile('package/javascript/service-config.js').read().decode()
         assert '/run/jap-ridetube-d/' + provider + '.sock' in settings
         main = archive.extractfile('package/javascript/app.js').read().decode()
-        for shipped, source in [('app.js', 'main.js'), ('yt.js', 'model.js'), ('account-view.js', 'account-view.js')]:
+        for shipped, source in [('app.js', 'main.js'), ('yt.js', 'model.js'), ('account-view.js', 'account-view.js'), ('network-view.js', 'network-view.js')]:
             assert archive.extractfile('package/javascript/' + shipped).read() == (MEDIA / 'ui' / source).read_bytes(), 'stale app build: ' + shipped
         assert archive.extractfile('package/javascript/service-config.js').read() == (MEDIA / 'core/apps' / app / 'service-config.js').read_bytes()
         assert 'Parked.watch(ctx, log, { strict: true })' in main

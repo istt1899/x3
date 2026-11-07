@@ -35,7 +35,7 @@ function connect(proxy, targetHost, targetPort, options, cb) {
         if (err) socket.destroy();
         cb(err, sock);
     };
-    const socket = net.connect({ host: proxy.host, port: proxy.port, lookup: options.lookup });
+    const socket = net.connect({ host: proxy.host, port: proxy.port, lookup: options.lookup, localAddress: options.localAddress });
     const timer = setTimeout(() => finish(new Error('proxy connect timeout')), timeoutMs);
     if (timer.unref) timer.unref();
     socket.once('error', (e) => finish(new Error('proxy ' + proxy.host + ':' + proxy.port + ': ' + e.message)));
