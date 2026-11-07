@@ -15,7 +15,8 @@
 - [Необязательный собственный VK ID/relay вместо телевизионного входа](auth-relay/README.md)
 - [Протокол RUTUBE и первичные источники](providers/RUTUBE-RESEARCH-RU.md)
 - [Хэши и результаты проверок](RELEASE-EVIDENCE.json)
-- [Тестовый каталог](catalog.preview.json)
+- [Каталог для Store](../catalog.json)
+- [Первоначальный preview 0.4.0](catalog.preview.json)
 
 Вход обоих сервисов использует ссылку/QR на MGU и подтверждение своего аккаунта
 на телефоне. Стандартный вход VK — публичный телевизионный device flow, без

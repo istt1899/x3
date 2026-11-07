@@ -75,11 +75,23 @@
   "runtime": {
     "ffmpeg_sha256": "f95ade609cc31a6808c0df683dc77a55937ad58ccb7822ac88d5627de7dca1ea",
     "linux_elf_executed": true,
-    "first_linux_evidence": "validation/linux-runtime-0.4.0.json"
+    "first_linux_evidence": "validation/linux-runtime-0.4.0.json",
+    "exact_package_evidence": "validation/linux-runtime-0.4.1.json",
+    "workflow_run": "https://github.com/istt1899/x3/actions/runs/42357646426"
   },
   "not_verified": {
     "mgu_playback": true,
     "owner_rutube_approval_and_refresh": true,
     "owner_vk_approval_and_personal_api": true
+  },
+  "store_catalogs": {
+    "istt1899/x3": {
+      "sha256": "b36173f81f5fbca844d5fb92e7b8d3a6817f427f3944f6335e5f8640af802e32",
+      "source": "catalog.json"
+    },
+    "istt1899/ridetube": {
+      "sha256": "882c5a59cdf7b80b4f0b26422b6a5a5e9484a80c5d6268623978ddb0e9c39160",
+      "source": "https://github.com/istt1899/ridetube/blob/main/catalog.json"
+    }
   }
 }
