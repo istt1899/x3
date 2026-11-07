@@ -1,0 +1,108 @@
+{
+  "schema": 1,
+  "tested_at_utc": "2026-11-07T08:55:59.966006+00:00",
+  "actual_node": "8.17.0",
+  "artifacts": [
+    {
+      "name": "marku_vk_video@0.1.1.tgz",
+      "size": 1270585,
+      "sha256": "772b4134e871685eeab9084661c8116398487fc4cc38f430bbe92ac7d46ed96d"
+    },
+    {
+      "name": "marku_rutube@0.1.1.tgz",
+      "size": 1270509,
+      "sha256": "f72b281f24d60885b075bd40628ef82e7c9164a606af3255c63c042ca775e8ee"
+    },
+    {
+      "name": "jap-ridetube-d@0.4.1.tgz",
+      "size": 10649904,
+      "sha256": "dec49368a6bd1db4329ad2ce82c0de22e95ed73f80a73b0a49969cb50cb395a9"
+    }
+  ],
+  "linker_results": [
+    {
+      "deploy": "0.7.11",
+      "app": "marku_vk_video",
+      "sourceVersion": "0.1.1",
+      "sourceSha256": "772b4134e871685eeab9084661c8116398487fc4cc38f430bbe92ac7d46ed96d",
+      "node": "v8.17.0",
+      "mode": "preparePackage module",
+      "sdk": "synthetic donor only; no BMW code",
+      "jsFilesUnchangedAndNode8Parsed": 21,
+      "staticImportsChecked": 54,
+      "relativeImportsResolved": 37,
+      "platformNativeModules": [
+        "someip"
+      ],
+      "dynamicImports": 0,
+      "caseSensitivePathsChecked": true,
+      "flatOutput": true,
+      "preparedSdkCore": true,
+      "realDonorOrMGURuntimeTested": false
+    },
+    {
+      "deploy": "0.7.11",
+      "app": "marku_rutube",
+      "sourceVersion": "0.1.1",
+      "sourceSha256": "f72b281f24d60885b075bd40628ef82e7c9164a606af3255c63c042ca775e8ee",
+      "node": "v8.17.0",
+      "mode": "preparePackage module",
+      "sdk": "synthetic donor only; no BMW code",
+      "jsFilesUnchangedAndNode8Parsed": 21,
+      "staticImportsChecked": 54,
+      "relativeImportsResolved": 37,
+      "platformNativeModules": [
+        "someip"
+      ],
+      "dynamicImports": 0,
+      "caseSensitivePathsChecked": true,
+      "flatOutput": true,
+      "preparedSdkCore": true,
+      "realDonorOrMGURuntimeTested": false
+    },
+    {
+      "deploy": "0.8.4",
+      "app": "marku_vk_video",
+      "sourceVersion": "0.1.1",
+      "sourceSha256": "772b4134e871685eeab9084661c8116398487fc4cc38f430bbe92ac7d46ed96d",
+      "node": "v8.17.0",
+      "mode": "preparePackage module",
+      "sdk": "synthetic donor only; no BMW code",
+      "jsFilesUnchangedAndNode8Parsed": 21,
+      "staticImportsChecked": 54,
+      "relativeImportsResolved": 37,
+      "platformNativeModules": [
+        "someip"
+      ],
+      "dynamicImports": 0,
+      "caseSensitivePathsChecked": true,
+      "flatOutput": true,
+      "preparedSdkCore": true,
+      "realDonorOrMGURuntimeTested": false
+    },
+    {
+      "deploy": "0.8.4",
+      "app": "marku_rutube",
+      "sourceVersion": "0.1.1",
+      "sourceSha256": "f72b281f24d60885b075bd40628ef82e7c9164a606af3255c63c042ca775e8ee",
+      "node": "v8.17.0",
+      "mode": "preparePackage module",
+      "sdk": "synthetic donor only; no BMW code",
+      "jsFilesUnchangedAndNode8Parsed": 21,
+      "staticImportsChecked": 54,
+      "relativeImportsResolved": 37,
+      "platformNativeModules": [
+        "someip"
+      ],
+      "dynamicImports": 0,
+      "caseSensitivePathsChecked": true,
+      "flatOutput": true,
+      "preparedSdkCore": true,
+      "realDonorOrMGURuntimeTested": false
+    }
+  ],
+  "mgu_runtime_tested": false,
+  "sdk_fixture": "synthetic only; no BMW SDK; no published package was modified",
+  "platform_native_dependency": "someip is supplied by MGU and was not emulated",
+  "harness": "media/build/install-audit/check_source_package.js"
+}

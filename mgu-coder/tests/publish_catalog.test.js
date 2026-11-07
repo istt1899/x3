@@ -1,0 +1,12 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { assertCatalogPreservesExisting } = require('../tools/publish-github');
+const catalog = ids => ({ schema: 2, components: ids.map(id => ({ id, version: '0.1.0' })) });
+assert.doesNotThrow(() => assertCatalogPreservesExisting(catalog(['marku_x3_coding']), null));
+assert.doesNotThrow(() => assertCatalogPreservesExisting(catalog(['marku_x3_coding']), catalog(['marku_x3_coding'])));
+const shared = catalog(['marku_x3_coding', 'jap_ridetube', 'marku_vk_video', 'marku_rutube', 'jap-ridetube-d']);
+assert.throws(() => assertCatalogPreservesExisting(catalog(['marku_x3_coding']), shared), /Refusing to remove other apps/);
+assert.doesNotThrow(() => assertCatalogPreservesExisting(shared, shared));
+assert.doesNotThrow(() => assertCatalogPreservesExisting(catalog(shared.components.map(c => c.id).concat(['future_app'])), shared));
+assert.throws(() => assertCatalogPreservesExisting(shared, { schema: 1, components: [] }), /invalid/);
+console.log('ok: a coding release cannot erase video apps from the shared Store catalog');

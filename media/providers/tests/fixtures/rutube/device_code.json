@@ -1,0 +1,7 @@
+{
+  "user_code": "abc123",
+  "device_code": "fixture-device-secret-never-for-ui",
+  "verification_uri": "https://rutube.ru/activate/",
+  "interval": 10,
+  "expires_in": 1200
+}

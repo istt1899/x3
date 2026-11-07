@@ -1,0 +1,82 @@
+[
+  {
+    "deploy": "0.7.11",
+    "app": "marku_vk_video",
+    "sourceVersion": "0.1.3",
+    "sourceSha256": "e5a4a4ecaf6ec3838c12a2fca90d8bd619db86b421b450ec13aa3ca339af8f53",
+    "node": "v8.17.0",
+    "mode": "preparePackage module",
+    "sdk": "synthetic donor only; no BMW code",
+    "jsFilesUnchangedAndNode8Parsed": 21,
+    "staticImportsChecked": 54,
+    "relativeImportsResolved": 37,
+    "platformNativeModules": [
+      "someip"
+    ],
+    "dynamicImports": 0,
+    "caseSensitivePathsChecked": true,
+    "flatOutput": true,
+    "preparedSdkCore": true,
+    "realDonorOrMGURuntimeTested": false
+  },
+  {
+    "deploy": "0.7.11",
+    "app": "marku_rutube",
+    "sourceVersion": "0.1.3",
+    "sourceSha256": "16c02bf437b38cd940adfd645943e153bfa2aea0e644f591d78e5e2ed1b3b23b",
+    "node": "v8.17.0",
+    "mode": "preparePackage module",
+    "sdk": "synthetic donor only; no BMW code",
+    "jsFilesUnchangedAndNode8Parsed": 21,
+    "staticImportsChecked": 54,
+    "relativeImportsResolved": 37,
+    "platformNativeModules": [
+      "someip"
+    ],
+    "dynamicImports": 0,
+    "caseSensitivePathsChecked": true,
+    "flatOutput": true,
+    "preparedSdkCore": true,
+    "realDonorOrMGURuntimeTested": false
+  },
+  {
+    "deploy": "0.8.4",
+    "app": "marku_vk_video",
+    "sourceVersion": "0.1.3",
+    "sourceSha256": "e5a4a4ecaf6ec3838c12a2fca90d8bd619db86b421b450ec13aa3ca339af8f53",
+    "node": "v8.17.0",
+    "mode": "preparePackage module",
+    "sdk": "synthetic donor only; no BMW code",
+    "jsFilesUnchangedAndNode8Parsed": 21,
+    "staticImportsChecked": 54,
+    "relativeImportsResolved": 37,
+    "platformNativeModules": [
+      "someip"
+    ],
+    "dynamicImports": 0,
+    "caseSensitivePathsChecked": true,
+    "flatOutput": true,
+    "preparedSdkCore": true,
+    "realDonorOrMGURuntimeTested": false
+  },
+  {
+    "deploy": "0.8.4",
+    "app": "marku_rutube",
+    "sourceVersion": "0.1.3",
+    "sourceSha256": "16c02bf437b38cd940adfd645943e153bfa2aea0e644f591d78e5e2ed1b3b23b",
+    "node": "v8.17.0",
+    "mode": "preparePackage module",
+    "sdk": "synthetic donor only; no BMW code",
+    "jsFilesUnchangedAndNode8Parsed": 21,
+    "staticImportsChecked": 54,
+    "relativeImportsResolved": 37,
+    "platformNativeModules": [
+      "someip"
+    ],
+    "dynamicImports": 0,
+    "caseSensitivePathsChecked": true,
+    "flatOutput": true,
+    "preparedSdkCore": true,
+    "realDonorOrMGURuntimeTested": false
+  }
+]

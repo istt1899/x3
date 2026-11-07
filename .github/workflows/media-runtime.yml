@@ -1,0 +1,238 @@
+name: Released MGU media runtime
+
+# push also works before this workflow is registered on the default branch.
+# This tests the published, hash-pinned package, not a substitute host FFmpeg.
+on:
+  push:
+    branches: [feature/cluster-video]
+    paths:
+      - .github/workflows/media-runtime.yml
+      - media/runtime/**
+      - media/service/**
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release containing jap-ridetube-d@0.4.2.tgz
+        required: true
+        default: catalog
+        type: string
+      service_sha256:
+        description: Expected SHA-256 of that exact service archive
+        required: true
+        default: d8da3ba5ff55d8574b0622a8884b471a733af5a1056ae4278a31da13d0759677
+        type: string
+      service_size:
+        description: Expected service archive size in bytes
+        required: true
+        default: '10653377'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: released-mgu-runtime-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  released-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || 'catalog' }}
+      SERVICE_SHA256: ${{ inputs.service_sha256 || 'd8da3ba5ff55d8574b0622a8884b471a733af5a1056ae4278a31da13d0759677' }}
+      SERVICE_SIZE: ${{ inputs.service_size || '10653377' }}
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Download, verify and safely unpack the release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I - <<'PY'
+          import hashlib
+          import io
+          import json
+          import os
+          from pathlib import Path, PurePosixPath
+          import re
+          import sys
+          import tarfile
+          import urllib.request
+
+          if sys.version_info[:2] != (3, 12):
+              raise RuntimeError('This gate requires the Ubuntu runner Python 3.12')
+          tag = os.environ['RELEASE_TAG']
+          expected = os.environ['SERVICE_SHA256'].lower()
+          size = int(os.environ['SERVICE_SIZE'])
+          if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,99}', tag):
+              raise ValueError('Invalid release tag')
+          if not re.fullmatch(r'[0-9a-f]{64}', expected) or not 1 <= size <= 64 * 1024 * 1024:
+              raise ValueError('A pinned SHA-256 and bounded size are required')
+          url = ('https://github.com/istt1899/x3/releases/download/' + tag
+                 + '/jap-ridetube-d@0.4.2.tgz')
+          request = urllib.request.Request(url, headers={'User-Agent': 'MGU-runtime-gate'})
+          chunks, count = [], 0
+          with urllib.request.urlopen(request, timeout=45) as response:
+              while chunk := response.read(1024 * 1024):
+                  count += len(chunk)
+                  if count > size:
+                      raise ValueError('Release archive exceeds its pinned size')
+                  chunks.append(chunk)
+          blob = b''.join(chunks)
+          if len(blob) != size or hashlib.sha256(blob).hexdigest() != expected:
+              raise ValueError('Release archive size/SHA-256 mismatch')
+          work = Path(os.environ['RUNNER_TEMP']) / 'mgu-media-runtime'
+          payload = work / 'unpacked'
+          evidence = work / 'evidence'
+          payload.mkdir(parents=True, exist_ok=False)
+          evidence.mkdir()
+
+          def safe_name(name):
+              p = PurePosixPath(name)
+              if (not name or '\\' in name or '\x00' in name or p.is_absolute()
+                      or any(part in ('', '.', '..') for part in name.split('/'))):
+                  raise ValueError('Unsafe archive/manifest path')
+              return p
+
+          with tarfile.open(fileobj=io.BytesIO(blob), mode='r:gz') as archive:
+              members = archive.getmembers()
+              if len(members) > 256 or sum(m.size for m in members) > 128 * 1024 * 1024:
+                  raise ValueError('Unbounded release payload')
+              names = set()
+              for member in members:
+                  safe_name(member.name)
+                  if not member.isfile() or member.mode & 0o7000 or member.name in names:
+                      raise ValueError('Only unique regular files are allowed; no links or devices')
+                  names.add(member.name)
+              manifest = json.load(archive.extractfile('component.json'))
+              if manifest['id'] != 'jap-ridetube-d' or manifest['version'] != '0.4.2':
+                  raise ValueError('Unexpected component identity')
+              declared = {}
+              for entry in manifest['files']:
+                  safe_name(entry['path'])
+                  name = 'files/' + entry['path']
+                  if name in declared:
+                      raise ValueError('Duplicate manifest file')
+                  declared[name] = entry
+              unit_names = {'units/' + str(unit['name']) for unit in manifest['units']}
+              if names != set(declared) | unit_names | {'component.json'}:
+                  raise ValueError('Manifest does not describe every payload file')
+              for member in members:
+                  data = archive.extractfile(member).read()
+                  entry = declared.get(member.name)
+                  if entry:
+                      if hashlib.sha256(data).hexdigest() != entry['sha256']:
+                          raise ValueError('Payload SHA-256 mismatch: ' + member.name)
+                      if member.mode != int(entry['mode'], 8):
+                          raise ValueError('Payload permission mismatch: ' + member.name)
+                  destination = payload.joinpath(*safe_name(member.name).parts)
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  destination.write_bytes(data)
+                  destination.chmod(member.mode & 0o755)
+
+          root = payload / 'files'
+          ffmpeg = root / 'runtime/ffmpeg'
+          ffmpeg_sha = hashlib.sha256(ffmpeg.read_bytes()).hexdigest()
+          pinned_ffmpeg = 'f95ade609cc31a6808c0df683dc77a55937ad58ccb7822ac88d5627de7dca1ea'
+          provenance = json.loads((root / 'runtime/ffmpeg-sources.json').read_text())
+          if ffmpeg_sha != pinned_ffmpeg or provenance['binary_sha256'] != pinned_ffmpeg:
+              raise ValueError('This is not the approved static Linux FFmpeg')
+          required = ['service/main.js', 'service/gateway.js', 'service/python_provider.js',
+                      'service/mediafetch.py', 'service/check.sh', 'runtime/test_ffmpeg.py',
+                      'runtime/test-fixtures/sample.mp4', 'runtime/test-fixtures/sample.ts',
+                      'core/native/jap-ridetube-d/ytd.js', 'core/native/jap-ridetube-d/ytfetch.py',
+                      'core/native/jap-ridetube-d/ytdec', 'core/native/jap-ridetube-d/ytdlp.pyz']
+          if not all((root / name).is_file() for name in required):
+              raise ValueError('Incomplete nested service layout')
+          if manifest.get('internet') is not True or manifest.get('uids') != 'state/internet-uids':
+              raise ValueError('Existing service internet/UID identity must be preserved')
+          proof = {'service_url': url, 'service_size': size, 'service_sha256': expected,
+                   'ffmpeg_sha256': ffmpeg_sha, 'python': sys.version.split()[0],
+                   'linux_runtime_tested': False, 'mgu_runtime_tested': False}
+          (evidence / 'provenance.json').write_text(json.dumps(proof, indent=2) + '\n')
+          print(json.dumps(proof, indent=2))
+          PY
+
+      - name: Run the shipped install check in an isolated Linux network namespace
+        shell: bash
+        run: |
+          set -euxo pipefail
+          package="$RUNNER_TEMP/mgu-media-runtime/unpacked/files"
+          evidence="$RUNNER_TEMP/mgu-media-runtime/evidence"
+          node="$(command -v node)"
+          test -x "$node"
+          # The hosted runner puts Node on PATH, not necessarily in /usr/bin.
+          # Supply the MGU alias only on this disposable runner, without an install.
+          if [ ! -e /usr/bin/node ] && [ ! -L /usr/bin/node ]; then
+            sudo ln -s "$node" /usr/bin/node
+          fi
+          # Namespace-local mounts provide the MGU absolute Python path. They do
+          # not install a service, run the daemon, or change the runner's mounts.
+          test -x /usr/bin/node
+          sudo unshare --mount --net --propagation private /bin/bash -euo pipefail -s -- \
+            "$package" "$(command -v python3)" "$node" "$evidence" <<'SH'
+          package=$1
+          python=$2
+          node=$3
+          evidence=$4
+          mount -t tmpfs -o mode=0755,size=1m mgu-runtime-ci /var/opt
+          mkdir -p /var/opt/mgu-python/current/bin
+          ln -s "$python" /var/opt/mgu-python/current/bin/python3
+          mount --bind "$node" /usr/bin/node
+          "$python" -I - "$evidence" <<'PY'
+          import json
+          from pathlib import Path
+          import platform
+          import socket
+          import subprocess
+          import sys
+          interfaces = [name for _, name in socket.if_nameindex()]
+          if interfaces != ['lo']:
+              raise RuntimeError('Offline test namespace has external network interfaces')
+          proof = {'network_interfaces': interfaces, 'kernel': platform.release(),
+                   'architecture': platform.machine(),
+                   'node': subprocess.check_output(['/usr/bin/node', '--version'], text=True).strip()}
+          (Path(sys.argv[1]) / 'linux-environment.json').write_text(json.dumps(proof, indent=2) + '\n')
+          PY
+          # check.sh uses the actual nested paths and itself executes the exact
+          # shipped runtime/test_ffmpeg.py on both synthetic MP4 and MPEG-TS.
+          /bin/sh "$package/service/check.sh" | tee "$evidence/check-sh.log"
+          SH
+
+      - name: Record Linux evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'mgu-media-runtime/evidence'
+          tests = json.loads((evidence / 'check-sh.log').read_text())
+          if tests.get('production_binary') is not True:
+              raise ValueError('A substitute host binary is not runtime evidence')
+          if {test['input'] for test in tests['results']} != {'mp4', 'ts'}:
+              raise ValueError('Both MP4 and MPEG-TS remux gates must pass')
+          proof = json.loads((evidence / 'provenance.json').read_text())
+          proof.update(linux_runtime_tested=True, mgu_runtime_tested=False,
+                       install_check_passed=True, remux=tests['results'],
+                       environment=json.loads((evidence / 'linux-environment.json').read_text()),
+                       workflow_run='https://github.com/' + os.environ['GITHUB_REPOSITORY']
+                       + '/actions/runs/' + os.environ['GITHUB_RUN_ID'])
+          (evidence / 'result.json').write_text(json.dumps(proof, indent=2) + '\n')
+          print(json.dumps(proof, indent=2))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('Passed the shipped Linux FFmpeg and nested service install check.\n\n')
+              summary.write('MP4 and MPEG-TS remux ran without external network interfaces.\n\n')
+              summary.write('This is Ubuntu runtime evidence; MGU hardware/firmware remains untested.\n\n')
+              summary.write('```json\n' + json.dumps(proof, indent=2) + '\n```\n')
+          PY
+
+      - name: Save public runtime evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: media-runtime-${{ github.run_id }}
+          path: ${{ runner.temp }}/mgu-media-runtime/evidence/
+          retention-days: 30
+          if-no-files-found: warn

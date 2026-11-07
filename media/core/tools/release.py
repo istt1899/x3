@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""Lays out the MGU Store catalog of this repository in dist/release/: catalog.json, the app's OAP package
+(without node_modules/oap-sdk: the head unit makes it from an app already on the car), the service's tool kit
+and the app icon. The catalog also lists jap-node22 from its verified upstream release,
+so the Store can resolve RideTube's runtime from this source alone. Upload every file of dist/release/ as an asset of a GitHub release tagged `catalog`.
+
+Build first:  python3 kit/tools/build.py jap_ridetube                      (dist/jap_ridetube@<v>.tgz)
+              (cd native/ytdec && make target)
+              (cd native/jap-ridetube-d && MGU_STORE=... ./build.sh)      (its dist/)
+Then:         python3 tools/release.py [--base URL]
+--base: where the car downloads the assets from; default the public release download of the `catalog`
+release. For a private repository, list the assets' API URLs instead (docs/PUBLISHING.md of the Store).
+"""
+import argparse, gzip, hashlib, io, json, os, shutil, sys, tarfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO = 'istt1899/ridetube'
+APP = 'jap_ridetube'
+TOOLS = ('jap-ridetube-d',)
+
+
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for b in iter(lambda: f.read(1 << 20), b''):
+            h.update(b)
+    return h.hexdigest()
+
+
+def strip_sdk(src, dst, mtime):
+    """The OAP package again, without node_modules/oap-sdk, sorted, owner 0:0, one mtime."""
+    with tarfile.open(src, 'r:gz') as t:
+        members = [(m, t.extractfile(m).read() if m.isfile() else None) for m in t.getmembers()]
+    keep = [(m, d) for m, d in members if 'node_modules/oap-sdk' not in m.name]
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode='w', format=tarfile.USTAR_FORMAT) as out:
+        for m, d in sorted(keep, key=lambda x: x[0].name):
+            m.uid = m.gid = 0
+            m.uname = m.gname = ''
+            m.mtime = mtime
+            out.addfile(m, io.BytesIO(d) if d is not None else None)
+    with open(dst, 'wb') as f, gzip.GzipFile(fileobj=f, mode='wb', mtime=mtime, filename='') as g:
+        g.write(buf.getvalue())
+    with tarfile.open(dst, 'r:gz') as t:
+        assert not any('oap-sdk' in n for n in t.getnames()), 'oap-sdk left in the package'
+
+
+def artifact(path, base):
+    name = os.path.basename(path)
+    return {'name': name, 'size': os.path.getsize(path), 'sha256': sha256(path), 'url': base + name}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--base', default='https://github.com/%s/releases/download/catalog/' % REPO)
+    a = ap.parse_args()
+    mtime = int(os.environ.get('SOURCE_DATE_EPOCH', '0'))
+    out = os.path.join(ROOT, 'dist', 'release')
+    shutil.rmtree(out, ignore_errors=True)
+    os.makedirs(out)
+
+    app = json.load(open(os.path.join(ROOT, 'apps', APP, 'app.json')))
+    tools = {t: json.load(open(os.path.join(ROOT, 'native', t, 'component.json'))) for t in TOOLS}
+    pkg = os.path.join(ROOT, 'dist', '%s@%s.tgz' % (APP, app['version']))
+    if not os.path.isfile(pkg):
+        sys.exit('release.py: %s missing (python3 kit/tools/build.py %s)' % (pkg, APP))
+    strip_sdk(pkg, os.path.join(out, os.path.basename(pkg)), mtime)
+    # the local build's packages hold BMW's oap-sdk: only dist/release/ is ever uploaded, so they go
+    for f in (pkg, pkg[:-4] + '.mgu'):
+        if os.path.exists(f):
+            os.remove(f)
+    for t, c in tools.items():
+        kit = os.path.join(ROOT, 'native', t, 'dist', '%s@%s.tgz' % (t, c['version']))
+        if not os.path.isfile(kit):
+            sys.exit('release.py: %s missing (cd native/%s && ./build.sh)' % (kit, t))
+        shutil.copy(kit, out)
+    icon = APP + '.png'
+    shutil.copy(os.path.join(ROOT, 'apps', APP, 'icon.png'), os.path.join(out, icon))
+    assert os.path.getsize(os.path.join(out, icon)) <= 128 * 1024
+
+    comps = [{
+        'id': APP, 'kind': 'app', 'title': app['title'], 'description': app['description'], 'version': app['version'],
+        'artifact': artifact(os.path.join(out, os.path.basename(pkg)), a.base),
+        'requires': {'jap-ridetube-d': tools['jap-ridetube-d']['version'], 'mgu-render': '0.6.11', 'mgu-inputgate': '1.0.0'},
+        'uninstallable': True, 'mguHmi': ['ID7'], 'icon': icon, 'iconSha256': sha256(os.path.join(out, icon)),
+    }]
+    for t, c in tools.items():
+        e = {'id': t, 'kind': 'tool', 'title': c['title'], 'description': c['description'], 'version': c['version'],
+             'artifact': artifact(os.path.join(out, '%s@%s.tgz' % (t, c['version'])), a.base),
+             'requires': c.get('requires', {}), 'uninstallable': bool(c.get('uninstallable')), 'mguHmi': c.get('mguHmi', ['ID7'])}
+        comps.append(e)
+    providers = json.load(open(os.path.join(ROOT, 'tools', 'runtime-providers.json')))
+    for provider in providers:
+        assert provider['id'] == 'jap-node22' and provider['kind'] == 'tool'
+        assert provider['artifact']['url'].startswith('https://github.com/JustAnotherPU/mgu-apps/releases/download/')
+        assert not any(c['id'] == provider['id'] for c in comps)
+        assert tuple(map(int, provider['version'].split('.'))) >= tuple(map(int, tools['jap-ridetube-d']['requires'][provider['id']].split('.')))
+        comps.append(provider)
+    with open(os.path.join(out, 'catalog.json'), 'w') as f:
+        json.dump({'schema': 2, 'components': comps}, f, indent=2)
+        f.write('\n')
+    # Also readable as a plain HTTPS source, independently of release caches.
+    direct = json.loads(json.dumps({'schema': 2, 'components': comps}))
+    for component in direct['components']:
+        if component.get('icon') and not component['icon'].startswith('https://'):
+            component['icon'] = a.base + component['icon']
+    with open(os.path.join(ROOT, 'catalog.json'), 'w') as f:
+        json.dump(direct, f, indent=2)
+        f.write('\n')
+    for n in sorted(os.listdir(out)):
+        print('%10d  %s' % (os.path.getsize(os.path.join(out, n)), n))
+
+
+if __name__ == '__main__':
+    main()

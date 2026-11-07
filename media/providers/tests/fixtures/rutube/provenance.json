@@ -1,0 +1,29 @@
+{
+  "observed_date": "2026-11-07",
+  "authority": "first-party live HTTP responses and inert first-party TV JavaScript",
+  "sources": {
+    "tv_app": "https://rutube.ru/tv-release/webos.server/webos/",
+    "tv_bundle": "https://rutube.ru/tv-release/webos.server/webos/main.88bf555a.js",
+    "official_auth_help": "https://rutube.ru/info/androidtv/",
+    "search": "https://rutube.ru/api/search/video/?query=NASA&format=json",
+    "home": "https://rutube.ru/api/v2/video/recommendation/main?limit=3&show_hidden_videos=False&show_user_hidden_videos=False",
+    "video": "https://rutube.ru/api/video/03a9cb54bac3376af4c5cb0f18444e01/?format=json",
+    "options": "https://rutube.ru/api/play/options/03a9cb54bac3376af4c5cb0f18444e01/?format=json"
+  },
+  "observations": {
+    "public_search": "HTTP 200, 100 results",
+    "public_home": "HTTP 200, 3 results",
+    "device_code": "HTTP 200, six-character user_code, verification_uri https://rutube.ru/activate/, interval 10, expires_in 1200",
+    "token_poll_without_account_approval": "HTTP 400, code 1004003",
+    "unauthenticated_personal_feeds": "subscriptions/watch later HTTP 401, history HTTP 403",
+    "sample_video_formats": "HLS with AVC1 and AAC-LC, maximum 1080p in sampled options",
+    "thumbnail_resize": "First-party TV videoImgSize=l; pic.rtbcdn.ru ?size=l changed sampled JPEG 2696x1515/365651 bytes to 640x359/39952 bytes. No live image or URL retained."
+  },
+  "fixture_changes": [
+    "Only normalization-relevant video fields retained; title simplified and thumbnail URL replaced.",
+    "All device/user codes are invented fixtures, not live codes.",
+    "TV bundle is a small original fixture of the observed protocol shape, not copied application code.",
+    "No access tokens, refresh tokens, account cookies or signed CDN query values retained."
+  ],
+  "not_verified": ["personal account approval", "refresh with a real account", "authenticated personal feeds", "MGU playback"]
+}

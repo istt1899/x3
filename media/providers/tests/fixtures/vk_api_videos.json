@@ -1,0 +1,32 @@
+{
+  "response": {
+    "count": 2,
+    "items": [
+      {
+        "owner_id": 123,
+        "id": 456,
+        "title": "Синтетическое личное видео",
+        "duration": 95,
+        "is_private": 1,
+        "access_key": "fixture-access-key-not-a-real-key",
+        "image": [{"url": "https://sun9.userapi.com/fixture-private.jpg", "width": 320, "height": 180}],
+        "player": "https://vk.com/video_ext.php?fixture=private",
+        "files": {
+          "mp4_360": "https://video.okcdn.ru/fixture-private-360.mp4?fixture=only",
+          "mp4_720": "https://video.okcdn.ru/fixture-private-720.mp4?fixture=only"
+        }
+      },
+      {
+        "owner_id": -456,
+        "id": 789,
+        "title": "Синтетическое публичное видео",
+        "duration": 240,
+        "is_private": 0,
+        "image": [{"url": "https://sun9.userapi.com/fixture-public.jpg", "width": 320, "height": 180}],
+        "player": "https://vk.com/video_ext.php?fixture=public"
+      }
+    ],
+    "profiles": [{"id": 123, "first_name": "Fixture", "last_name": "User"}],
+    "groups": [{"id": 456, "name": "Fixture Group"}]
+  }
+}

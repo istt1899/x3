@@ -1,0 +1,41 @@
+ПРОВЕРКА ДРУГИМ АГЕНТОМ: MGU VIDEO 0.4.1 / ПРИЛОЖЕНИЯ 0.1.1
+
+Репозиторий: https://github.com/istt1899/x3
+Читайте media/RELEASE-0.4.1-RU.md, INSTALL-STORE-RU.md и RELEASE-EVIDENCE.json.
+Первоначальный REVIEW-RU.md относится к старому preview 0.4.0.
+
+Главное изменение: стандартный VK TV QR больше не требует собственного developer
+APP_ID/HTTPS relay. Публичный TV bootstrap без client_secret/cookie подтверждён
+реальной цепочкой getAnonymToken -> getAuthCode -> checkAuthCode(CREATED).
+Не выдавайте это за одобренный личным пользователем аккаунт.
+
+Проверьте независимо:
+1. Реальные catalog.json обоих sources: x3 сохраняет Coding 0.1.2 и YouTube0.3.13;
+   служба0.4.1 доступна и из старого origin ridetube. Archives/size/SHA совпадают;
+   каждый service manifest file соответствует текущим исходникам.
+2. VK QR допускает только https://qr.vk.ru/ca?q=<тот же 6символьный код>, без extra
+   fields/fragment/userinfo. QR генерируется локально, не загружается из Google.
+3. TV private hash/anonymous/user token не выходят в UI, argv или logs. Expiry —
+   корректный TTL от server epoch, статусы0/1pending,2approved,3declined,4expired.
+   Пользователь и Video API проверяются до signed_in. Конечный token expiry не
+   маскируется выдуманным refresh; новый QR предлагается честно.
+4. VK personal API: video.get/home, video.search, optional files.mp4_*. Player-only
+   private video даёт понятный отказ. Access keys остаются в private bounded hints.
+5. Sign_out: старый decoder остановлен ДО удаления private cache, списки/thumbnails/
+   позиции очищены, старые результаты не восстанавливают данные; другой сервис не
+   останавливается. Account cache namespace не переиспользуется гостем после restart.
+6. Быстрые quality/Stop/Play и failed decode: один decoder до фактического exit;
+   fresh resolve до удаления старого кэша; сбой сети сохраняет старое видео.
+7. YouTube сохраняет старый proxy/account; VK/RUTUBE DIRECT даже со сломанным
+   HTTP_PROXY. Network UID и state/internet-uids прежние, root не делает запросы.
+8. Exact production FFmpeg исполняется на Linux через check.sh, не Windows substitute.
+   Подтвердите SHA по CI evidence; offline MP4/TS оба дают AAC+MGYI/H264. MGU hardware
+   verification отдельно: она не доказана Linux/fixtures.
+9. Source-only apps без BMW SDK/stub, разные UUID/sockets, кириллица, parked gate.
+   Проверьте фактический Store linker/default build mode и относительные require.
+10. Coding publisher guard предотвращает удаление video IDs из общего каталога.
+
+Повторяемые команды тестов указаны в исходных тестовых файлах и отчёте. Для живых
+guest/code probes не нужен личный аккаунт. Для завершённого входа владелец сам
+подтверждает QR. Не запрашивайте его пароль, не публикуйте auth_hash/токены/private
+JSON и не подключайтесь к автомобилю без конкретной задачи.
