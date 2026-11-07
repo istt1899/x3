@@ -6,6 +6,7 @@ module.exports = Object.freeze({
   "accent": "#0077FF",
   "socket": "/run/jap-ridetube-d/vk.sock",
   "authHosts": [
+    "qr.vk.ru",
     "id.vk.ru",
     "id.vk.com"
   ],

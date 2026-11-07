@@ -45,11 +45,11 @@ function cleanMessage(message) {
     return String(message || 'Сервис не ответил. Повторите запрос.')
         .replace(/((?:https?|socks5h?):\/\/)[^\s/@]+:[^\s/@]*@/gi, '$1[redacted]@')
         .replace(/(Bearer\s+)\S+/gi, '$1[redacted]')
-        .replace(/((?:access_token|refresh_token|device_code|code_verifier|client_secret|broker_key|broker_poll_token|poll_token|state)\s*[=:]\s*)[^\s&,]+/gi, '$1[redacted]')
+        .replace(/((?:access_token|refresh_token|anonymous_token|exchange_token|auth_hash|device_code|code_verifier|client_secret|broker_key|broker_poll_token|poll_token|state)\s*[=:]\s*)[^\s&,]+/gi, '$1[redacted]')
         .slice(0, 500);
 }
 function text(value, maximum) { return String(value || '').slice(0, maximum); }
-function publicState(value, brokerOrigin) {
+function publicState(value, brokerOrigin, providerId) {
     const allowed = ['signed_out', 'code', 'signed_in', 'error'];
     const state = value && allowed.indexOf(value.state) >= 0 ? value.state : 'error';
     const result = { state: state };
@@ -60,7 +60,7 @@ function publicState(value, brokerOrigin) {
         try {
             const url = new URL(value.url);
             const forbidden = ['access_token', 'refresh_token', 'device_code', 'client_secret', 'code_verifier',
-                'broker_key', 'broker_poll_token', 'poll_token', 'state'];
+                'anonymous_token', 'exchange_token', 'auth_hash', 'broker_key', 'broker_poll_token', 'poll_token', 'state'];
             let containsSecret = false;
             url.searchParams.forEach((v, key) => { if (forbidden.indexOf(key.toLowerCase()) >= 0) containsSecret = true; });
             // The VK relay's short URL is public, but its polling/PKCE credentials are not.
@@ -68,9 +68,15 @@ function publicState(value, brokerOrigin) {
             // arbitrary URL returned by an extractor or a credential-bearing query.
             const brokerUrl = brokerOrigin && url.origin === brokerOrigin &&
                 /^\/s\/[A-Za-z0-9_-]{22}$/.test(url.pathname) && !url.search && !url.hash;
+            const tvKeys = [];
+            url.searchParams.forEach((v, key) => tvKeys.push(key));
+            const tvUrl = providerId === 'vk' && url.hostname === 'qr.vk.ru' && !url.port && url.pathname === '/ca' &&
+                !url.hash && tvKeys.length === 1 && tvKeys[0] === 'q' && /^[A-Za-z0-9]{6}$/.test(value.code || '') &&
+                url.searchParams.get('q') === value.code && value.url === 'https://qr.vk.ru/ca?q=' + value.code &&
+                Buffer.byteLength(url.href, 'utf8') <= 62;
             if (url.protocol === 'https:' && !url.username && !url.password &&
-                (['rutube.ru', 'id.vk.ru', 'id.vk.com'].indexOf(url.hostname) >= 0 || brokerUrl) &&
-                !containsSecret && !/(access_token|refresh_token|device_code|code_verifier|client_secret|broker_key|broker_poll_token|poll_token|state)/i.test(url.hash)) result.url = value.url;
+                (['rutube.ru', 'id.vk.ru', 'id.vk.com'].indexOf(url.hostname) >= 0 || brokerUrl || tvUrl) &&
+                !containsSecret && !/(access_token|refresh_token|anonymous_token|exchange_token|auth_hash|device_code|code_verifier|client_secret|broker_key|broker_poll_token|poll_token|state)/i.test(url.hash)) result.url = value.url;
         } catch (e) { /* no untrusted address in UI */ }
     }
     return result;
@@ -117,6 +123,7 @@ class PythonProvider {
         this.pollTimer = null;
         this.emit = null;
         this.brokerOrigin = null;
+        this.accountScope = undefined;
     }
     attach(emit) { this.emit = typeof emit === 'function' ? emit : null; }
     _context(ctx) {
@@ -168,10 +175,10 @@ class PythonProvider {
         return value;
     }
     _rememberSecrets(value, key) {
-        if (typeof value === 'string' && /^(access_token|refresh_token|device_code|code_verifier|client_secret|password|cookie|broker_key|broker_poll_token|poll_token|state)$/i.test(key || '') && value.length >= 4)
+        if (typeof value === 'string' && /^(access_token|refresh_token|access_key|anonymous_token|exchange_token|auth_hash|device_code|code_verifier|client_secret|password|cookie|broker_key|broker_poll_token|poll_token|state)$/i.test(key || '') && value.length >= 4)
             this.secrets.add(value);
         else if (value && typeof value === 'object') Object.keys(value).forEach((name) => this._rememberSecrets(value[name], name));
-        while (this.secrets.size > 200) this.secrets.delete(this.secrets.values().next().value);
+        while (this.secrets.size > 1024) this.secrets.delete(this.secrets.values().next().value);
     }
     _redact(value) {
         let result = String(value || '');
@@ -179,7 +186,7 @@ class PythonProvider {
         return result;
     }
     _public(value) {
-        const result = publicState(value, this.brokerOrigin);
+        const result = publicState(value, this.brokerOrigin, this.id);
         if (result.msg) result.msg = this._redact(result.msg);
         if (result.code && this._redact(result.code) !== result.code) delete result.code;
         if (result.url && this._redact(result.url) !== result.url) delete result.url;
@@ -196,7 +203,7 @@ class PythonProvider {
         const stored = readJson(path.join(ctx.stateDir, 'config.json'), 65536);
         const config = { cache_dir: dirs.ytc, pyz: this.pyz, ca_bundle: this.caBundle, lease_file: this.leaseFile };
         // Never forward Store/YouTube proxy settings or arbitrary worker configuration.
-        ['client_id', 'app_id', 'redirect_uri', 'scope', 'api_version', 'callback_broker', 'broker_key'].forEach((key) => {
+        ['client_id', 'app_id', 'redirect_uri', 'scope', 'api_version', 'callback_broker', 'broker_key', 'auth_mode'].forEach((key) => {
             if (typeof stored[key] === 'string' || typeof stored[key] === 'number') config[key] = stored[key];
         });
         if (!config.client_id && config.app_id) config.client_id = String(config.app_id);
@@ -278,8 +285,12 @@ class PythonProvider {
             catch (e) { throw failure('worker_json', 'Сервис вернул некорректный ответ.'); }
             if (!result || typeof result !== 'object' || Array.isArray(result)) throw failure('worker_json', 'Сервис вернул некорректный ответ.');
             this._rememberSecrets(result.private);
-            if (save !== false && result.private && typeof result.private === 'object' && !Array.isArray(result.private))
+            if (save !== false && result.private && typeof result.private === 'object' && !Array.isArray(result.private)) {
                 this._atomic(dirs.account, Object.assign({}, result.private, { provider: this.id }), 0);
+                const nextScope = this._cacheScope(result.private);
+                if (this.id === 'vk' && nextScope !== this.accountScope) this.cards.clear();
+                this.accountScope = nextScope;
+            }
             // Ordinary content operations may refresh, invalidate or finish an
             // account login. Persist and publish that envelope together, including
             // permission failures accompanying a content error. A cancelled worker
@@ -314,14 +325,14 @@ class PythonProvider {
         this._context(ctx);
         const query = String(q || '').trim().slice(0, 200);
         if (!query) throw failure('empty_query', 'Введите запрос для поиска.');
-        const result = await this._worker('search', { q: query }, ctx, this.generation);
+        const result = await this._worker('search', { q: query }, this._accountContext(ctx), this.generation);
         return this._remember(result.result);
     }
     async feed(which, ctx) {
         this._context(ctx);
         const name = String(which || 'home');
         if (!/^[a-zA-Z0-9_-]{1,40}$/.test(name)) throw failure('invalid_feed', 'Этот раздел недоступен.');
-        const result = await this._worker('feed', { which: name }, ctx, this.generation);
+        const result = await this._worker('feed', { which: name }, this._accountContext(ctx), this.generation);
         return this._remember(result.result);
     }
     _cancelPoll() {
@@ -390,6 +401,10 @@ class PythonProvider {
         const generation = this._advance(), dirs = this._dirs(ctx);
         const previous = this._state(dirs.account);
         this._atomic(dirs.account, { provider: this.id }, 0);
+        if (this.id === 'vk') {
+            this.cards.clear(); this.accountScope = null;
+            this._purgeAccountCache(ctx, previous);
+        }
         this._broadcast({ state: 'signed_out' }, ctx);
         try { await this._worker('sign_out', {}, ctx, generation, previous, false); }
         catch (error) { /* local sign-out succeeds even if the server is unavailable */ }
@@ -407,6 +422,7 @@ class PythonProvider {
     async thumb(id, ctx) {
         this._context(ctx);
         if (!IDS[this.id].test(String(id)) || !this.cards.has(String(id))) return null;
+        ctx = this._accountContext(ctx);
         try {
             const cached = path.join(ctx.cacheDir, String(id), 'thumb.rgba'), st = fs.lstatSync(cached);
             if (st.isFile() && !st.isSymbolicLink() && [RGBA_SIZE, 57600].indexOf(st.size) >= 0) {
@@ -427,6 +443,61 @@ class PythonProvider {
                 { generation: generation, maximum: RGBA_SIZE, timeoutMs: 10000 });
             return rgba.length === RGBA_SIZE ? { rgba: rgba, w: 320, h: 180 } : null;
         } catch (error) { return null; }
+    }
+    _cacheScope(privateState) {
+        const account = privateState && privateState.account;
+        return this.id === 'vk' && account && /^[a-f0-9]{32}$/.test(String(account.cache_id || '')) ? account.cache_id : null;
+    }
+    _accountContext(ctx, privateState) {
+        if (this.id !== 'vk') return ctx;
+        const state = privateState === undefined ? this._state(path.join(ctx.stateDir, 'account.json')) : privateState;
+        const account = state && state.account, scope = this._cacheScope(state);
+        if (!scope || !account || account.video_access !== true || account.verification_pending ||
+            typeof account.access_token !== 'string' || !account.access_token || !/^[1-9]\d{0,19}$/.test(String(account.user_id || ''))) return ctx;
+        return Object.freeze(Object.assign({}, ctx, { cacheDir: path.join(ctx.cacheDir, 'account-' + scope) }));
+    }
+    _purgeAccountCache(ctx, previous) {
+        const scope = this._cacheScope(previous), base = path.resolve(ctx.cacheDir);
+        const names = scope ? ['account-' + scope] : [];
+        try { fs.readdirSync(base).forEach((name) => { if (/^account-[a-f0-9]{32}$/.test(name) && names.indexOf(name) < 0) names.push(name); }); }
+        catch (error) { /* absent cache */ }
+        // Only random account namespaces directly inside this provider cache may
+        // be removed, including orphaned sessions whose token was revoked earlier.
+        // lstat/unlink never follow a symlink or Windows directory junction.
+        const remove = (file) => {
+            const st = fs.lstatSync(file);
+            if (st.isDirectory() && !st.isSymbolicLink()) {
+                fs.readdirSync(file).forEach((name) => remove(path.join(file, name)));
+                fs.rmdirSync(file);
+            } else fs.unlinkSync(file);
+        };
+        names.forEach((name) => {
+            const target = path.resolve(base, name);
+            if (path.dirname(target) !== base || !/^account-[a-f0-9]{32}$/.test(path.basename(target))) return;
+            try { remove(target); } catch (error) { /* key is already erased; a failed cleanup cannot make this cache reachable */ }
+        });
+        // Drop old private jobs in the legacy provider root too. Complete guest
+        // media still resumes offline; a future online start can resolve a new job.
+        const jobs = path.join(base, 'jobs');
+        try {
+            fs.readdirSync(jobs).forEach((name) => {
+                if (name.slice(-5) !== '.json' || !IDS.vk.test(name.slice(0, -5))) return;
+                try { fs.unlinkSync(path.join(jobs, name)); } catch (error) { /* cleanup remains confined to known job names */ }
+            });
+        } catch (error) { /* no legacy jobs */ }
+    }
+    async positions(ctx) {
+        this._context(ctx);
+        const media = this._accountContext(ctx);
+        const stored = readJson(path.join(media.cacheDir, 'positions.json'), MAX_STATE);
+        const items = Object.keys(stored).filter((id) => IDS[this.id].test(id)).slice(0, 300).map((id) => {
+            const entry = stored[id];
+            if (!entry || !Number.isFinite(Number(entry.ms)) || !Number.isFinite(Number(entry.total))) return null;
+            return { id: id, title: this._redact(text(entry.title || id, 400)), channel: this._redact(text(entry.channel, 200)),
+                ms: Math.max(0, Number(entry.ms)), total: Math.max(0, Number(entry.total)), done: !!entry.done,
+                duration_s: Math.max(0, Number(entry.duration_s) || 0) };
+        }).filter(Boolean);
+        return { ev: 'positions', items: items };
     }
     _cachedKnown(id, ctx) {
         const dir = path.join(ctx.cacheDir, id);
@@ -459,6 +530,8 @@ class PythonProvider {
     refreshPlayback(id, ctx) { return this._preparePlayback(id, ctx, true); }
     async _preparePlayback(id, ctx, refresh) {
         this._context(ctx);
+        const baseContext = ctx;
+        ctx = this._accountContext(ctx);
         id = String(id || '');
         if (!IDS[this.id].test(id)) throw failure('unknown_video', 'Выберите видео из списка этого сервиса.');
         const cached = this._cachedKnown(id, ctx);
@@ -479,6 +552,9 @@ class PythonProvider {
         const job = answer.result;
         if (!job || job.provider !== this.id || job.id !== id || typeof job.url !== 'string' || !/^https:\/\//.test(job.url))
             throw failure('invalid_playback', 'Сервис не предоставил доступное видео.');
+        // A preflight refresh may have created/recovered the account scope. Never
+        // save API-signed media URLs into the guest cache selected before it ran.
+        ctx = this._accountContext(baseContext, answer.private);
         const dirs = this._dirs(ctx);
         this._atomic(path.join(dirs.jobs, id + '.json'), job, dirs.uid);
         const metadata = this._card(job) || this._card(this.cards.get(id));

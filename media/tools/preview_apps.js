@@ -68,7 +68,7 @@ async function preview(provider) {
     if (latest && latest.png) fs.writeFileSync(path.join(OUT, provider + '-search.png'), latest.png());
     hu.handlers.BTN_ACCOUNT();
     if (provider === 'rutube') send({ ev: 'auth', state: 'code', code: '123456', url: 'https://rutube.ru/activate/', expires: 1200 });
-    else send({ ev: 'auth', state: 'error', code: 'configuration_required', msg: 'Настройте приложение VK ID и HTTPS-адрес подтверждения.' });
+    else send({ ev: 'auth', state: 'code', code: 'ABC123', url: 'https://qr.vk.ru/ca?q=ABC123', expires: 60 });
     await sleep(100);
     await hu.loopFn();
     if (latest && latest.png) fs.writeFileSync(path.join(OUT, provider + '-account.png'), latest.png());

@@ -28,7 +28,7 @@ SPEC.loader.exec_module(vk)
 NODE = os.environ.get("MGU_TEST_NODE") or shutil.which("node")
 KEY = "test-only-key-not-a-real-secret-1234567890"
 CONFIG = {"client_id": "123456", "redirect_uri": "https://vk.example/callback",
-          "callback_broker": "https://vk.example", "broker_key": KEY}
+          "callback_broker": "https://vk.example", "broker_key": KEY, "auth_mode": "relay"}
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):

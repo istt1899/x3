@@ -1222,36 +1222,44 @@ Daemon.prototype.prune = function () {
 Daemon.prototype.search = async function (q) {
     q = typeof q === 'string' ? q.trim() : '';
     if (!q) return this.emit({ ev: 'error', msg: 'empty search' });
+    const accountGen = this.account.gen;
     const ask = (tok) => this.account.json('POST', YT + '/youtubei/v1/search', { context: { client: this.account.client() }, query: q },
         tok ? { Authorization: 'Bearer ' + tok } : null);
     let r;
     try {
         const tok = await this.account.token(false).catch(() => null);
+        if (accountGen !== this.account.gen) return undefined;
         r = await ask(tok);
+        if (accountGen !== this.account.gen) return undefined;
         if (r.status === 401 && tok) r = await ask(null);
         if (r.status !== 200 || !r.j) throw new Error('search ' + r.status);
     } catch (e) {
+        if (accountGen !== this.account.gen) return undefined;
         this.log('search: ' + e.message);
         return this.emit({ ev: 'error', msg: e.noUid ? e.message : 'search offline' });
     }
+    if (accountGen !== this.account.gen) return undefined;
     return this.emit({ ev: 'results', q: q, items: feedItems(r.j).slice(0, FEED_MAX) });
 };
 Daemon.prototype.thumb = async function (id) {
     if (!ID_RE.test(String(id))) return this.emit({ ev: 'error', msg: 'bad id' });
+    const accountGen = this.account.gen;
     const tdir = path.join(this.opts.cacheDir, 'thumbs'), tf = path.join(tdir, id + '.rgba');
     const read = (f) => { try { return fs.readFileSync(f); } catch (e) { return null; } };
     let data = read(path.join(this.opts.cacheDir, id, 'thumb.rgba')) || read(tf);
     if (!data) {
         // at most 3 helpers at once: each is a Node 22 process, and a page asks for 20 thumbs
         const i = this.thumbN++ % this.thumbQ.length;
-        const p = this.thumbQ[i].then(() => this.thumbFetch(id));
+        const p = this.thumbQ[i].then(() => accountGen === this.account.gen ? this.thumbFetch(id) : null);
         this.thumbQ[i] = p.catch(() => {});
         try { data = await p; } catch (e) {
             this.log('thumb ' + id + ': ' + e.message);
             return undefined; // no thumb: the app keeps its placeholder
         }
+        if (accountGen !== this.account.gen || !data) return undefined;
         try { mkdirp(tdir); fs.chmodSync(tdir, 0o700); fs.writeFileSync(tf, data, { mode: 0o600 }); this.pruneThumbs(tdir); } catch (e) { this.log('thumb cache: ' + e.message); }
     }
+    if (accountGen !== this.account.gen) return undefined;
     const wh = THUMB_SIZES[data.length];
     if (!wh) { this.log('thumb ' + id + ': ' + data.length + ' bytes, not 160x90 or 320x180 RGBA'); return undefined; }
     return this.emit({ ev: 'thumb', id: id, w: wh[0], h: wh[1], rgba: data.toString('base64') });

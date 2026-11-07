@@ -12,19 +12,19 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Release containing jap-ridetube-d@0.4.0.tgz
+        description: Release containing jap-ridetube-d@0.4.1.tgz
         required: true
-        default: media-preview-0.4.0
+        default: catalog
         type: string
       service_sha256:
         description: Expected SHA-256 of that exact service archive
         required: true
-        default: 5118c4e8a28cc6fc97fdbe5d243fa9f7238cd25e456ce9ab82a5496dc3aa69d8
+        default: dec49368a6bd1db4329ad2ce82c0de22e95ed73f80a73b0a49969cb50cb395a9
         type: string
       service_size:
         description: Expected service archive size in bytes
         required: true
-        default: '10642107'
+        default: '10649904'
         type: string
 
 permissions:
@@ -39,9 +39,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      RELEASE_TAG: ${{ inputs.release_tag || 'media-preview-0.4.0' }}
-      SERVICE_SHA256: ${{ inputs.service_sha256 || '5118c4e8a28cc6fc97fdbe5d243fa9f7238cd25e456ce9ab82a5496dc3aa69d8' }}
-      SERVICE_SIZE: ${{ inputs.service_size || '10642107' }}
+      RELEASE_TAG: ${{ inputs.release_tag || 'catalog' }}
+      SERVICE_SHA256: ${{ inputs.service_sha256 || 'dec49368a6bd1db4329ad2ce82c0de22e95ed73f80a73b0a49969cb50cb395a9' }}
+      SERVICE_SIZE: ${{ inputs.service_size || '10649904' }}
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - name: Download, verify and safely unpack the release
@@ -69,7 +69,7 @@ jobs:
           if not re.fullmatch(r'[0-9a-f]{64}', expected) or not 1 <= size <= 64 * 1024 * 1024:
               raise ValueError('A pinned SHA-256 and bounded size are required')
           url = ('https://github.com/istt1899/x3/releases/download/' + tag
-                 + '/jap-ridetube-d@0.4.0.tgz')
+                 + '/jap-ridetube-d@0.4.1.tgz')
           request = urllib.request.Request(url, headers={'User-Agent': 'MGU-runtime-gate'})
           chunks, count = [], 0
           with urllib.request.urlopen(request, timeout=45) as response:
@@ -105,7 +105,7 @@ jobs:
                       raise ValueError('Only unique regular files are allowed; no links or devices')
                   names.add(member.name)
               manifest = json.load(archive.extractfile('component.json'))
-              if manifest['id'] != 'jap-ridetube-d' or manifest['version'] != '0.4.0':
+              if manifest['id'] != 'jap-ridetube-d' or manifest['version'] != '0.4.1':
                   raise ValueError('Unexpected component identity')
               declared = {}
               for entry in manifest['files']:

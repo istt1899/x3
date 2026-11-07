@@ -164,7 +164,7 @@ def perform(request):
                 raise ValueError('thumbnail is too large')
             return {'result': {'jpeg': base64.b64encode(data).decode('ascii')}}
         if operation == 'auth_begin':
-            return provider.auth_begin() if provider_id == 'vk' else provider.auth_begin(auth=private)
+            return provider.auth_begin(private_auth=private) if provider_id == 'vk' else provider.auth_begin(auth=private)
         if operation == 'auth_poll':
             return provider.auth_poll(private)
         if operation == 'auth_status':
@@ -177,6 +177,8 @@ def perform(request):
         raise ValueError('unknown provider operation')
     except Exception as error:
         result = {'error': safe_error(error), 'private': private}
+        if provider_id == 'vk' and isinstance(getattr(error, 'auth', None), dict):
+            auth_public = error.auth
         # Account refresh/loss may have completed before the content operation
         # failed. Keep its public state paired with the private update so the
         # root bridge does not leave a stale signed_in screen after token removal.

@@ -73,6 +73,8 @@ class Gateway {
         this.pendingPlay = null;
         this.nextSession = 0;
         this.queue = Promise.resolve();
+        this.authEpoch = Object.create(null);
+        this.signingOut = Object.create(null);
         this.closed = false;
         (o.providers || []).forEach((provider) => {
             if (!provider || PROVIDERS.indexOf(provider.id) < 0 || this.providers[provider.id]) throw new Error('invalid or duplicate provider');
@@ -95,6 +97,7 @@ class Gateway {
         try { session.socket.write(JSON.stringify(out) + '\n'); } catch (e) { this.log('socket reply: ' + cleanError(e)); }
     }
     emitProvider(id, event) {
+        if (this.signingOut[id]) return;
         this.clients.forEach((s) => { if (s.providerId === id) this._send(s, event); });
     }
     _context(session) {
@@ -157,7 +160,11 @@ class Gateway {
                 if (!line) continue;
                 let message;
                 try { message = JSON.parse(line); } catch (e) { this._send(session, { ev: 'error', msg: 'bad json' }); continue; }
-                this.dispatch(session, message).catch((e) => this._send(session, { ev: 'error', msg: cleanError(e) }));
+                const epoch = this.authEpoch[session.providerId] || 0;
+                this.dispatch(session, message).catch((e) => {
+                    if (epoch === (this.authEpoch[session.providerId] || 0) && !this.signingOut[session.providerId])
+                        this._send(session, { ev: 'error', msg: cleanError(e) });
+                });
             }
         });
         socket.on('error', () => {});
@@ -188,6 +195,10 @@ class Gateway {
         if (this.closed || session.closed) return;
         if (!message || typeof message.cmd !== 'string') throw new Error('no cmd');
         const provider = this.providers[session.providerId], ctx = this._context(session), cmd = message.cmd;
+        if (cmd === 'sign_out') return this._signOut(session, provider, ctx);
+        if (this.signingOut[session.providerId]) return;
+        const authEpoch = this.authEpoch[session.providerId] || 0;
+        const currentAuth = () => authEpoch === (this.authEpoch[session.providerId] || 0) && !this.signingOut[session.providerId];
         if (cmd === 'video') session.videoOn = !!message.on;
         if (cmd === 'play') return this._play(session, message, provider, ctx);
         if (CONTROL.indexOf(cmd) >= 0) {
@@ -213,14 +224,14 @@ class Gateway {
             const q = String(message.q || '').trim().slice(0, 200);
             if (!q) throw new Error('empty search');
             const result = await provider.search(q, ctx);
-            if (result !== undefined) this._send(session, { ev: 'results', q, items: videos(result.items || result) });
+            if (currentAuth() && result !== undefined) this._send(session, { ev: 'results', q, items: videos(result.items || result) });
             return;
         }
         if (cmd === 'feed') {
             const which = String(message.which || 'home');
             if (!/^[A-Za-z0-9_-]{1,40}$/.test(which) || typeof provider.feed !== 'function') throw new Error('feed unavailable');
             const result = await provider.feed(which, ctx);
-            if (result !== undefined) {
+            if (currentAuth() && result !== undefined) {
                 const event = { ev: 'feed', which, items: videos(result.items || result) };
                 if (Array.isArray(result.shelves)) event.shelves = result.shelves.slice(0, 8).map((s) => ({ title: String(s.title || '').slice(0, 200), items: videos(s.items) }));
                 if (result.error) event.error = cleanError(result.error);
@@ -228,17 +239,17 @@ class Gateway {
             }
             return;
         }
-        if (cmd === 'auth' || cmd === 'auth_status' || cmd === 'sign_out') {
-            const name = cmd === 'auth_status' ? 'status' : cmd === 'sign_out' ? 'signOut' : 'auth';
+        if (cmd === 'auth' || cmd === 'auth_status') {
+            const name = cmd === 'auth_status' ? 'status' : 'auth';
             if (typeof provider[name] !== 'function') throw new Error('authorization unavailable');
             const result = await provider[name](ctx);
-            if (result !== undefined) this._send(session, authState(result));
+            if (currentAuth() && result !== undefined) this._send(session, authState(result));
             return;
         }
         if (cmd === 'thumb') {
             if (!SAFE_ID.test(String(message.id)) || typeof provider.thumb !== 'function') return;
             const result = await provider.thumb(String(message.id), ctx);
-            if (result && result.rgba) {
+            if (currentAuth() && result && result.rgba) {
                 const rgba = Buffer.isBuffer(result.rgba) ? result.rgba : Buffer.from(result.rgba, 'base64');
                 if ((result.w === 320 && result.h === 180 && rgba.length === 230400) ||
                     (result.w === 160 && result.h === 90 && rgba.length === 57600))
@@ -249,7 +260,7 @@ class Gateway {
         if (cmd === 'positions') {
             if (typeof provider.positions === 'function') {
                 const result = await provider.positions(ctx);
-                if (result !== undefined) this._send(session, result);
+                if (currentAuth() && result !== undefined) this._send(session, result);
             } else {
                 let positions = {};
                 try { positions = JSON.parse(fs.readFileSync(path.join(ctx.cacheDir, 'positions.json'), 'utf8')); } catch (e) { /* first use */ }
@@ -264,6 +275,49 @@ class Gateway {
         }
         if ((cmd === 'channels' || cmd === 'channel') && typeof provider[cmd] === 'function') return provider[cmd](message.id, ctx);
         throw new Error('unknown cmd ' + cmd);
+    }
+    _signOut(session, provider, ctx) {
+        const id = session.providerId;
+        if (this.signingOut[id]) return this.signingOut[id].promise;
+        if (typeof provider.signOut !== 'function') throw new Error('authorization unavailable');
+        const marker = {};
+        this.signingOut[id] = marker;
+        this.authEpoch[id] = (this.authEpoch[id] || 0) + 1;
+        if (this.pendingPlay && this.pendingPlay.session.providerId === id) {
+            this.ticket++;
+            this.pendingPlay = null;
+        }
+        if (this.owner && this.owner.providerId === id)
+            this.owner.qualityTicket = (this.owner.qualityTicket || 0) + 1;
+        this.clients.forEach((client) => {
+            if (client.providerId === id) this._send(client, { ev: 'auth', state: 'signed_out' });
+        });
+        marker.promise = (async () => {
+            try {
+                // An account's private media must not be purged while its decoder
+                // or BMW player is using it. Another provider keeps playing.
+                await this._enqueue(async () => {
+                    const owner = this.owner;
+                    if (!owner || owner.providerId !== id) return;
+                    await this.player.retire();
+                    if (this.owner === owner) {
+                        this.owner = null;
+                        this._send(owner.session, { ev: 'state', state: 'idle', id: null });
+                    }
+                });
+                const result = await provider.signOut(ctx);
+                delete this.signingOut[id];
+                if (result !== undefined) this.emitProvider(id, authState(result));
+            } catch (error) {
+                this.clients.forEach((client) => {
+                    if (client.providerId === id) this._send(client, { ev: 'auth', state: 'error', msg: cleanError(error) });
+                });
+                throw error;
+            } finally {
+                if (this.signingOut[id] === marker) delete this.signingOut[id];
+            }
+        })();
+        return marker.promise;
     }
     _quality(session, message, provider, ctx) {
         const owner = this.owner, playTicket = this.ticket;
@@ -289,8 +343,11 @@ class Gateway {
         const id = String(message.id || '');
         if (!SAFE_ID.test(id) || typeof provider.preparePlayback !== 'function') throw new Error('bad video id');
         const ticket = ++this.ticket;
+        const authEpoch = this.authEpoch[session.providerId] || 0;
+        const currentAuth = () => authEpoch === (this.authEpoch[session.providerId] || 0) && !this.signingOut[session.providerId];
         this.pendingPlay = { ticket, session };
         const prepared = await provider.preparePlayback(id, ctx);
+        if (!currentAuth()) return;
         if (!prepared || prepared.id !== id || typeof prepared.cacheDir !== 'string' || !inside(ctx.cacheDir, prepared.cacheDir)) throw new Error('invalid playback context');
         if (!Array.isArray(prepared.fetcher) || !prepared.fetcher.length || prepared.fetcher.some((a) => typeof a !== 'string' || a.indexOf('\0') >= 0)) throw new Error('invalid fetch helper');
         if (ctx.proxyPolicy === 'direct' && prepared.fetcher.some((a) => /^--proxy(?:=|-file(?:=|$)|$)/.test(a))) throw new Error('direct provider cannot use a proxy');
@@ -298,21 +355,21 @@ class Gateway {
             fetcher: Object.freeze(prepared.fetcher.slice()), thumbCmd: prepared.thumbCmd && Object.freeze(prepared.thumbCmd.slice()),
             metadata: prepared.metadata ? video(prepared.metadata) : null, proxyPolicy: ctx.proxyPolicy });
         return this._enqueue(async () => {
-            if (this.closed || session.closed || ticket !== this.ticket) return;
+            if (this.closed || session.closed || ticket !== this.ticket || !currentAuth()) return;
             const old = this.owner;
             await this.player.retire();
             if (old) this._send(old.session, { ev: 'state', state: 'idle', id: null });
             this.owner = null;
-            if (this.closed || session.closed || ticket !== this.ticket) return;
+            if (this.closed || session.closed || ticket !== this.ticket || !currentAuth()) return;
             const epoch = ++this.epoch;
             this.pendingPlay = null;
             this.owner = { session, providerId: session.providerId, id, epoch, qualityTicket: 0 };
             const emit = (event) => {
-                if (this.owner && this.owner.epoch === epoch && !session.closed) this._send(session, event);
+                if (this.owner && this.owner.epoch === epoch && !session.closed && currentAuth()) this._send(session, event);
             };
             this.player.configure(context, emit);
             await this.player.command('video', { on: session.videoOn });
-            if (this.closed || session.closed || !this.owner || this.owner.epoch !== epoch || ticket !== this.ticket) return;
+            if (this.closed || session.closed || !this.owner || this.owner.epoch !== epoch || ticket !== this.ticket || !currentAuth()) return;
             // Loading can take seconds: do not block a newer play/stop behind it.
             Promise.resolve().then(() => this.player.play(message)).catch((e) => emit({ ev: 'error', msg: cleanError(e) }));
         });

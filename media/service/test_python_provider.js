@@ -239,7 +239,7 @@ function removeTree(root) {
             setTimeout: timers.set, clearTimeout: timers.clear, now: () => clock });
         vk._dirs(vkctx);
         fs.writeFileSync(path.join(vkctx.stateDir, 'config.json'), JSON.stringify({ client_id: 123,
-            redirect_uri: relay + '/callback', callback_broker: relay, broker_key: brokerKey,
+            redirect_uri: relay + '/callback', callback_broker: relay, broker_key: brokerKey, auth_mode: 'relay',
             proxy: 'must-not-forward', access_token: SECRET }));
         const relayState = await vk.auth(vkctx);
         assert.strictEqual(relayState.url, relayUrl, 'configured short relay URL is allowed for QR');
@@ -247,6 +247,7 @@ function removeTree(root) {
         const vkCall = vkSpawn.calls[0];
         assert.strictEqual(vkCall.request.config.callback_broker, relay);
         assert.strictEqual(vkCall.request.config.broker_key, brokerKey);
+        assert.strictEqual(vkCall.request.config.auth_mode, 'relay');
         assert.ok(!JSON.stringify(vkCall.argv).includes(brokerKey));
         assert.ok(!Object.prototype.hasOwnProperty.call(vkCall.request.config, 'proxy'));
         assert.ok(!Object.prototype.hasOwnProperty.call(vkCall.request.config, 'access_token'));
@@ -254,7 +255,93 @@ function removeTree(root) {
         assert.strictEqual(vk._public({ state: 'code', url: 'https://other.example.test/s/' + 'a'.repeat(22) }).url, undefined);
         assert.strictEqual(vk._public({ state: 'code', url: relayUrl + '?poll_token=' + pollToken }).url, undefined);
         assert.strictEqual(vk._public({ state: 'code', url: 'https://id.vk.ru/authorize?state=' + authNonce }).url, undefined);
+        const tvCode = 'AbC123', tvUrl = 'https://qr.vk.ru/ca?q=' + tvCode;
+        const tvSecrets = { anonymous_token: 'fixture-private-anonymous-token', auth_hash: 'fixture-private-auth-hash',
+            exchange_token: 'fixture-private-exchange-token' };
+        vk._rememberSecrets(tvSecrets);
+        const tvState = vk._public(Object.assign({ state: 'code', code: tvCode, url: tvUrl,
+            msg: Object.keys(tvSecrets).map((key) => tvSecrets[key]).join(' ') }, tvSecrets));
+        assert.strictEqual(tvState.url, tvUrl);
+        assert.strictEqual(tvState.code, tvCode, 'the visible TV code is public, not its private auth_hash');
+        Object.keys(tvSecrets).forEach((key) => assert.ok(!JSON.stringify(tvState).includes(tvSecrets[key])));
+        [tvUrl + '&auth_hash=private', tvUrl + '&q=' + tvCode, tvUrl + '#fragment',
+            'https://qr.vk.ru:443/ca?q=' + tvCode, 'https://user@qr.vk.ru/ca?q=' + tvCode,
+            'https://qr.vk.ru/other?q=' + tvCode, 'https://qr.vk.ru/ca?q=OTHER1',
+            'https://chart.googleapis.com/chart?fixture=qr'].forEach((url) => {
+            assert.strictEqual(vk._public({ state: 'code', code: tvCode, url: url }).url, undefined);
+        });
+        assert.strictEqual(provider._public({ state: 'code', code: tvCode, url: tvUrl }).url, undefined, 'TV QR belongs only to VK');
         vk.close();
+
+        // Account media/history/thumbnails are in a private random namespace.
+        // Signing out deletes its registry/access keys and cannot fall back to
+        // those completed files through the guest positions/cache shortcut.
+        const privateVideo = '123_456', guestVideo = '-789_10', cacheScope = 'f'.repeat(32);
+        const privateAccessKey = 'fixture-api-access-key';
+        const privateAccount = { provider: 'vk', account: { user_id: '123', video_access: true,
+            verification_pending: false, access_token: SECRET, cache_id: cacheScope,
+            video_hints: { [privateVideo]: { access_key: privateAccessKey, is_private: true } } } };
+        const privateCard = { id: privateVideo, title: 'Fixture personal video', channel: 'Fixture account',
+            duration_s: 90, thumbnail: 'https://sun9.userapi.com/fixture.jpg', _account_user_id: '123' };
+        let holdPrivate = false, privateCall = null;
+        const privateSpawn = fakeSpawn((call) => {
+            if (call.request.op === 'sign_out') return { public: { state: 'signed_out' }, private: {} };
+            if (holdPrivate) { privateCall = call; return undefined; }
+            return { result: call.request.op === 'resolve'
+                ? Object.assign({}, privateCard, { provider: 'vk', url: 'https://video.okcdn.ru/fixture-api-private.mp4', created_at: clock / 1000 })
+                : { items: [privateCard] }, private: privateAccount, auth: { state: 'signed_in' } };
+        });
+        const privateProvider = new PythonProvider({ id: 'vk', noSetuid: true, spawn: privateSpawn,
+            setTimeout: timers.set, clearTimeout: timers.clear, now: () => clock });
+        const privateCtx = Object.freeze({ providerId: 'vk', proxyPolicy: 'direct',
+            stateDir: path.join(root, 'state', 'private-vk'), cacheDir: path.join(root, 'cache', 'private-vk') });
+        const privateEvents = [];
+        privateProvider.attach((event) => privateEvents.push(event));
+        try {
+            const privateDirs = privateProvider._dirs(privateCtx);
+            fs.writeFileSync(privateDirs.account, JSON.stringify(privateAccount));
+            const publicList = await privateProvider.search('personal', privateCtx);
+            [SECRET, privateAccessKey, cacheScope].forEach((secret) => assert.ok(!JSON.stringify(publicList).includes(secret)));
+            const preparedPrivate = await privateProvider.preparePlayback(privateVideo, privateCtx);
+            const accountCache = path.join(privateCtx.cacheDir, 'account-' + cacheScope);
+            assert.strictEqual(preparedPrivate.cacheDir, accountCache);
+            assert.ok(fs.existsSync(path.join(accountCache, 'jobs', privateVideo + '.json')));
+            assert.ok(!fs.existsSync(path.join(privateDirs.jobs, privateVideo + '.json')), 'API media job never enters guest cache');
+            fs.writeFileSync(path.join(privateCtx.cacheDir, 'positions.json'), JSON.stringify({ [guestVideo]: {
+                ms: 15000, total: 60000, title: 'Guest history' } }));
+            fs.writeFileSync(path.join(accountCache, 'positions.json'), JSON.stringify({ [privateVideo]: {
+                ms: 20000, total: 90000, title: 'Private history' } }));
+            assert.deepStrictEqual((await privateProvider.positions(privateCtx)).items.map((item) => item.id), [privateVideo]);
+            const privateMedia = path.join(accountCache, privateVideo);
+            fs.mkdirSync(privateMedia);
+            fs.writeFileSync(path.join(privateMedia, 'meta.json'), JSON.stringify(privateCard));
+            ['audio.m4a', 'index.bin', 'video.h264', 'thumb.rgba'].forEach((name) => fs.writeFileSync(path.join(privateMedia, name), 'fixture'));
+            const beforeOffline = privateSpawn.calls.length;
+            await privateProvider.preparePlayback(privateVideo, privateCtx);
+            assert.strictEqual(privateSpawn.calls.length, beforeOffline, 'the active account can resume its own completed cache');
+            fs.writeFileSync(path.join(privateDirs.jobs, privateVideo + '.json'), JSON.stringify({ access_key: privateAccessKey }));
+            const orphanCache = path.join(privateCtx.cacheDir, 'account-' + 'e'.repeat(32));
+            fs.mkdirSync(orphanCache);
+            fs.writeFileSync(path.join(orphanCache, 'thumb.rgba'), 'orphaned fixture');
+            holdPrivate = true;
+            const late = rejects(privateProvider.search('old account', privateCtx), /provider_cancelled/);
+            await tick(); await tick();
+            assert.ok(privateCall);
+            await privateProvider.signOut(privateCtx);
+            await late;
+            privateCall.finish({ result: { items: [privateCard] }, private: privateAccount, auth: { state: 'signed_in' } });
+            await tick();
+            assert.strictEqual(privateProvider.cards.size, 0);
+            assert.deepStrictEqual(JSON.parse(fs.readFileSync(privateDirs.account, 'utf8')), { provider: 'vk' });
+            assert.ok(!fs.existsSync(accountCache), 'logout purges personal media/history/thumb namespace');
+            assert.ok(!fs.existsSync(orphanCache), 'logout also purges a prior revoked account namespace');
+            assert.ok(!fs.existsSync(path.join(privateDirs.jobs, privateVideo + '.json')), 'legacy API job/access keys are erased too');
+            assert.deepStrictEqual((await privateProvider.positions(privateCtx)).items.map((item) => item.id), [guestVideo]);
+            await rejects(privateProvider.preparePlayback(privateVideo, privateCtx), /unknown_video/);
+            assert.strictEqual((await privateProvider.thumb(privateVideo, privateCtx)), null);
+            assert.strictEqual(privateEvents[privateEvents.length - 1].state, 'signed_out', 'a late personal result cannot restore account state');
+            assert.ok(!JSON.stringify(privateEvents).includes(privateAccessKey));
+        } finally { privateProvider.close(); }
 
         // Refresh/expiry/login completion may arrive with ordinary content, not
         // only an explicit auth_status command. Its private/public changes must

@@ -93,13 +93,19 @@ class Model {
         this.chans = null;           // the subscribed channels: {items:[{id,title,handle}], loading, error, t}
         this.chan = null;            // the channel page shown: {id, title, items, shelves, loading, error, t}
         this.rev = 0;                // bumped on every change the screens show
+        this.accountEpoch = 0;
+        this.searchEpoch = 0; this.positionsEpoch = 0;
+        this.logoutPending = false; this.logoutT = 0;
+        this.accountIds = new Set();
     }
     active() { return ACTIVE.indexOf(this.state) >= 0; }
     _changed() { this.rev++; }
 
     setConnected(on) {
         this.connected = on;
-        if (on) { this.authT = Date.now(); this.send({ cmd: 'status' }); this.send({ cmd: 'auth_status' }); this.send({ cmd: 'positions' }); this.videoOn = null; this._video(); } else {
+        if (on) { this.authT = Date.now(); this.positionsEpoch = this.accountEpoch; this.send({ cmd: 'status' }); this.send({ cmd: 'auth_status' }); this.send({ cmd: 'positions' }); this.videoOn = null; this._video(); } else {
+            if (SERVICE.id === 'vk') this._forgetAccount(true);
+            this.logoutPending = false;
             this.searching = false; this.state = 'idle'; this.pending.clear();
             this.auth = { state: 'unknown', code: null, url: null, msg: null };
             this.authT = 0;
@@ -111,9 +117,11 @@ class Model {
     onMsg(m) {
         if (!m || (m.provider && m.provider !== SERVICE.id)) return;
         if (m.ev === 'results') {
+            if (SERVICE.id === 'vk' && (this.logoutPending || this.searchEpoch !== this.accountEpoch)) return;
             if (this.q !== null && m.q !== undefined && m.q !== this.q) return;     // an older search's answer
             this.searching = false; this.searchError = null;
             this.results = valid(m.items);
+            if (SERVICE.id === 'vk') this._rememberAccountIds(this.results);
             this._prune();
         } else if (m.ev === 'thumb') {
             if (typeof m.rgba !== 'string' || !this._known(m.id)) return;
@@ -122,6 +130,7 @@ class Model {
             this.pending.delete(m.id);
             this.thumbs[m.id] = { w, h, buf };
         } else if (m.ev === 'state') {
+            if (SERVICE.id === 'vk' && (this.logoutPending || (m.id && this.auth.state !== 'signed_in' && this.accountIds.has(m.id)))) return;
             const was = this.state;
             this.state = String(m.state || 'idle');
             if (typeof m.pct === 'number') this.pct = m.pct;
@@ -136,6 +145,12 @@ class Model {
             // a fresh ytdec starts with video on: tell it again where we are
             if (this.state === 'playing' && was !== 'playing' && was !== 'paused') { this.videoOn = null; this._video(); }
         } else if (m.ev === 'auth') {
+            if (SERVICE.id === 'vk' && this.logoutPending && m.state !== 'signed_out') return;
+            if (SERVICE.id === 'vk' && ((this.auth.state === 'signed_in') !== (m.state === 'signed_in') || this.logoutPending)) {
+                this._forgetAccount(this.auth.state === 'signed_in' && m.state !== 'signed_in');
+                if (m.state === 'signed_in') { this.positionsEpoch = this.accountEpoch; this.send({ cmd: 'positions' }); }
+            }
+            if (m.state === 'signed_out') this.logoutPending = false;
             this.auth = { state: String(m.state || 'signed_out'), code: m.code ? String(m.code) : null, url: typeof m.url === 'string' ? m.url : null, msg: m.msg ? String(m.msg) : null, name: m.name ? String(m.name) : null, expires: Number(m.expires) || 0 };
             if (this.auth.state !== 'asking') this.authT = 0;
             if (this.auth.state !== 'signed_in') { this.chans = null; this.chan = null; this._prune(); }   // signed out: nobody's feed left on screen
@@ -159,6 +174,8 @@ class Model {
             }
         } else if (m.ev === 'feed') {
             if (FEEDS.indexOf(m.which) < 0) return;
+            if (SERVICE.id === 'vk' && (this.logoutPending || !this.feeds[m.which] ||
+                    !this.feeds[m.which].loading || this.feeds[m.which].epoch !== this.accountEpoch)) return;
             const f = this.feeds[m.which] = this.feeds[m.which] || { items: [] };
             f.msg = typeof m.msg === 'string' ? m.msg : null; f.kind = m.kind || null;
             f.loading = false;
@@ -168,12 +185,15 @@ class Model {
                 f.shelves = (Array.isArray(m.shelves) ? m.shelves : []).filter((s) => s && typeof s === 'object')
                     .map((s) => ({ title: String(s.title || ''), items: valid(s.items, SHELF_MAX) })).filter((s) => s.items.length).slice(0, SHELVES);
                 if (!f.shelves.length) f.shelves = null;
+                if (SERVICE.id === 'vk') this._rememberAccountIds(f.items);
                 this._prune();
             }
         } else if (m.ev === 'positions') {
+            if (SERVICE.id === 'vk' && (this.logoutPending || this.positionsEpoch !== this.accountEpoch)) return;
             this.pos = {};
             valid(m.items, 300).forEach((r) => { if (r.total > 0) this.pos[r.id] = r; });
             this.resume = valid(m.items, 300).filter((r) => r.total > 0 && !r.done && r.ms > 10000).slice(0, SHELF_MAX);
+            if (SERVICE.id === 'vk') this._rememberAccountIds(this.resume);
             this._prune();
         } else if (m.ev === 'extras') {
             this.extras = { id: String(m.id), chapters: (Array.isArray(m.chapters) ? m.chapters : []).filter((c) => Array.isArray(c) && c[0] >= 0),
@@ -200,6 +220,24 @@ class Model {
         const f = FEEDS.map((w) => this.feeds[w]).filter(Boolean);
         if (this.chan) f.push(this.chan);
         return this.results.concat(this.resume, ...f.map((x) => x.items || []), ...f.map((x) => [].concat(...(x.shelves || []).map((s) => s.items))));
+    }
+    _forgetAccount(stop) {
+        this._items().forEach((r) => this.accountIds.add(r.id));
+        if (this.id) this.accountIds.add(this.id);
+        this.accountEpoch++;
+        this.searchEpoch = -1; this.positionsEpoch = -1;
+        this.results = []; this.q = null; this.searching = false; this.searchError = null;
+        this.feeds = { home: { items: [], loading: false, error: null, kind: 'requires_search' } };
+        this.thumbs = {}; this.pending.clear(); this.pos = {}; this.resume = [];
+        this.chans = null; this.chan = null; this.extras = null; this.toast = null;
+        if (stop && this.active()) this.send({ cmd: 'stop' });
+        if (stop) { this.state = 'idle'; this.id = null; this.title = ''; this.channel = ''; this.elapsed = 0; this.total = 0; }
+        while (this.accountIds.size > 400) this.accountIds.delete(this.accountIds.values().next().value);
+        this._changed();
+    }
+    _rememberAccountIds(items) {
+        items.forEach((r) => { if (this.auth.state === 'signed_in') this.accountIds.add(r.id); else this.accountIds.delete(r.id); });
+        while (this.accountIds.size > 400) this.accountIds.delete(this.accountIds.values().next().value);
     }
     _known(id) { return this._items().some((r) => r.id === id); }
     /** an item by its id (the first list that has it), or null */
@@ -235,9 +273,11 @@ class Model {
         return true;
     }
     search(q) {
+        if (this.logoutPending) return false;
         q = String(q || '').trim();
         if (!q) return false;
         this.q = q; this.searching = true; this.searchError = null; this.searchT = Date.now();
+        this.searchEpoch = this.accountEpoch;
         this._changed();
         if (this.send({ cmd: 'search', q })) return true;
         this.searching = false; this.searchError = 'Видеосервис не запущен';
@@ -246,7 +286,7 @@ class Model {
     /** it: the tile tapped ({title, channel}), else the lists' item: shown until the daemon says its own title */
     /** o: { quality, skip } (the settings), sent as they are */
     play(id, rect, fill, it, o) {
-        if (!validId(id)) return false;
+        if (!validId(id) || this.logoutPending || (SERVICE.id === 'vk' && this.auth.state !== 'signed_in' && this.accountIds.has(id) && !this._known(id))) return false;
         const r = it || this.item(id);
         this.id = id; this.title = r ? String(r.title || '') : ''; this.channel = r ? String(r.channel || '') : ''; this.state = 'preparing'; this.pct = 0; this.elapsed = 0; this.total = 0; this.error = null; this.retry = 0;
         this._changed();
@@ -289,19 +329,35 @@ class Model {
     }
     /** A missing daemon answer must not leave the sign-in screen waiting forever. */
     checkAuth(now, ms) {
+        if (this.logoutPending && now - this.logoutT >= ms) {
+            this.logoutPending = false;
+            this.auth = { state: 'error', msg: 'Выход из аккаунта не подтверждён: видеосервис не ответил.' };
+            this._changed(); return true;
+        }
         if ((this.auth.state !== 'asking' && this.auth.state !== 'unknown') || !this.authT || now - this.authT < ms) return false;
         this.auth = { state: 'error', code: null, url: null, msg: 'Видеосервис не ответил' };
         this.authT = 0;
         this._changed();
         return true;
     }
-    signOut() { return this.auth.state === 'signed_in' ? this.send({ cmd: 'sign_out' }) : false; }
+    signOut() {
+        if (this.auth.state !== 'signed_in' || this.logoutPending) return false;
+        if (SERVICE.id === 'vk') { this._forgetAccount(true); this.logoutPending = true; this.logoutT = Date.now(); }
+        const sent = this.send({ cmd: 'sign_out' });
+        if (!sent && SERVICE.id === 'vk') {
+            this.logoutPending = false;
+            this.auth = { state: 'error', msg: 'Не удалось выйти: нет связи с видеосервисом.' };
+            this._changed();
+        }
+        return sent;
+    }
     /** (re)load feed which (home|subs|wl); its items stay shown meanwhile */
     feed(which) {
-        if (FEEDS.indexOf(which) < 0) return false;
+        if (FEEDS.indexOf(which) < 0 || this.logoutPending) return false;
         const f = this.feeds[which] = this.feeds[which] || { items: [] };
         if (f.loading) return false;
         f.loading = true; f.error = null; f.t = Date.now();
+        f.epoch = this.accountEpoch;
         this._changed();
         if (this.send({ cmd: 'feed', which })) return true;
         f.loading = false; f.error = 'Видеосервис не запущен';

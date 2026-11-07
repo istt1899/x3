@@ -18,11 +18,11 @@ import zlib
 
 MEDIA = Path(__file__).resolve().parents[1]
 CORE = MEDIA / "core"
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 SERVICES = {
     "vk": {"id": "vk", "appId": "marku_vk_video", "title": "VK Видео", "accent": "#0077FF",
            "loggingId": "MKV1", "iconGlyph": "VK", "socket": "/run/jap-ridetube-d/vk.sock",
-           "authHosts": ["id.vk.ru", "id.vk.com"], "allowConfiguredRelay": True,
+           "authHosts": ["qr.vk.ru", "id.vk.ru", "id.vk.com"], "allowConfiguredRelay": True,
            "videoPrefix": "https://vkvideo.ru/video", "videoSuffix": ""},
     "rutube": {"id": "rutube", "appId": "marku_rutube", "title": "RUTUBE", "accent": "#F02F43",
                "loggingId": "MRT1", "iconGlyph": "RU", "socket": "/run/jap-ridetube-d/rutube.sock",
@@ -65,7 +65,7 @@ def icon(service, target):
 def app_spec(service):
     base = json.loads((CORE / "apps/jap_ridetube/app.json").read_text(encoding="utf-8"))
     base.update({"id": service["appId"], "title": service["title"], "version": VERSION,
-                 "description": service["title"] + ": отдельное приложение для MGU, поиск и видео напрямую, отдельный аккаунт.",
+                 "description": service["title"] + ": тестовый выпуск для MGU, поиск и видео напрямую, вход с телефона.",
                  "loggingId": service["loggingId"], "iconGlyph": service["iconGlyph"]})
     view = copy.deepcopy(base["screens"][0])
     view["title"] = service["title"]

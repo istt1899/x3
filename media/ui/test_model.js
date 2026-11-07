@@ -1,8 +1,16 @@
 'use strict';
 const assert = require('assert');
 const path = require('path');
+const fs = require('fs');
 const { accountView } = require('./account-view');
 const apps = path.join(__dirname, '..', 'core', 'apps');
+function sourceModel(service) {
+    const model = { exports: {} };
+    const load = (name) => name === './service-config' ? service : require(name);
+    // Exercise the editable source before the release builder copies it into apps.
+    new Function('require', 'module', 'exports', fs.readFileSync(path.join(__dirname, 'model.js'), 'utf8'))(load, model, model.exports);
+    return model.exports;
+}
 
 const definitions = [
     ['marku_vk_video', '-230138956_456239834'],
@@ -10,7 +18,7 @@ const definitions = [
 ];
 
 definitions.forEach(([appId, videoId]) => {
-    const { Model, validId, SOCKET, SERVICE } = require(path.join(apps, appId, 'yt'));
+    const { Model, validId, SOCKET, SERVICE } = sourceModel(require(path.join(apps, appId, 'service-config')));
     const sent = [], model = new Model((message) => { sent.push(message); return true; });
     model.setConnected(true);
     assert.ok(validId(videoId));
@@ -66,4 +74,51 @@ assert.strictEqual(accountView({ state: 'code', url: shortRelay }, rt).kind, 'er
     'https://www.google.com/device',
 ].forEach((url) => assert.strictEqual(accountView({ state: 'code', url }, vk).kind, 'error'));
 assert.ok(!JSON.stringify([activation, long, wrong, setup]).includes('google.com/device'));
+
+const privateId = '123_456', publicId = '-456_789', privacySent = [];
+const privacy = new (sourceModel(vk).Model)((message) => { privacySent.push(message); return true; });
+privacy.setConnected(true);
+privacy.onMsg({ ev: 'auth', state: 'signed_in' });
+privacy.feed('home');
+privacy.onMsg({ ev: 'feed', which: 'home', items: [{ id: privateId, title: 'Fixture private title' }] });
+privacy.search('Fixture personal query');
+privacy.onMsg({ ev: 'results', q: 'Fixture personal query', items: [{ id: privateId, title: 'Fixture private title' }] });
+privacy.wantThumb(privateId);
+privacy.onMsg({ ev: 'thumb', id: privateId, rgba: Buffer.alloc(160 * 90 * 4, 1).toString('base64'), w: 160, h: 90 });
+privacy.onMsg({ ev: 'positions', items: [{ id: privateId, title: 'Fixture private title', ms: 20000, total: 90000 }] });
+assert.ok(privacy.thumbs[privateId]);
+assert.strictEqual(privacy.resume.length, 1);
+privacy.play(privateId, '1600x600', false);
+assert.ok(privacy.signOut());
+assert.ok(privacySent.some((message) => message.cmd === 'stop'), 'logout stops account playback before clearing its view');
+assert.strictEqual(privacy.results.length, 0);
+assert.strictEqual(privacy.feeds.home.items.length, 0);
+assert.deepStrictEqual(Object.keys(privacy.thumbs), []);
+assert.strictEqual(privacy.resume.length, 0);
+assert.strictEqual(privacy.title, '');
+assert.strictEqual(privacy.search('while signing out'), false, 'do not start another account request before logout is acknowledged');
+privacy.onMsg({ ev: 'results', q: 'Fixture personal query', items: [{ id: privateId, title: 'LATE PRIVATE' }] });
+privacy.onMsg({ ev: 'feed', which: 'home', items: [{ id: privateId, title: 'LATE PRIVATE' }] });
+privacy.onMsg({ ev: 'thumb', id: privateId, rgba: Buffer.alloc(160 * 90 * 4).toString('base64'), w: 160, h: 90 });
+privacy.onMsg({ ev: 'positions', items: [{ id: privateId, title: 'LATE PRIVATE', ms: 20000, total: 90000 }] });
+privacy.onMsg({ ev: 'auth', state: 'signed_in' });
+assert.ok(privacy.logoutPending, 'late signed_in cannot interrupt a deliberate logout');
+privacy.onMsg({ ev: 'auth', state: 'signed_out' });
+privacy.onMsg({ ev: 'state', state: 'playing', id: privateId, title: 'LATE PRIVATE' });
+assert.strictEqual(privacy.results.length, 0);
+assert.strictEqual(privacy.feeds.home.items.length, 0);
+assert.strictEqual(privacy.resume.length, 0);
+assert.strictEqual(privacy.title, '');
+assert.strictEqual(privacy.play(privateId, '1600x600', false), false, 'an old private tile is no longer playable');
+assert.ok(privacy.search('Public search'));
+privacy.onMsg({ ev: 'results', q: 'Public search', items: [{ id: publicId, title: 'Public result' }] });
+assert.strictEqual(privacy.results[0].id, publicId);
+assert.ok(privacy.play(publicId, '1600x600', false), 'fresh guest search remains usable after logout');
+
+const lost = new (sourceModel(vk).Model)(() => true);
+lost.setConnected(true); lost.onMsg({ ev: 'auth', state: 'signed_in' }); lost.feed('home');
+lost.onMsg({ ev: 'feed', which: 'home', items: [{ id: privateId, title: 'Private' }] });
+lost.onMsg({ ev: 'auth', state: 'error', msg: 'Account expired' });
+lost.onMsg({ ev: 'feed', which: 'home', items: [{ id: privateId, title: 'LATE PRIVATE' }] });
+assert.strictEqual(lost.feeds.home.items.length, 0, 'auth loss clears personal home and rejects an old feed response');
 console.log('ok: separate service identities, guest browse/search, long IDs, account states, no fake QR or token exposure');

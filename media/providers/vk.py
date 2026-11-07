@@ -1,7 +1,9 @@
 """VK Video provider. Native MGU UI talks to this module through the private worker.
 
-Network policy is always DIRECT. OAuth tokens are not VK web cookies: public video
-extraction uses the guest web endpoint; authenticated API access is checked separately.
+Network policy is always DIRECT. Verified user tokens enable the official personal
+video/list/search API. OAuth tokens are not web cookies; if an API media stream is
+missing, only an anonymous probe may prove public availability. Explicit private
+videos/access keys never fall back to that guest resolver.
 All auth methods return {public: AuthState, private: persistence_state}. Only public
 may cross the app socket. resolve() is worker-only (its stream URLs are temporary).
 """
@@ -33,9 +35,10 @@ USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 
 
 class ProviderError(Exception):
-    def __init__(self, code, message):
+    def __init__(self, code, message, auth=None):
         self.code = code
         self.message = message
+        self.auth = auth
         super().__init__(message)
 
 
@@ -156,6 +159,8 @@ def _definitive_oauth_error(response):
 
 
 def _current(account, skew=30):
+    if account.get("auth_type") == "vk_tv" and account.get("expires_at") == 0:
+        return True  # Explicit offline token from the native TV authorization response.
     try:
         return float(account.get("expires_at", 0)) > time.time() + skew
     except (ValueError, TypeError):
@@ -225,10 +230,97 @@ class Provider:
                 "expires": max(0, int(pending["expires_at"] - time.time())),
                 "msg": "Подтвердите вход на странице VK ID на телефоне."}
 
-    def search(self, q, auth=None, offset=0):
-        """Guest web search, observed on 2026-11-07. It is not a documented VK API.
+    @staticmethod
+    def _verified_account(auth):
+        account = _private(auth).get("account")
+        if not isinstance(account, dict) or account.get("video_access") is not True or account.get("verification_pending"):
+            return None
+        if (not isinstance(account.get("access_token"), str) or not account["access_token"]
+                or not re.fullmatch(r"[1-9]\d{0,19}", str(account.get("user_id") or "")) or not _current(account, 0)):
+            raise ProviderError("auth_required", "Повторите вход VK Видео.")
+        if not re.fullmatch(r"[a-f0-9]{32}", str(account.get("cache_id") or "")):
+            account["cache_id"] = secrets.token_hex(16)
+        return account
 
-        Pinned yt-dlp's VKIE handles the site's normal web response/challenge parsing.
+    def _api_video(self, method, fields, account, auth):
+        response = self._request("POST", API + method,
+                                 dict(fields, access_token=account["access_token"],
+                                      v="5.267" if account.get("auth_type") == "vk_tv" else API_VERSION))
+        error = response.get("error")
+        if error:
+            code = error.get("error_code") if isinstance(error, dict) else None
+            if code == 5:
+                _private(auth).clear()
+                public = {"state": "error", "code": "authorization_expired", "msg": "Повторите вход VK Видео."}
+                raise ProviderError("auth_required", public["msg"], auth=public)
+            if code in (15, 27, 1051):
+                raise ProviderError("video_permission_required", "Приложению VK не предоставлен доступ к этому методу видео.")
+            raise ProviderError("video_api_unavailable", "VK API видео временно недоступен. Повторите запрос.")
+        value = response.get("response")
+        if (not isinstance(value, dict) or not isinstance(value.get("items"), list)
+                or not isinstance(value.get("count"), int) or isinstance(value.get("count"), bool) or value["count"] < 0):
+            raise ProviderError("invalid_response", "VK API вернул некорректный список видео.")
+        return value
+
+    @staticmethod
+    def _video_hint(account, video_id, row):
+        hints = account.setdefault("video_hints", {})
+        if not isinstance(hints, dict):
+            hints = account["video_hints"] = {}
+        previous = hints.pop(video_id, {})
+        access = row.get("access_key")
+        if not isinstance(access, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", access):
+            access = previous.get("access_key") if isinstance(previous, dict) else None
+        hint = {"is_private": bool(row.get("is_private") or row.get("content_restricted") or access)}
+        if access:
+            hint["access_key"] = access
+        hints[video_id] = hint
+        while len(hints) > 400:
+            hints.pop(next(iter(hints)))
+        return hint
+
+    @staticmethod
+    def _api_card(row, owners, account):
+        if not isinstance(row, dict) or isinstance(row.get("owner_id"), bool) or isinstance(row.get("id"), bool):
+            return None
+        video_id = f"{row.get('owner_id')}_{row.get('id')}"
+        if not VIDEO_ID.fullmatch(video_id):
+            return None
+        source_images = row.get("image") if isinstance(row.get("image"), list) else []
+        images = [image for image in source_images[:64]
+                  if isinstance(image, dict) and _https_url(image.get("url"))]
+        image = min(images, key=lambda item: abs(_duration(item.get("width")) - 320)) if images else {}
+        return {"id": video_id, "title": _text(row.get("title")) or "Видео",
+                "channel": owners.get(str(row.get("owner_id")), ""), "duration_s": _duration(row.get("duration")),
+                "thumbnail": image.get("url"), "url": "https://vk.com/video" + video_id,
+                "_account_user_id": str(account["user_id"])}
+
+    def _api_list(self, response, account, offset=0):
+        owners = {}
+        profiles = response.get("profiles") if isinstance(response.get("profiles"), list) else []
+        groups = response.get("groups") if isinstance(response.get("groups"), list) else []
+        for row in profiles[:400]:
+            if isinstance(row, dict):
+                owners[str(row.get("id"))] = _text(" ".join(str(row.get(k) or "") for k in ("first_name", "last_name")))
+        for row in groups[:400]:
+            if isinstance(row, dict):
+                owners["-" + str(row.get("id"))] = _text(row.get("name"))
+        items, seen = [], set()
+        for row in response["items"][:200]:
+            card = self._api_card(row, owners, account)
+            if card and card["id"] not in seen:
+                seen.add(card["id"])
+                self._video_hint(account, card["id"], row)
+                items.append(card)
+        after = offset + len(response["items"])
+        return {"items": items, "next_offset": after if items and after < response["count"] and after <= 10000 else None,
+                "kind": "account", "_account_user_id": str(account["user_id"])}
+
+    def search(self, q, auth=None, offset=0):
+        """Official user-token search when verified, otherwise the guest web search.
+
+        Guest endpoint observed on 2026-11-07; it is not a documented VK API.
+        Pinned yt-dlp's VKIE handles its normal web response/challenge parsing.
         Array indexes are covered by a structural fixture and invalid rows are skipped.
         """
         q = str(q or "").strip()[:200]
@@ -236,6 +328,11 @@ class Provider:
             return {"items": [], "next_offset": None, "kind": "search", "query": ""}
         if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0 or offset > 10000:
             raise ProviderError("invalid_offset", "Некорректная страница поиска.")
+        account = self._verified_account(auth)
+        if account:
+            response = self._api_video("video.search", {"q": q, "count": 20, "offset": offset,
+                                                       "extended": 1, "filters": "vk"}, account, auth)
+            return dict(self._api_list(response, account, offset), query=q)
         module = self._module()
         vk_ie = getattr(module, "VKIE", None) or importlib.import_module("yt_dlp.extractor.vk").VKIE
         try:
@@ -271,6 +368,13 @@ class Provider:
         return {"items": items, "next_offset": next_offset, "kind": "search", "query": q}
 
     def home(self, auth=None):
+        account = self._verified_account(auth)
+        if account:
+            response = self._api_video("video.get", {"owner_id": account["user_id"], "count": 20, "extended": 1}, account, auth)
+            result = self._api_list(response, account)
+            result["shelves"] = [{"title": "Мои видео VK", "items": result["items"]}]
+            result["msg"] = "В вашем списке пока нет видео." if not result["items"] else None
+            return result
         # A search for "popular" is not the user's Home/recommendation feed.
         return {"items": [], "next_offset": None, "kind": "requires_search",
                 "msg": "Используйте поиск VK Видео. Личная лента пока не подключена."}
@@ -279,6 +383,38 @@ class Provider:
         if not isinstance(video_id, str) or not VIDEO_ID.fullmatch(video_id):
             raise ProviderError("invalid_id", "Некорректный идентификатор VK Видео.")
         canonical = f"https://vk.com/video{video_id}"
+        account = self._verified_account(auth)
+        if account:
+            hint = (account.get("video_hints") or {}).get(video_id) or {}
+            target = video_id + ("_" + hint["access_key"] if hint.get("access_key") else "")
+            response = self._api_video("video.get", {"videos": target, "count": 1, "extended": 1}, account, auth)
+            result = self._api_list(response, account)
+            card = next((item for item in result["items"] if item["id"] == video_id), None)
+            row = next((item for item in response["items"] if isinstance(item, dict)
+                        and f"{item.get('owner_id')}_{item.get('id')}" == video_id), None)
+            if not card or not row:
+                raise ProviderError("video_unavailable", "VK не предоставил доступ к этому видео.")
+            if row.get("content_restricted"):
+                raise ProviderError("video_restricted", "VK ограничил доступ к этому видео.")
+            files = row.get("files") if isinstance(row.get("files"), dict) else {}
+            headers = {"User-Agent": USER_AGENT, "Referer": "https://vkvideo.ru/"}
+            formats = [{"format_id": "api-mp4-" + str(height), "url": files["mp4_" + str(height)],
+                        "ext": "mp4", "protocol": "https", "height": height, "http_headers": headers}
+                       for height in (144, 240, 360, 480, 720, 1080)
+                       if _https_url(files.get("mp4_" + str(height)))]
+            if formats:
+                return dict(card, provider="vk", network="direct", formats=formats, http_headers=headers)
+            if files.get("external") or str(row.get("platform") or "").lower() in ("youtube", "vimeo"):
+                raise ProviderError("external_video", "Это видео размещено на другом сервисе.")
+            if self._video_hint(account, video_id, row).get("is_private"):
+                raise ProviderError("private_stream_unavailable", "VK подтвердил доступ к видео, но не предоставил поток для нативного плеера.")
+            # The guest extractor receives no cookies/token/access_key. Success
+            # proves anonymous availability even if VK omitted its privacy flag.
+        else:
+            previous = _private(auth).get("account") or {}
+            hint = (previous.get("video_hints") or {}).get(video_id) if isinstance(previous, dict) else None
+            if hint and hint.get("is_private"):
+                raise ProviderError("auth_required", "Для этого видео нужен подтверждённый вход VK Видео.")
         try:
             with self._module().YoutubeDL(self._ydl_options()) as downloader:
                 info = downloader.extract_info(canonical, download=False, process=False)
@@ -322,7 +458,21 @@ class Provider:
         return {key: val for key, val in headers.items()
                 if key.lower() not in ("cookie", "authorization", "proxy-authorization")}
 
-    def auth_begin(self):
+    def _tv_auth(self):
+        module = importlib.import_module("vk_tv")
+        return module.TvAuth(self.transport, self._verify_tv_account)
+
+    def auth_begin(self, private_auth=None):
+        mode = self.config.get("auth_mode") or "tv"
+        if mode == "relay":
+            return self._oauth_begin()
+        result = self._tv_auth().begin(_private(private_auth))
+        if (mode == "auto" and result.get("public", {}).get("state") == "error"
+                and all(self.config.get(key) for key in ("client_id", "redirect_uri", "callback_broker", "broker_key"))):
+            return self._oauth_begin()
+        return result
+
+    def _oauth_begin(self):
         try:
             config = self._broker_config()
         except ProviderError as error:
@@ -409,13 +559,39 @@ class Provider:
             user = profile.get("user")
         except ProviderError:
             return _auth_temporary(account)
+        return self._finish_video_verification(account, user, API_VERSION)
+
+    def _verify_tv_account(self, account):
+        account = dict(account, verification_pending=True)
+        if not _current(account, 0):
+            return _auth_error("authorization_expired", "Начните вход VK Видео заново.")
+        try:
+            profile = self._request("POST", API + "users.get", {
+                "access_token": account["access_token"], "v": "5.267",
+            })
+        except ProviderError:
+            return _auth_temporary(account)
+        error = profile.get("error")
+        if isinstance(error, dict) and error.get("error_code") == 5:
+            return _auth_error("authorization_expired", "Начните вход VK Видео заново.")
+        users = profile.get("response")
+        if error or not isinstance(users, list) or len(users) != 1 or not isinstance(users[0], dict):
+            return _auth_temporary(account)
+        return self._finish_video_verification(account, users[0], "5.267")
+
+    def _finish_video_verification(self, account, user, version):
+        account = dict(account, verification_pending=True)
         user_id = str(user.get("user_id") or user.get("id") or "") if isinstance(user, dict) else ""
         if not user_id.isdigit() or int(user_id) <= 0:
             return _auth_temporary(account)
+        if account.get("user_id") and str(account["user_id"]) != user_id:
+            return _auth_error("authorization_failed", "VK ID вернул другую учётную запись. Повторите вход.")
         account["user_id"] = user_id
+        if not re.fullmatch(r"[a-f0-9]{32}", str(account.get("cache_id") or "")):
+            account["cache_id"] = secrets.token_hex(16)
         try:
             response = self._request("POST", API + "video.get", {
-                "access_token": account["access_token"], "v": API_VERSION, "owner_id": user_id, "count": 1,
+                "access_token": account["access_token"], "v": version, "owner_id": user_id, "count": 1,
             })
         except ProviderError:
             return _auth_temporary(account)
@@ -439,6 +615,10 @@ class Provider:
 
     def auth_poll(self, private_auth=None):
         private = _private(private_auth)
+        if (private.get("auth_type") == "vk_tv"
+                or (isinstance(private.get("pending"), dict) and private["pending"].get("auth_type") == "vk_tv")
+                or (isinstance(private.get("account"), dict) and private["account"].get("auth_type") == "vk_tv")):
+            return self._tv_auth().poll(private)
         account = private.get("account")
         if isinstance(account, dict) and (account.get("video_access") or account.get("verification_pending")):
             if _current(account):
@@ -500,6 +680,10 @@ class Provider:
 
     def sign_out(self, private_auth=None):
         private = _private(private_auth)
+        if (private.get("auth_type") == "vk_tv"
+                or (isinstance(private.get("pending"), dict) and private["pending"].get("auth_type") == "vk_tv")
+                or (isinstance(private.get("account"), dict) and private["account"].get("auth_type") == "vk_tv")):
+            return self._tv_auth().sign_out(private)
         pending = private.get("pending")
         if isinstance(pending, dict) and pending.get("broker_session") and pending.get("broker_poll_token"):
             try:

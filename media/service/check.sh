@@ -11,4 +11,5 @@ test -s "$base/runtime/cacert.pem"
 test -x "$base/runtime/ffmpeg"
 "$base/runtime/ffmpeg" -version >/dev/null
 /var/opt/mgu-python/current/bin/python3 -I -c 'import runpy,sys;sys.path.insert(0,sys.argv[1]);import ytfetch' "$base/core/native/jap-ridetube-d"
+/var/opt/mgu-python/current/bin/python3 -I -c 'import ast,pathlib,sys;root=pathlib.Path(sys.argv[1]);[ast.parse(p.read_text(encoding="utf-8"),filename=str(p)) for d in ("service","providers") for p in (root/d).glob("*.py")]' "$base"
 /var/opt/mgu-python/current/bin/python3 -I "$base/runtime/test_ffmpeg.py"

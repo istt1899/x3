@@ -1,16 +1,19 @@
 {
-  "schema": 1,
+  "schema": 2,
   "date": "2026-11-07",
   "repo": "istt1899/x3",
-  "branch": "feature/mgu-vk-rutube",
-  "release_tag": "media-preview-0.4.0",
-  "coding_base": "ab7f2074958f7a2cc46b3cff652cad770cd65d88",
-  "ridetube_base": "e89e5e08ac05fcd63d88e34835fcea8a72c2fd01",
+  "channel": "catalog",
+  "service_version": "0.4.1",
+  "apps_version": "0.1.1",
+  "preserved": {
+    "coding": "0.1.2",
+    "youtube": "0.3.13"
+  },
   "artifacts": [
     {
       "name": "catalog.json",
-      "size": 5367,
-      "sha256": "814da40a618b4078f10cc6a514ecd4d7c54d82ad5ef2839c064aefc778a80f6e"
+      "size": 5403,
+      "sha256": "b36173f81f5fbca844d5fb92e7b8d3a6817f427f3944f6335e5f8640af802e32"
     },
     {
       "name": "ffmpeg-9.0.2-mgu-media-sources.tar.xz",
@@ -18,56 +21,65 @@
       "sha256": "6f164f34bdbec44d842e399815319969a0972fc534ec652cee4018ff61d23798"
     },
     {
-      "name": "jap-ridetube-d@0.4.0.tgz",
-      "size": 10642107,
-      "sha256": "5118c4e8a28cc6fc97fdbe5d243fa9f7238cd25e456ce9ab82a5496dc3aa69d8"
+      "name": "jap-ridetube-d@0.4.1.tgz",
+      "size": 10649904,
+      "sha256": "dec49368a6bd1db4329ad2ce82c0de22e95ed73f80a73b0a49969cb50cb395a9"
     },
     {
-      "name": "marku_rutube.png",
+      "name": "marku_rutube@0.1.1.png",
       "size": 1183,
       "sha256": "a04b4b8058da853aa4bffa7bd9af5aa740f134ec57508dedd49dca79d78e2612"
     },
     {
-      "name": "marku_rutube@0.1.0.tgz",
-      "size": 1269459,
-      "sha256": "6a735ec2364fc5a745f6be97120af81fe392e7029dc1539d4a46297d46abf7a6"
+      "name": "marku_rutube@0.1.1.tgz",
+      "size": 1270509,
+      "sha256": "f72b281f24d60885b075bd40628ef82e7c9164a606af3255c63c042ca775e8ee"
     },
     {
-      "name": "marku_vk_video.png",
+      "name": "marku_vk_video@0.1.1.png",
       "size": 1124,
       "sha256": "b5189a4e1dd44b6d43360afd0b752cd9de1517bb49ec49b4fbc73919b61873c6"
     },
     {
-      "name": "marku_vk_video@0.1.0.tgz",
-      "size": 1269579,
-      "sha256": "75fbb3e2f8443beb5e74e9a7df713f3d945695c79efdb4f3b04d4d1a90c10371"
+      "name": "marku_vk_video@0.1.1.tgz",
+      "size": 1270585,
+      "sha256": "772b4134e871685eeab9084661c8116398487fc4cc38f430bbe92ac7d46ed96d"
     }
   ],
   "checks": {
-    "providers": 37,
-    "worker": 7,
-    "mediafetch": 6,
-    "relay": 7,
-    "provider_relay": 3,
+    "provider_tests": 64,
+    "worker_tests": 8,
+    "mediafetch_tests": 6,
+    "relay_tests": 7,
+    "provider_relay_tests": 3,
     "node8_gateway": true,
+    "node8_logout": true,
+    "node8_youtube_logout": true,
     "node8_bridge": true,
     "node8_main": true,
     "node8_ui": true,
+    "node8_vk_tv_qr": true,
+    "live_gateway_vk_and_rutube_guest_qr_pending": true,
     "app_reproducible": true,
-    "release_manifest_and_source_freshness": true,
-    "live_vk_guest": true,
-    "live_rutube_guest_and_hls": true,
-    "live_rutube_code_pending": true
+    "source_freshness_and_sdk_exclusion": true,
+    "deploy_0_7_11_and_0_8_4_prepare_synthetic_sdk": true
+  },
+  "auth": {
+    "vk_default": "public TV device flow",
+    "vk_owner_developer_app_required": false,
+    "vk_scope": "video,offline",
+    "rutube": "TV device flow",
+    "local_qr_generation": true,
+    "personal_api_fixture_verified": true
+  },
+  "runtime": {
+    "ffmpeg_sha256": "f95ade609cc31a6808c0df683dc77a55937ad58ccb7822ac88d5627de7dca1ea",
+    "linux_elf_executed": true,
+    "first_linux_evidence": "validation/linux-runtime-0.4.0.json"
   },
   "not_verified": {
     "mgu_playback": true,
-    "production_elf_linux_execution": true,
-    "owner_rutube_account": true,
-    "registered_vk_id_app_and_video_permissions": true,
-    "owner_vk_account": true
-  },
-  "not_implemented": [
-    "VK personal content"
-  ],
-  "stable_catalog_changed": false
+    "owner_rutube_approval_and_refresh": true,
+    "owner_vk_approval_and_personal_api": true
+  }
 }

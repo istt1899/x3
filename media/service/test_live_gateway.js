@@ -1,7 +1,7 @@
 'use strict';
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Optional network smoke: Node 8 -> real pipe/Unix sockets -> real Python workers.
-// Uses guest video APIs and an unapproved RUTUBE TV code. It never signs in to a
+// Uses guest video APIs and unapproved VK/RUTUBE TV codes. It never signs in to a
 // personal account and never starts a downloader, decoder or real MGU player.
 const assert = require('assert');
 const fs = require('fs');
@@ -95,7 +95,7 @@ function safeResults(result, pattern) {
             'socket cards contain only public metadata');
     });
     const bytes = JSON.stringify(result);
-    assert.ok(!/"(?:private|access_token|refresh_token|device_code|broker_key|broker_poll_token|poll_token)"\s*:/.test(bytes),
+    assert.ok(!/"(?:private|access_token|refresh_token|anonymous_token|auth_hash|exchange_token|device_code|broker_key|broker_poll_token|poll_token)"\s*:/.test(bytes),
         'no private fields cross guest socket');
 }
 async function run() {
@@ -167,14 +167,39 @@ async function run() {
         const beforeVkAuth = clients.vk.messages.length;
         clients.vk.send({ cmd: 'auth' });
         const vkAuth = await response(clients.vk, (event) => event.ev === 'auth', beforeVkAuth);
-        assert.ok(vkAuth.state === 'error', 'missing VK application/relay configuration is an honest error');
+        assert.ok(vkAuth.state === 'code' && /^[A-Za-z0-9]{6}$/.test(vkAuth.code || ''),
+            'VK native TV flow returns a real code without a registered developer app');
+        assert.strictEqual(vkAuth.url, 'https://qr.vk.ru/ca?q=' + vkAuth.code, 'VK official short activation URL');
+        assert.ok(vkAuth.expires > 0 && vkAuth.expires <= 1200, 'VK expiry exposed as TTL, not a Unix epoch');
+        assert.ok(Object.keys(vkAuth).every((key) => ['ev', 'state', 'code', 'url', 'expires', 'msg'].indexOf(key) >= 0),
+            'VK QR socket state has only approved public fields');
+        const vkPrivateFile = path.join(root, 'state', 'vk', 'account.json');
+        const vkPrivate = JSON.parse(fs.readFileSync(vkPrivateFile, 'utf8'));
+        assert.strictEqual(vkPrivate.pending.auth_type, 'vk_tv');
+        ['anonymous_token', 'auth_hash'].forEach((key) => {
+            assert.ok(typeof vkPrivate.pending[key] === 'string' && vkPrivate.pending[key].length > 4,
+                'native poll credentials are persisted privately');
+            assert.ok(JSON.stringify(vkAuth).indexOf(vkPrivate.pending[key]) < 0, 'native poll credentials never cross socket');
+        });
+        const beforeVkPoll = clients.vk.messages.length;
+        const vkPending = await response(clients.vk, (event) => event.ev === 'auth', beforeVkPoll);
+        assert.strictEqual(vkPending.state, 'code', 'unapproved VK TV QR remains pending');
+        assert.strictEqual(vkPending.url, 'https://qr.vk.ru/ca?q=' + vkPending.code);
         assert.ok(!clients.vk.messages.some((event) => event.ev === 'auth' && event.state === 'signed_in'),
-            'guest VK access never impersonates personal sign-in');
-        const beforeOut = clients.rutube.messages.length;
-        clients.rutube.send({ cmd: 'sign_out' });
-        await response(clients.rutube, (event) => event.ev === 'auth' && event.state === 'signed_out', beforeOut);
-        assert.strictEqual(rutube.pollTimer, null, 'sign-out cancels device polling');
-        console.log('ok: VK configuration blocker and RUTUBE cancellation; no personal login performed');
+            'an unapproved VK code never impersonates a personal account');
+        assert.strictEqual(clients.youtube.messages.length, 0, 'native TV authentication stays off YouTube socket');
+        console.log('ok: real VK TV code and pending poll without developer app (code/URL/tokens omitted)');
+        const beforeOut = {};
+        ['vk', 'rutube'].forEach((id) => { beforeOut[id] = clients[id].messages.length; clients[id].send({ cmd: 'sign_out' }); });
+        await Promise.all(['vk', 'rutube'].map((id) => response(clients[id],
+            (event) => event.ev === 'auth' && event.state === 'signed_out', beforeOut[id])));
+        assert.strictEqual(vk.pollTimer, null, 'VK sign-out cancels native device polling');
+        assert.strictEqual(rutube.pollTimer, null, 'RUTUBE sign-out cancels device polling');
+        ['vk', 'rutube'].forEach((id) => {
+            const stored = JSON.parse(fs.readFileSync(path.join(root, 'state', id, 'account.json'), 'utf8'));
+            assert.ok(!stored.pending && !stored.account && !stored.tokens, 'sign-out erases pending private credentials');
+        });
+        console.log('ok: VK and RUTUBE cancellation; no personal account approval performed');
     } finally {
         Object.keys(clients).forEach((id) => clients[id].socket.destroy());
         await gateway.close();

@@ -129,6 +129,32 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(job['format']['height'], 720)
         self.assertEqual([entry['height'] for entry in job['formats']], [360, 720, 1080])
 
+    def test_vk_api_revocation_replaces_preflight_signed_in_with_auth_error(self):
+        class Revoked(Exception):
+            code = 'auth_required'
+            message = 'Sign in again'
+            auth = {'state': 'error', 'code': 'authorization_expired', 'msg': 'Sign in again'}
+
+        class Provider:
+            def __init__(self, **kwargs):
+                pass
+
+            def auth_poll(self, private):
+                return {'public': {'state': 'signed_in'}, 'private': private}
+
+            def search(self, query, auth=None):
+                auth.clear()
+                raise Revoked()
+
+        with mock.patch.object(worker.ytfetch, 'load_ytdlp', return_value=object()), \
+             mock.patch.object(worker.ytfetch, 'install_dns'), \
+             mock.patch.object(worker.importlib, 'import_module', return_value=types.SimpleNamespace(Provider=Provider)):
+            result = worker.perform({'provider': 'vk', 'op': 'search', 'args': {'q': 'video'},
+                                     'private': {'account': {'access_token': 'fixture-private', 'video_access': True}}})
+        self.assertEqual(result['error']['code'], 'auth_required')
+        self.assertEqual(result['auth']['state'], 'error')
+        self.assertEqual(result['private'], {})
+
     def test_thumbnail_does_not_accept_arbitrary_or_internal_addresses(self):
         for url in ('https://127.0.0.1/image', 'https://localhost/image', 'https://evil.example/image',
                     'https://pic.rutubelist.ru:444/image', 'http://pic.rutubelist.ru/image'):

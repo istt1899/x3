@@ -15,8 +15,8 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[2]
 MEDIA = ROOT / 'media'
 OUT = MEDIA / 'dist/release'
-VERSION = '0.4.0'
-RELEASE_TAG = 'media-preview-0.4.0'
+VERSION = '0.4.1'
+RELEASE_TAG = 'catalog'
 BASE_SHA = '984429e16be494d8e17e53f2606c7aaf38ea5ea049e86046f4aafe8cebf7bb75'
 
 
@@ -141,13 +141,13 @@ def main():
                            'requires': {'jap-ridetube-d': VERSION, 'mgu-deploy': '0.7.11',
                                         'mgu-render': '0.6.11', 'mgu-inputgate': '1.0.0'},
                            'mguHmi': ['ID7'], 'uninstallable': True}
-        icon = OUT / (app + '.png')
+        icon = OUT / (app + '@' + spec['version'] + '.png')
         shutil.copyfile(MEDIA / 'core/apps' / app / 'icon.png', icon)
         components[app]['icon'] = artifact(icon)['url']
         components[app]['iconSha256'] = sha(icon.read_bytes())
     requires = json.loads((MEDIA / 'core/native/jap-ridetube-d/component.json').read_text(encoding='utf-8'))['requires']
     components['jap-ridetube-d'] = {'id': 'jap-ridetube-d', 'kind': 'tool', 'title': 'MGU Video service',
-                                  'version': VERSION, 'description': 'One player, three services; separate accounts and network routing.',
+                                  'version': VERSION, 'description': 'Тестовый общий проигрыватель: YouTube через прежний прокси, VK Видео и RUTUBE напрямую. Раздельные аккаунты.',
                                   'requires': dict(requires, **{'mgu-deploy': '0.7.11'}),
                                   'artifact': artifact(tool), 'uninstallable': True, 'mguHmi': ['ID7']}
     runtime = json.loads((MEDIA / 'core/tools/runtime-providers.json').read_text(encoding='utf-8'))

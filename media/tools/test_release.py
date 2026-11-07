@@ -44,14 +44,14 @@ for app in ('marku_vk_video', 'marku_rutube', 'jap-ridetube-d'):
     data = package.read_bytes()
     assert len(data) == artifact['size'] and digest(data) == artifact['sha256']
     assert artifact['url'].endswith('/' + package.name)
-    assert '/media-preview-0.4.0/' in artifact['url'], 'test packages must use a separate release'
+    assert '/catalog/' in artifact['url'], 'installable Store packages must use the catalog release'
     assert spec['requires']['mgu-deploy'] == '0.7.11'
     with tarfile.open(package) as archive:
         safe_members(archive)
 
 with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as archive:
     manifest = json.load(archive.extractfile('component.json'))
-    assert manifest['id'] == 'jap-ridetube-d' and manifest['version'] == '0.4.0'
+    assert manifest['id'] == 'jap-ridetube-d' and manifest['version'] == '0.4.1'
     assert manifest['internet'] is True and manifest['uids'] == 'state/internet-uids'
     assert manifest['units'] == [{'name': 'jap-ridetube-d.service'}]
     assert manifest['check'] == ['service/check.sh']
@@ -96,10 +96,10 @@ with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as arc
 uuids = []
 for app, provider in [('marku_vk_video', 'vk'), ('marku_rutube', 'rutube')]:
     spec = components[app]
-    assert spec['requires']['jap-ridetube-d'] == '0.4.0'
+    assert spec['requires']['jap-ridetube-d'] == '0.4.1'
     with tarfile.open(OUT / spec['artifact']['name']) as archive:
         app_json = json.load(archive.extractfile('package/rhmiData/application.json'))['application']
-        assert app_json['name'] == app and app_json['version'] == '0.1.0'
+        assert app_json['name'] == app and app_json['version'] == '0.1.1'
         uuids.append(app_json['uuid'])
         settings = archive.extractfile('package/javascript/service-config.js').read().decode()
         assert '/run/jap-ridetube-d/' + provider + '.sock' in settings
@@ -110,7 +110,7 @@ for app, provider in [('marku_vk_video', 'vk'), ('marku_rutube', 'rutube')]:
         assert 'Parked.watch(ctx, log, { strict: true })' in main
         assert 'const noVideo = () => parked.moving();' in main
         assert 'google.com/device' not in main
-    icon = OUT / (app + '.png')
+    icon = OUT / (app + '@' + spec['version'] + '.png')
     assert digest(icon.read_bytes()) == spec['iconSha256']
 assert len(set(uuids)) == 2
 print('ok: coding/YouTube preserved; archives, manifest, runtime pins, source-only SDK exclusion, separate apps and parked video')
