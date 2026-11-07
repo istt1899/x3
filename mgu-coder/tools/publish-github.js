@@ -219,9 +219,13 @@ async function ensureRelease(api, opts, tag, title, notes) {
 }
 
 async function assetHash(asset) {
+  // A replaced catalog keeps its public tag/name URL. Key verification by
+  // immutable asset ID so a cached redirect cannot return the deleted asset.
+  const download = new URL(asset.browser_download_url);
+  download.searchParams.set('verify_asset', String(asset.id));
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    const response = await fetch(asset.browser_download_url, {
-      headers: { 'User-Agent': USER_AGENT }, redirect: 'follow'
+    const response = await fetch(download, {
+      headers: { 'User-Agent': USER_AGENT, 'Cache-Control': 'no-cache' }, redirect: 'follow'
     });
     if (response.ok) return sha256(Buffer.from(await response.arrayBuffer()));
     if (![404, 429, 500, 502, 503, 504].includes(response.status) || attempt === 7) {
