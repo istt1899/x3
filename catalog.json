@@ -27,15 +27,15 @@
       "kind": "app",
       "title": "RideTube",
       "description": "Video in the car: an unofficial client for YouTube. Your Home, Subscriptions and Watch later (signed in on the car), search, channels and chapters; the sound through the car's media player, the picture only while parked (a podcast view while driving). Needs the jap-ridetube-d tool.",
-      "version": "0.3.14",
+      "version": "0.3.15",
       "artifact": {
-        "name": "jap_ridetube@0.3.14.tgz",
-        "size": 1286917,
-        "sha256": "81521be11210be0f06e482745c60126b705ba894e8f38f75f60b34103508f6bf",
-        "url": "https://github.com/istt1899/x3/releases/download/catalog/jap_ridetube@0.3.14.tgz"
+        "name": "jap_ridetube@0.3.15.tgz",
+        "size": 1290674,
+        "sha256": "8fdfc41ac0016732b61c0f4c65f9455e044a1cc65c75e4a626cf8f669f0ff8ae",
+        "url": "https://github.com/istt1899/x3/releases/download/catalog/jap_ridetube@0.3.15.tgz"
       },
       "requires": {
-        "jap-ridetube-d": "0.4.2",
+        "jap-ridetube-d": "0.4.3",
         "mgu-render": "0.6.11",
         "mgu-inputgate": "1.0.0",
         "mgu-deploy": "0.7.11"
@@ -51,16 +51,16 @@
       "id": "marku_vk_video",
       "kind": "app",
       "title": "VK Видео",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "description": "VK Видео: тестовый выпуск для MGU, поиск и видео напрямую, вход с телефона.",
       "artifact": {
-        "name": "marku_vk_video@0.1.3.tgz",
-        "size": 1273063,
-        "sha256": "e5a4a4ecaf6ec3838c12a2fca90d8bd619db86b421b450ec13aa3ca339af8f53",
-        "url": "https://github.com/istt1899/x3/releases/download/catalog/marku_vk_video@0.1.3.tgz"
+        "name": "marku_vk_video@0.1.4.tgz",
+        "size": 1276439,
+        "sha256": "b092cc1e2cba2ddcee854decb7fe05cb4373d1d05a4f0ffc7d29b80b733007c3",
+        "url": "https://github.com/istt1899/x3/releases/download/catalog/marku_vk_video@0.1.4.tgz"
       },
       "requires": {
-        "jap-ridetube-d": "0.4.2",
+        "jap-ridetube-d": "0.4.3",
         "mgu-deploy": "0.7.11",
         "mgu-render": "0.6.11",
         "mgu-inputgate": "1.0.0"
@@ -69,23 +69,23 @@
         "ID7"
       ],
       "uninstallable": true,
-      "icon": "https://github.com/istt1899/x3/releases/download/catalog/marku_vk_video@0.1.3.png",
+      "icon": "https://github.com/istt1899/x3/releases/download/catalog/marku_vk_video@0.1.4.png",
       "iconSha256": "c1fbca216dc8bd1076678272fa417c927de444121c2fe25feced24b960f6c612"
     },
     {
       "id": "marku_rutube",
       "kind": "app",
       "title": "RUTUBE",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "description": "RUTUBE: тестовый выпуск для MGU, поиск и видео напрямую, вход с телефона.",
       "artifact": {
-        "name": "marku_rutube@0.1.3.tgz",
-        "size": 1272674,
-        "sha256": "16c02bf437b38cd940adfd645943e153bfa2aea0e644f591d78e5e2ed1b3b23b",
-        "url": "https://github.com/istt1899/x3/releases/download/catalog/marku_rutube@0.1.3.tgz"
+        "name": "marku_rutube@0.1.4.tgz",
+        "size": 1276073,
+        "sha256": "bd636fa8e9359f2dc9394cad297f0d648258559808a0b42e7a1540b904ca41b7",
+        "url": "https://github.com/istt1899/x3/releases/download/catalog/marku_rutube@0.1.4.tgz"
       },
       "requires": {
-        "jap-ridetube-d": "0.4.2",
+        "jap-ridetube-d": "0.4.3",
         "mgu-deploy": "0.7.11",
         "mgu-render": "0.6.11",
         "mgu-inputgate": "1.0.0"
@@ -94,14 +94,14 @@
         "ID7"
       ],
       "uninstallable": true,
-      "icon": "https://github.com/istt1899/x3/releases/download/catalog/marku_rutube@0.1.3.png",
+      "icon": "https://github.com/istt1899/x3/releases/download/catalog/marku_rutube@0.1.4.png",
       "iconSha256": "7fd5f5e022633b7f66cef1a57fc40b248b3346a3f5bc29fefb75c41cb41b85ac"
     },
     {
       "id": "jap-ridetube-d",
       "kind": "tool",
       "title": "MGU Video service",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "description": "Тестовый общий проигрыватель: YouTube через прежний прокси, VK Видео и RUTUBE напрямую. Раздельные аккаунты.",
       "requires": {
         "mgu-deploy": "0.7.11",
@@ -112,10 +112,10 @@
         "cluster-render": "0.4.0"
       },
       "artifact": {
-        "name": "jap-ridetube-d@0.4.2.tgz",
-        "size": 10653377,
-        "sha256": "d8da3ba5ff55d8574b0622a8884b471a733af5a1056ae4278a31da13d0759677",
-        "url": "https://github.com/istt1899/x3/releases/download/catalog/jap-ridetube-d@0.4.2.tgz"
+        "name": "jap-ridetube-d@0.4.3.tgz",
+        "size": 10660366,
+        "sha256": "c6d4d5c46d6716202fa03c255ddaf2311acf0b6612d3df3184cfc9fdfecf9cef",
+        "url": "https://github.com/istt1899/x3/releases/download/catalog/jap-ridetube-d@0.4.3.tgz"
       },
       "uninstallable": true,
       "mguHmi": [
