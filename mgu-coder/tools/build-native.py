@@ -26,9 +26,13 @@ def main():
     module = importlib.util.spec_from_file_location('bimmer_native_builder', KIT / 'tools/build.py')
     builder = importlib.util.module_from_spec(module)
     module.loader.exec_module(builder)
-    with tempfile.TemporaryDirectory(prefix='bimmer-native-build-') as temporary:
+    # Keep staging on the checkout's volume: the working builder prints paths
+    # relative to its ROOT, and Windows relpath cannot cross drive letters.
+    staging_parent = ROOT / 'dist'
+    staging_parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='bimmer-native-build-', dir=staging_parent) as temporary:
         work = Path(temporary).resolve()
-        assert work.parent == Path(tempfile.gettempdir()).resolve()
+        assert work.parent == staging_parent.resolve()
         builder.APPS = str(APP.parent)
         builder.DIST = str(work / 'dist')
         builder.build(APP_ID, source_only=True)
