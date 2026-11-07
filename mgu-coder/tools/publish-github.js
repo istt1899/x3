@@ -156,7 +156,9 @@ function cachedCredential() {
 
 function assertCleanSource(opts, items, catalogBytes) {
   const repository = path.dirname(ROOT);
-  const git = (args) => cp.execFileSync('git', args, { cwd: repository, windowsHide: true });
+  const git = (args) => cp.execFileSync('git', args, {
+    cwd: repository, windowsHide: true, maxBuffer: 64 * 1024 * 1024
+  });
   const head = git(['rev-parse', 'HEAD']).toString('utf8').trim();
   if (head !== opts.head) throw new Error('Expected commit differs from local source HEAD');
   if (git(['status', '--porcelain', '--untracked-files=all']).toString('utf8').trim()) {
