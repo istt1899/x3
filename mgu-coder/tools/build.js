@@ -35,7 +35,7 @@ function main() {
   const catalog = {
     schema: 2,
     components: [{ id: manifest.id, kind: 'app', version: manifest.version,
-      title: 'Кодировки • X3',
+      title: 'Кодировки X3',
       description: 'Каталог 10 функций G01 и чтение доступных блоков; запись кодировок отключена',
       build: 'unit', requires: release.requires, uninstallable: true, mguHmi: ['ID7'],
       artifact: { name: filename, size: artifact.length, sha256: sha(artifact), url: filename } }]

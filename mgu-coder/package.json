@@ -1,6 +1,6 @@
 {
   "name": "bmw-x3-mgu-coding-research",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "license": "GPL-3.0-or-later",
   "description": "X3 G01 MGU coding catalogue and read-only ECU discovery",
@@ -8,6 +8,6 @@
     "build": "node tools/build.js",
     "catalog:github": "node tools/catalog.js",
     "publish:check": "node tools/publish-github.js --check",
-    "test": "node tests/diagnostics.test.js && node tests/view_model.test.js && node tests/catalog.test.js && node tests/package.test.js"
+    "test": "node tests/diagnostics.test.js && node tests/view_model.test.js && node tests/linker.test.js && node tests/catalog.test.js && node tests/package.test.js"
   }
 }

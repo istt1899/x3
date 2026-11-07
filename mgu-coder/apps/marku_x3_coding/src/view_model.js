@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 'use strict';
 
-const { FEATURES } = require('./catalog');
-const { ERROR_CODES } = require('./diagnostics');
+const { FEATURES } = require('./catalog.js');
+const { ERROR_CODES } = require('./diagnostics.js');
 const PAGE_SIZE = 5;
 
 const ERROR_MESSAGES = Object.freeze({
@@ -39,15 +39,15 @@ function model(scan, page, selected) {
   const start = Math.max(0, Math.min(1, page || 0)) * PAGE_SIZE;
   const items = FEATURES.slice(start, start + PAGE_SIZE);
   const text = {
-    codingTitle: detail ? detail.title : 'Кодировки • X3',
+    codingTitle: detail ? detail.title : 'Кодировки X3',
     codingStatus: status,
-    codingGate: 'Чтение блоков • запись пока недоступна',
+    codingGate: 'Чтение блоков; запись пока недоступна',
     codingPage: 'Функции ' + (start + 1) + '–' + (start + items.length) + ' из ' + FEATURES.length,
     codingScan: scanning ? 'Проверка выполняется' : 'Проверить блоки на стоянке',
     codingPrev: 'Предыдущие функции', codingNext: 'Следующие функции',
     codingBack: 'К списку функций',
     detailEcu: '', detailSummary: '', detailRequirement: '', detailCaution: '', detailStatus: '',
-    codingFooter: 'Только на стоянке • скорость приложением не проверяется'
+    codingFooter: 'Только на стоянке; скорость приложением не проверяется'
   };
   items.forEach((feature, i) => { text['codingSlot' + (i + 1)] = feature.title + '  ·  ' + feature.ecu; });
   if (detail) {

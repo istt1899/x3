@@ -4,8 +4,8 @@
     {
       "id": "marku_x3_coding",
       "kind": "app",
-      "version": "0.1.1",
-      "title": "Кодировки • X3",
+      "version": "0.1.2",
+      "title": "Кодировки X3",
       "description": "Каталог 10 функций G01 и чтение доступных блоков; запись кодировок отключена",
       "build": "unit",
       "requires": {
@@ -16,10 +16,10 @@
         "ID7"
       ],
       "artifact": {
-        "name": "marku_x3_coding@0.1.1.tgz",
-        "size": 30404,
-        "sha256": "7cb1fa77887b640f0c1efe4145f33813aeda9ad4e5195bc4d73138a1b5074e17",
-        "url": "https://github.com/istt1899/x3/releases/download/marku_x3_coding@0.1.1/marku_x3_coding@0.1.1.tgz"
+        "name": "marku_x3_coding@0.1.2.tgz",
+        "size": 30385,
+        "sha256": "b6b2e216fa9220f052c444983d9237c258eb3af4e81ef5d0a1e81fbc5944d13c",
+        "url": "https://github.com/istt1899/x3/releases/download/marku_x3_coding@0.1.2/marku_x3_coding@0.1.2.tgz"
       }
     }
   ]

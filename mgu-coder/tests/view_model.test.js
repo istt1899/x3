@@ -15,7 +15,7 @@ assert.strictEqual(first.visible.codingNext, true);
 assert.strictEqual(first.visible.codingSlot1, true);
 assert.strictEqual(first.visible.detailStatus, false);
 assert(/запись пока недоступна/.test(first.text.codingGate));
-assert.strictEqual(first.text.codingFooter, 'Только на стоянке • скорость приложением не проверяется');
+assert.strictEqual(first.text.codingFooter, 'Только на стоянке; скорость приложением не проверяется');
 
 const second = model(null, 1, null);
 assert.strictEqual(second.text.codingPage, 'Функции 6–10 из 10');

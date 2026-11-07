@@ -112,7 +112,7 @@ function positiveMs(value, fallback) {
 
 class ReadOnlyDiagnostics {
     constructor(signals, options) {
-        this._signals = signals || require('./someip_signals').createSomeipSignals();
+        this._signals = signals || require('./someip_signals.js').createSomeipSignals();
         this._options = options || {};
         this._proxy = null;
         this._initializing = null;
