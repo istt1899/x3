@@ -52,6 +52,7 @@ jobs:
           curl --fail --silent --show-error --location https://nodejs.org/dist/v8.17.0/node-v8.17.0-linux-x64.tar.xz -o node-v8.17.0-linux-x64.tar.xz
           awk '$2 == "node-v8.17.0-linux-x64.tar.xz"' SHASUMS256.txt | sha256sum -c -
           tar -xJf node-v8.17.0-linux-x64.tar.xz
+          ORIGINAL_PATH="$PATH"
           export PATH="$RUNNER_TEMP/node-v8.17.0-linux-x64/bin:$PATH"
           cd "$GITHUB_WORKSPACE/source"
           node --version
@@ -62,6 +63,8 @@ jobs:
           node media/ui/test_network_view.js
           node media/service/test_gateway.js
           node media/service/test_python_provider.js
+          # The legacy harness uses fs.rmSync; production modules above run on Node 8.
+          export PATH="$ORIGINAL_PATH"
           node media/core/native/jap-ridetube-d/test/test_ytd.js
           python3 -m unittest discover -s media/service -p 'test_*.py' -q
           python3 -m unittest discover -s media/providers/tests -q

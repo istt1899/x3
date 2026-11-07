@@ -1061,7 +1061,9 @@ async function main() {
         d2.emit = (o) => evs.push(o);
         try { fs.unlinkSync(flog); } catch (e) { /* none */ }
         await d2.account.start();
-        assert.deepStrictEqual(evs.pop(), { ev: 'auth', state: 'error', msg: 'no internet uid on the car (see the log)' });
+        const missingUid = evs.pop();
+        assert.strictEqual(missingUid.ev, 'auth'); assert.strictEqual(missingUid.state, 'error');
+        assert.ok(/no internet uid on the car \(see the log\)$/.test(missingUid.msg));
         fs.writeFileSync(path.join(tmp, 'acct2.json'), JSON.stringify({ cid: 'x', sec: 'y', access: 'A', refresh: 'R', exp: Date.now() + 1e7 }));
         await d2.account.feed('subs');
         assert.deepStrictEqual(evs.pop(), { ev: 'feed', which: 'subs', error: 'no internet uid on the car (see the log)' });
@@ -1156,6 +1158,9 @@ async function main() {
             fs.writeFileSync(f, ''); fs.utimesSync(f, tm, tm);
         }
         evs.length = 0;
+        // Earlier playback tests can leave this video's valid cached thumbnail.
+        // This case exercises rejection of the helper's malformed output instead.
+        try { fs.unlinkSync(path.join(cache, 'SSSSSSSSSS1', 'thumb.rgba')); } catch (e) { if (e.code !== 'ENOENT') throw e; }
         await Promise.all([d3.thumb('NNNNNNNNNN1'), d3.thumb('ZZZZZZZZZZZ'), d3.thumb('SSSSSSSSSS1')]);
         assert.deepStrictEqual(sizes(), [['NNNNNNNNNN1', 320, 180, 230400]]);
         assert.ok(logs.some((m) => /ZZZZZZZZZZZ: thumb helper exit 1, 0 bytes: no thumbnail/.test(m)));

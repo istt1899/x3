@@ -925,7 +925,7 @@ Daemon.prototype.proxy = function () {
 Daemon.prototype.proxyRunFile = function () { return path.join(this.opts.cacheDir, 'proxy.json'); };
 // extra argv for the helper children; only a path, never credentials
 Daemon.prototype.proxyArgs = function () {
-    const args = ['--lease', this.opts.leaseFile];
+    const args = this.opts.leaseFile && this.opts.leaseFile !== '/run/mgu-uplink/lease.json' ? ['--lease', this.opts.leaseFile] : [];
     return this.proxy() ? args.concat(['--proxy-file', this.proxyRunFile()]) : args;
 };
 // a helper (ytfetch.py, thumb.js) as the fetch uid, as fetchRequest spawns its child

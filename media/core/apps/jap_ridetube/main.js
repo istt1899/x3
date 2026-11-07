@@ -385,7 +385,6 @@ mgu.run({
 
         /* the left rail: Search, Home, Subscriptions, Watch later */
         const RAIL = [
-            ['network', 'Интернет', (cv, x, y, c) => { [10,18,26].forEach((h,i) => cv.roundRect(x-17+i*13,y+14-h,8,h,2,c)); }],
             ['search', 'Search', (cv, x, y, c) => { cv.arc(x - 4, y - 4, 9, 12.5, 0, 360, c); cv.line(x + 4.5, y + 4.5, x + 14, y + 14, 4.5, c); }],
             ['home', 'Home', (cv, x, y, c, bg) => {
                 cv.quad([[x, y - 18], [x + 19, y - 1], [x - 19, y - 1], [x, y - 18]], c);
@@ -396,6 +395,7 @@ mgu.run({
                 cv.roundRect(x - 18, y - 6, 36, 24, 5, c); tri(cv, x + 1, y + 6, 12, bg);
             }],
             ['wl', 'Watch later', (cv, x, y, c) => { cv.arc(x, y, 14, 17.5, 0, 360, c); cv.line(x, y + 1, x, y - 9, 3.5, c); cv.line(x, y, x + 7, y + 5, 3.5, c); }],
+            ['network', 'Интернет', (cv, x, y, c) => { [10,18,26].forEach((h,i) => cv.roundRect(x-17+i*13,y+14-h,8,h,2,c)); }],
         ];
         // while something plays: back to the player (the bar's Now playing, where the kit runs the screen)
         const PLAYING = ['player', 'Playing', (cv, x, y, c) => { [10, 20, 14].forEach((h, k) => cv.roundRect(x - 15 + k * 11, y + 8 - h, 8, h + 8, 2, c)); }];

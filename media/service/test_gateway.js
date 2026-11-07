@@ -210,7 +210,7 @@ function adapter(id, gates) {
     assert.strictEqual(decoder.exitCode, 0); assert.strictEqual(spare.exitCode, 0); assert.strictEqual(extracting.exitCode, 0);
     bridge.configure(context, () => {});
     assert.strictEqual(bridge.engine.opts.stateDir, path.join(tmp, 'uid-state'), 'root UID state never follows provider');
-    assert.deepStrictEqual(bridge.engine.proxyArgs(), ['--lease', '/run/mgu-uplink/lease.json'], 'direct providers receive DNS context but cannot inherit the YouTube proxy');
+    assert.deepStrictEqual(bridge.engine.proxyArgs(), [], 'direct providers cannot inherit the YouTube proxy');
     ['ytdlp', 'thumbs', 'jobs', 'ytc', 'runtime-tools', 'network-builtin', 'a'.repeat(32)].forEach((name) => fs.mkdirSync(path.join(context.cacheDir, name)));
     bridge.engine.prune();
     assert.ok(fs.existsSync(path.join(context.cacheDir, 'ytdlp')));
