@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const cp = require('child_process');
 const { packSource, readManifest } = require('./upstream/oap_link');
 const prepare = require('./prepare');
+const { writePublishCatalog } = require('./catalog');
 
 const ROOT = path.join(__dirname, '..');
 const APP = path.join(ROOT, 'apps', 'marku_x3_coding');
@@ -18,7 +19,7 @@ const sha = (data) => crypto.createHash('sha256').update(data).digest('hex');
 function main() {
   prepare.main();
   const manifest = readManifest(APP);
-  if (manifest.id !== 'marku_x3_coding' || manifest.version !== '0.1.0') {
+  if (manifest.id !== 'marku_x3_coding' || manifest.version !== require('../package.json').version) {
     throw new Error('unexpected app identity');
   }
   fs.mkdirSync(PUBLISH, { recursive: true });
@@ -40,10 +41,12 @@ function main() {
       artifact: { name: filename, size: artifact.length, sha256: sha(artifact), url: filename } }]
   };
   fs.writeFileSync(path.join(PUBLISH, 'catalog.json'), JSON.stringify(catalog, null, 2) + '\n');
+  const published = writePublishCatalog();
   cp.execFileSync(process.execPath, [path.join(__dirname, 'upstream', 'mgu-install.js'),
     'usb-repo', USB, PUBLISH], { stdio: 'inherit', windowsHide: true });
   console.log('Source package: ' + target);
   console.log('MGU Store USB directory: ' + USB);
+  console.log('GitHub catalog: ' + published.output + ' sha256=' + published.sha256);
 }
 
 try { main(); } catch (err) { console.error('build: ' + err.message); process.exitCode = 1; }

@@ -2,7 +2,27 @@
 'use strict';
 
 const { FEATURES } = require('./catalog');
+const { ERROR_CODES } = require('./diagnostics');
 const PAGE_SIZE = 5;
+
+const ERROR_MESSAGES = Object.freeze({
+  [ERROR_CODES.TRANSPORT_SETUP_FAILED]: 'Не удалось открыть диагностический канал',
+  [ERROR_CODES.RESPONSE_SUBSCRIBE_FAILED]: 'Не удалось получать ответы блоков',
+  [ERROR_CODES.SERVICE_UNAVAILABLE]: 'Диагностический сервис недоступен',
+  [ERROR_CODES.RESPONSE_ERROR]: 'Диагностический сервис сообщил об ошибке',
+  [ERROR_CODES.TRANSPORT_REJECTED]: 'Диагностический сервис отклонил запрос',
+  [ERROR_CODES.REQUEST_REFUSED]: 'Запрос обнаружения отклонён',
+  [ERROR_CODES.REQUEST_FAILED]: 'Не удалось отправить запрос обнаружения',
+  [ERROR_CODES.SCAN_TIMEOUT]: 'Превышено время ожидания ответа',
+  [ERROR_CODES.SCAN_EMPTY]: 'Блоки не ответили на проверку',
+  [ERROR_CODES.SCAN_CLOSED]: 'Проверка остановлена',
+  [ERROR_CODES.UNKNOWN_ERROR]: 'Диагностика не удалась. Повторите проверку.',
+});
+
+function errorMessage(code) {
+  return Object.prototype.hasOwnProperty.call(ERROR_MESSAGES, code) ?
+    ERROR_MESSAGES[code] : ERROR_MESSAGES[ERROR_CODES.UNKNOWN_ERROR];
+}
 
 function hex(address) { return '0x' + Number(address).toString(16).toUpperCase().padStart(2, '0'); }
 function oneLine(value, max) { return String(value || '').replace(/[\r\n\t]/g, ' ').slice(0, max || 160); }
@@ -13,7 +33,7 @@ function model(scan, page, selected) {
   const addresses = new Set(ecus.map((e) => e.address));
   const failed = result && result.error;
   const scanning = result && result.scanning;
-  const status = scanning ? 'Проверка блоков…' : failed ? 'Диагностика: ' + oneLine(failed, 80) :
+  const status = scanning ? 'Проверка блоков…' : failed ? 'Диагностика: ' + errorMessage(failed) :
     result && result.available ? 'Диагностика: ответили ' + ecus.length + ' адресов' : 'Диагностика ещё не запущена';
   const detail = selected == null ? null : FEATURES[selected];
   const start = Math.max(0, Math.min(1, page || 0)) * PAGE_SIZE;
@@ -27,7 +47,7 @@ function model(scan, page, selected) {
     codingPrev: 'Предыдущие функции', codingNext: 'Следующие функции',
     codingBack: 'К списку функций',
     detailEcu: '', detailSummary: '', detailRequirement: '', detailCaution: '', detailStatus: '',
-    codingFooter: 'Для записи нужны проверенные NCD, CAFD и I-Level этой машины'
+    codingFooter: 'Только на стоянке • скорость приложением не проверяется'
   };
   items.forEach((feature, i) => { text['codingSlot' + (i + 1)] = feature.title + '  ·  ' + feature.ecu; });
   if (detail) {
@@ -52,4 +72,4 @@ function model(scan, page, selected) {
   return { text, visible, enabled: { codingScan: list && !scanning } };
 }
 
-module.exports = { model, hex, PAGE_SIZE };
+module.exports = { model, hex, PAGE_SIZE, ERROR_MESSAGES };

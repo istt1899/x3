@@ -7,11 +7,11 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const APP = path.join(ROOT, 'apps', 'marku_x3_coding');
-const TREE = path.join(APP, 'marku_x3_coding@0.1.0');
+const VERSION = require('../package.json').version;
+const TREE = path.join(APP, 'marku_x3_coding@' + VERSION);
 const RHMI = path.join(TREE, 'rhmiData');
 const SID = 'SID_MARKU_X3_CODING_TITLE';
 const TITLE = 'Кодировки • X3';
-const VERSION = '0.1.0';
 const IFACE = 'com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu';
 
 function write(file, value) {
@@ -37,7 +37,7 @@ const defs = [
   [43, 'detailCaution', 'label', 'Проверить', false],
   [44, 'detailStatus', 'label', 'Доступность не проверена', false],
   [45, 'codingBack', 'button', 'К списку функций', false],
-  [23, 'codingFooter', 'label', 'Для записи нужны проверенные NCD, CAFD и I-Level этой машины', true]
+  [23, 'codingFooter', 'label', 'Только на стоянке • скорость приложением не проверяется', true]
 ];
 
 function makeRhmi() {
@@ -123,7 +123,7 @@ function makePackage() {
     methods: ['sendTasuRequest'], broadcasts: ['sendTasuResponse'] };
   write(path.join(TREE, 'manifest.json'), manifest);
   write(path.join(TREE, 'NOTICE'),
-    'Кодировки • X3 0.1.0\nApplication: GPL-3.0-or-later.\n' +
+    'Кодировки • X3 ' + VERSION + '\nApplication: GPL-3.0-or-later.\n' +
     'RHMI lifecycle adapted from the GPL-3.0-or-later Kaluga Cameras project.\n' +
     'Diagnostic request and transport shape studied from the MIT-licensed cauliflowermossgrape/idrive7-apps project; see LICENSE.MIT.\n' +
     'No BMW SDK, proprietary CAFD/NCD mappings, vehicle identifiers or BimmerCode code/data are included.\n');

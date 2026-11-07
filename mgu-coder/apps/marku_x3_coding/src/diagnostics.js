@@ -19,6 +19,36 @@ const SOURCE = 0xF2;
 const FUNCTIONAL = 0xDF;
 const SID = 0x22;
 const DID = [0xF1, 0x50];
+const ERROR_CODES = Object.freeze({
+    TRANSPORT_SETUP_FAILED: 'TRANSPORT_SETUP_FAILED',
+    RESPONSE_SUBSCRIBE_FAILED: 'RESPONSE_SUBSCRIBE_FAILED',
+    SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+    RESPONSE_ERROR: 'RESPONSE_ERROR',
+    TRANSPORT_REJECTED: 'TRANSPORT_REJECTED',
+    REQUEST_REFUSED: 'REQUEST_REFUSED',
+    REQUEST_FAILED: 'REQUEST_FAILED',
+    SCAN_TIMEOUT: 'SCAN_TIMEOUT',
+    SCAN_EMPTY: 'SCAN_EMPTY',
+    SCAN_CLOSED: 'SCAN_CLOSED',
+    UNKNOWN_ERROR: 'UNKNOWN_ERROR',
+});
+
+function result(available, ecus, error, technicalError) {
+    return {
+        available: !!available,
+        ecus: ecus || [],
+        error: error || null,
+        technicalError: technicalError == null ? null : String(technicalError),
+    };
+}
+
+function detail(error) { return error && String(error.message || error); }
+
+function tagged(error, code) {
+    const wrapped = new Error(detail(error) || code);
+    wrapped.diagnosticCode = code;
+    return wrapped;
+}
 
 function byteHex(value) {
     return ('0' + value.toString(16).toUpperCase()).slice(-2);
@@ -45,15 +75,23 @@ function discoveryRequest() {
     };
 }
 
-function acceptedVerdict(result) {
-    let value = result;
+function verdictValue(result) {
     if (result && typeof result === 'object') {
-        if (result.TasuErrorEnum !== undefined) value = result.TasuErrorEnum;
-        else if (result.errorCode !== undefined) value = result.errorCode;
-        else return false;
+        if (result.TasuErrorEnum !== undefined) return result.TasuErrorEnum;
+        if (result.errorCode !== undefined) return result.errorCode;
     }
+    return result;
+}
+
+function acceptedVerdict(result) {
+    const value = verdictValue(result);
     return value === undefined || value === null || value === 0 || value === 1 ||
         value === '0' || value === '1' || value === 'NO_ERROR' || value === 'REQUEST_PENDING';
+}
+
+function confirmedNoError(result) {
+    const value = verdictValue(result);
+    return value === 0 || value === '0' || value === 'NO_ERROR';
 }
 
 function ecuReply(event) {
@@ -90,11 +128,13 @@ class ReadOnlyDiagnostics {
         const signals = this._signals;
         if (!signals || typeof signals.proxy !== 'function' ||
             typeof signals.on !== 'function' || typeof signals.call !== 'function') {
-            throw new Error('TASU transport is not configured');
+            throw tagged(new Error('TASU transport is not configured'), ERROR_CODES.TRANSPORT_SETUP_FAILED);
         }
         this._initializing = (async () => {
-            const proxy = await signals.proxy(IFACE, INSTANCE);
-            if (!proxy) throw new Error('TASU proxy unavailable');
+            let proxy;
+            try { proxy = await signals.proxy(IFACE, INSTANCE); }
+            catch (error) { throw tagged(error, ERROR_CODES.TRANSPORT_SETUP_FAILED); }
+            if (!proxy) throw tagged(new Error('TASU proxy unavailable'), ERROR_CODES.TRANSPORT_SETUP_FAILED);
             if (this._closed) {
                 if (proxy && typeof proxy.shutdown === 'function') await proxy.shutdown();
                 return;
@@ -112,8 +152,10 @@ class ReadOnlyDiagnostics {
             } catch (error) {
                 this._proxy = null;
                 this._available = false;
-                if (typeof proxy.shutdown === 'function') await proxy.shutdown();
-                throw error;
+                if (typeof proxy.shutdown === 'function') {
+                    try { await proxy.shutdown(); } catch (_) { /* retain subscription failure */ }
+                }
+                throw tagged(error, ERROR_CODES.RESPONSE_SUBSCRIBE_FAILED);
             }
         })();
         try { await this._initializing; }
@@ -125,12 +167,12 @@ class ReadOnlyDiagnostics {
         if (!active || this._closed) return;
         if (event && event.errorCode !== undefined && event.errorCode !== 0 &&
             event.errorCode !== 'NO_ERROR') {
-            active.finish('TASU response error');
+            active.finish(ERROR_CODES.RESPONSE_ERROR, String(event.errorCode));
             return;
         }
         const frame = bytes(event && (event.udsResponse !== undefined ? event.udsResponse : event));
         if (frame.length >= 5 && frame[2] === 0x7F) {
-            active.finish('TASU transport rejected discovery');
+            active.finish(ERROR_CODES.TRANSPORT_REJECTED, 'TASU reject ' + byteHex(frame[4]));
             return;
         }
         const ecu = ecuReply(event);
@@ -143,19 +185,25 @@ class ReadOnlyDiagnostics {
     /** Discover ECUs with one fixed, read-only functional request. */
     scan() {
         if (this._scanning) return this._scanning;
-        if (this._closed) return Promise.resolve({ available: false, ecus: [], error: 'Diagnostics closed' });
+        if (this._closed) return Promise.resolve(result(false, [], ERROR_CODES.SCAN_CLOSED));
         this._scanning = this._runScan().then(
             (result) => { this._scanning = null; return result; },
-            (error) => { this._scanning = null; return { available: this._available, ecus: [], error: String(error.message || error) }; }
+            (error) => {
+                this._scanning = null;
+                return result(this._available, [], ERROR_CODES.UNKNOWN_ERROR, detail(error));
+            }
         );
         return this._scanning;
     }
 
     async _runScan() {
         try { await this._init(); }
-        catch (error) { return { available: false, ecus: [], error: String(error.message || error) }; }
-        if (this._closed) return { available: false, ecus: [], error: 'Diagnostics closed' };
-        if (!this._available) return { available: false, ecus: [], error: 'TASU service unavailable' };
+        catch (error) {
+            if (this._closed) return result(false, [], ERROR_CODES.SCAN_CLOSED);
+            return result(false, [], error.diagnosticCode || ERROR_CODES.TRANSPORT_SETUP_FAILED, detail(error));
+        }
+        if (this._closed) return result(false, [], ERROR_CODES.SCAN_CLOSED);
+        if (!this._available) return result(false, [], ERROR_CODES.SERVICE_UNAVAILABLE);
 
         const timeoutMs = positiveMs(this._options.timeoutMs, 15000);
         const idleMs = Math.min(positiveMs(this._options.idleMs, 3000), timeoutMs);
@@ -163,10 +211,10 @@ class ReadOnlyDiagnostics {
         return new Promise((resolve) => {
             const active = {
                 ecus: new Map(), idleMs: idleMs, idleTimer: null, hardTimer: null,
-                finish: null,
+                finish: null, callSettled: false, callConfirmed: false,
             };
             let finished = false;
-            active.finish = (error) => {
+            active.finish = (error, technicalError) => {
                 if (finished) return;
                 finished = true;
                 clearTimeout(active.idleTimer);
@@ -174,19 +222,27 @@ class ReadOnlyDiagnostics {
                 if (this._active === active) this._active = null;
                 const ecus = Array.from(active.ecus, ([address, sgbd]) => ({ address: address, sgbd: sgbd }))
                     .sort((a, b) => a.address - b.address);
-                resolve({
-                    available: !this._closed && this._available,
-                    ecus: ecus,
-                    error: error || (ecus.length ? null : 'No ECU identification responses'),
-                });
+                resolve(result(!this._closed && this._available, ecus,
+                    error || (ecus.length ? null : ERROR_CODES.SCAN_EMPTY), technicalError));
             };
             this._active = active;
-            active.hardTimer = setTimeout(() => active.finish('Discovery timed out'), timeoutMs);
-            Promise.resolve().then(() => this._signals.call(
-                this._proxy, 'sendTasuRequest', discoveryRequest(), callTimeoutMs
-            )).then((verdict) => {
-                if (!acceptedVerdict(verdict)) active.finish('TASU transport refused discovery');
-            }, () => active.finish('TASU request failed'));
+            active.hardTimer = setTimeout(() => active.finish(
+                !active.callSettled || !active.callConfirmed || active.ecus.size ?
+                    ERROR_CODES.SCAN_TIMEOUT : ERROR_CODES.SCAN_EMPTY
+            ), timeoutMs);
+            Promise.resolve().then(() => {
+                if (this._closed || this._active !== active || finished) {
+                    if (!finished) active.finish(this._closed ? ERROR_CODES.SCAN_CLOSED : ERROR_CODES.UNKNOWN_ERROR);
+                    return;
+                }
+                return this._signals.call(this._proxy, 'sendTasuRequest', discoveryRequest(), callTimeoutMs);
+            }).then((verdict) => {
+                if (finished) return;
+                active.callSettled = true;
+                if (!acceptedVerdict(verdict)) active.finish(ERROR_CODES.REQUEST_REFUSED,
+                    verdict && (verdict.TasuErrorEnum || verdict.errorCode || String(verdict)));
+                else active.callConfirmed = confirmedNoError(verdict);
+            }, (error) => { if (!finished) active.finish(ERROR_CODES.REQUEST_FAILED, detail(error)); });
         });
     }
 
@@ -194,12 +250,15 @@ class ReadOnlyDiagnostics {
     async close() {
         if (this._closed) return;
         this._closed = true;
-        this._available = false;
-        if (this._active) this._active.finish('Diagnostics closed');
         const proxy = this._proxy;
+        if (proxy && this._signals && typeof this._signals.cancel === 'function') {
+            this._signals.cancel(proxy);
+        }
+        this._available = false;
+        if (this._active) this._active.finish(ERROR_CODES.SCAN_CLOSED);
         this._proxy = null;
         if (proxy && typeof proxy.shutdown === 'function') await proxy.shutdown();
     }
 }
 
-module.exports = { ReadOnlyDiagnostics, DiagnosticProbe: ReadOnlyDiagnostics };
+module.exports = { ReadOnlyDiagnostics, DiagnosticProbe: ReadOnlyDiagnostics, ERROR_CODES };

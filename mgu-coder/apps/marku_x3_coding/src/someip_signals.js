@@ -44,6 +44,7 @@ class SomeipSignals {
         this._options = options || {};
         this._native = this._options.someip || null;
         this._chain = Promise.resolve();
+        this._cancelled = new WeakSet();
     }
 
     _tick(action) {
@@ -124,6 +125,12 @@ class SomeipSignals {
         });
     }
 
+    cancel(proxy) {
+        if (proxy && (typeof proxy === 'object' || typeof proxy === 'function')) {
+            this._cancelled.add(proxy);
+        }
+    }
+
     call(proxy, method, params, timeoutMs) {
         if (method !== 'sendTasuRequest' || !isDiscovery(params)) {
             return Promise.reject(new Error('Only read-only UDS 22 F1 50 to 0xDF is allowed'));
@@ -133,7 +140,11 @@ class SomeipSignals {
             subroutineID: 0, udsDataLength: 2, udsData: Buffer.from([0xF1, 0x50]), deadlockTime: 0,
         };
         const ms = Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.floor(timeoutMs) : 8000;
-        return this._tick(() => proxy.callMethod(method, request, ms));
+        if (this._cancelled.has(proxy)) return Promise.reject(new Error('TASU proxy closed'));
+        return this._tick(() => {
+            if (this._cancelled.has(proxy)) throw new Error('TASU proxy closed');
+            return proxy.callMethod(method, request, ms);
+        });
     }
 }
 

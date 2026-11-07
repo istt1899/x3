@@ -116,10 +116,13 @@ class X3CodingApp extends OnlineApp {
     this.scanResult = { scanning: true };
     this.render();
     Promise.resolve().then(() => this.probe.scan()).then((result) => {
-      this.scanResult = result;
+      if (result.technicalError) logger.warn('X3 diagnostics [' + result.error + ']: ' +
+        String(result.technicalError).replace(/[\r\n\t]/g, ' ').slice(0, 512));
+      this.scanResult = { available: result.available, ecus: result.ecus, error: result.error };
       this.render();
     }).catch((err) => {
-      this.scanResult = { available: false, ecus: [], error: String(err.message || err) };
+      logger.warn('X3 diagnostics: ' + String(err.message || err).replace(/[\r\n\t]/g, ' ').slice(0, 512));
+      this.scanResult = { available: false, ecus: [], error: 'UNKNOWN_ERROR' };
       this.render();
     });
   }

@@ -7,7 +7,7 @@ const { chromium } = require('playwright');
 async function main() {
   const app = path.join(__dirname, '..', 'apps', 'marku_x3_coding');
   const source = fs.readFileSync(path.join(app, 'icon.svg'), 'utf8');
-  const target = path.join(app, 'marku_x3_coding@0.1.0', 'rhmiData', 'variantGroups',
+  const target = path.join(app, 'marku_x3_coding@' + require('../package.json').version, 'rhmiData', 'variantGroups',
     'Common', 'images', 'x3_coding.png');
   fs.mkdirSync(path.dirname(target), { recursive: true });
   const chrome = process.env.MGU_ICON_CHROME || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
