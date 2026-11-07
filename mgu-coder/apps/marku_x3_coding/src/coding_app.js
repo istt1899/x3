@@ -3,9 +3,9 @@
 
 const OnlineApp = require('oap-sdk/src/core/OnlineApp.js');
 const logging = require('oap-sdk/src/logging/logging');
-const { DiagnosticProbe } = require('./diagnostics');
-const { FEATURES } = require('./catalog');
-const { model, PAGE_SIZE } = require('./view_model');
+const { DiagnosticProbe } = require('./diagnostics.js');
+const { FEATURES } = require('./catalog.js');
+const { model, PAGE_SIZE } = require('./view_model.js');
 
 const logger = logging.getSDKLogger();
 const STATE_NAME = 'ST_OnlineApps_MarkuX3Coding';

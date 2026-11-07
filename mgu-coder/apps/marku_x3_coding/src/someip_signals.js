@@ -7,7 +7,7 @@
  * Copyright (c) 2026 cauliflowermossgrape.
  *
  * Usage in the OAP app:
- *   const { DiagnosticProbe } = require('./diagnostics');
+ *   const { DiagnosticProbe } = require('./diagnostics.js');
  *   const probe = new DiagnosticProbe(); // creates this adapter automatically
  *   const result = await probe.scan();
  *   await probe.close();               // shuts down the native proxy
