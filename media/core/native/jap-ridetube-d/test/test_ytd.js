@@ -627,6 +627,10 @@ async function main() {
         assert.strictEqual(ours().length, 1);
         assert.deepStrictEqual(ytdecIns(), ['in pause']);
         fs.writeFileSync(ctl, 'done'); // all of it: past the 12 s of video fetched, buffering ends with the fetch
+        await waitUntil(() => called('playFile').length === 2 && d.tickWaiter);
+        assert.strictEqual(called('connect').length, 2, 'STOP recovery uses a fresh connection');
+        assert.strictEqual(called('setTime').length, 0, 'setTime waits for the new file first tick');
+        tick(0);
         await c.waitFor((x) => x.ev === 'state' && x.state === 'playing' && x.buffering === false);
         assert.deepStrictEqual(called('setTime').map((x) => x.a.newTimeElapsed), [58600]);
         assert.strictEqual(path.basename(called('playFile').slice(-1)[0].a.path), 'audio.m4a');
@@ -656,6 +660,10 @@ async function main() {
         await c.waitFor((x) => x.ev === 'state' && x.state === 'playing' && x.buffering === true);
         assert.ok(!called('sendButtonEvent').some((x) => x.a.button === 'PLAY'));
         fs.writeFileSync(ctl, 'done'); // all of it: past the 12 s of video fetched, buffering ends with the fetch
+        await waitUntil(() => called('playFile').length === 2 && d.tickWaiter);
+        assert.strictEqual(called('connect').length, 2, 'seek beyond the prefix reconnects after STOP');
+        assert.strictEqual(called('setTime').length, 0, 'no early setTime on the stopped connection');
+        tick(0);
         await c.waitFor((x) => x.ev === 'state' && x.state === 'playing' && x.buffering === false);
         assert.deepStrictEqual(called('setTime').map((x) => x.a.newTimeElapsed), [300000]);
         await waitUntil(() => ytdecIns().slice(-2).join() === 'in seek 300000,in resume');
