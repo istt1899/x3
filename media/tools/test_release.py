@@ -113,8 +113,11 @@ for app, provider in [('marku_vk_video', 'vk'), ('marku_rutube', 'rutube')]:
             assert archive.extractfile('package/javascript/' + shipped).read() == (MEDIA / 'ui' / source).read_bytes(), 'stale app build: ' + shipped
         assert archive.extractfile('package/javascript/service-config.js').read() == (MEDIA / 'core/apps' / app / 'service-config.js').read_bytes()
         assert 'Parked.watch(ctx, log, { strict: true })' in main
-        assert 'const noVideo = () => parked.moving();' in main
+        assert 'videoDrivingOk = moving ? videoDrivingOk && on : on;' in main
+        assert "settings.get('video_driving')" in main
         assert 'google.com/device' not in main
+        spec_json = archive.extractfile('package/javascript/kit/app-spec.json').read().decode()
+        assert '"video_driving"' in spec_json, 'video_driving setting missing from the packaged app'
     icon = OUT / (app + '@' + spec['version'] + '.png')
     assert digest(icon.read_bytes()) == spec['iconSha256']
 assert len(set(uuids)) == 2

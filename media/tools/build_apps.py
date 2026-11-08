@@ -18,7 +18,7 @@ import tarfile
 
 MEDIA = Path(__file__).resolve().parents[1]
 CORE = MEDIA / "core"
-VERSION = "0.1.6"
+VERSION = "0.1.7"
 YOUTUBE_VERSION = "0.3.16"
 SERVICES = {
     "vk": {"id": "vk", "appId": "marku_vk_video", "title": "VK Видео", "accent": "#0077FF",
@@ -56,8 +56,9 @@ def app_spec(service):
                       ["button", "BTN_MAIN_NETWORK", "Интернет и скорость"]]
             + [["button", f"BTN_S{i}", ""] for i in range(1, 7)]}
     base["screens"] = [view, main, json.loads((MEDIA / "ui/network-screen.json").read_text(encoding="utf-8"))]
-    base["settings"] = [entry for entry in base["settings"] if entry["key"] in ("fill", "quality", "battery", "display")]
-    labels = {"fill": "Заполнить экран (обрезать края)", "quality": "Качество видео", "battery": "Пауза при низком заряде 12 В"}
+    base["settings"] = [entry for entry in base["settings"] if entry["key"] in ("fill", "quality", "video_driving", "battery", "display")]
+    labels = {"fill": "Заполнить экран (обрезать края)", "quality": "Качество видео", "battery": "Пауза при низком заряде 12 В",
+              "video_driving": "Видео в движении — на свой риск; включается только на стоянке; только для пассажиров"}
     for entry in base["settings"]:
         entry["label"] = labels.get(entry["key"], entry.get("label", entry["key"]))
         if entry["key"] == "quality":
@@ -107,7 +108,7 @@ def inspect_package(package, service):
         assert service["socket"] in config and service["appId"] in config
         source = archive.extractfile("package/javascript/app.js").read().decode()
         assert "Parked.watch(ctx, log, { strict: true })" in source
-        assert "const noVideo = () => parked.moving();" in source
+        assert "videoDrivingOk = moving ? videoDrivingOk && on : on;" in source
         assert "google.com/device" not in source and "youtu.be" not in source
         assert "package/javascript/kit/fonts/cyrillic.json" in names
         app = json.load(archive.extractfile("package/rhmiData/application.json"))["application"]

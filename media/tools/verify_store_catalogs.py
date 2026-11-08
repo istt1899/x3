@@ -11,7 +11,7 @@ import urllib.request
 
 MEDIA = Path(__file__).resolve().parents[1]
 IDS = {'marku_vk_video', 'marku_rutube', 'jap_ridetube', 'jap-ridetube-d'}
-VERSIONS = {'marku_vk_video': '0.1.6', 'marku_rutube': '0.1.6',
+VERSIONS = {'marku_vk_video': '0.1.7', 'marku_rutube': '0.1.7',
             'jap_ridetube': '0.3.16', 'jap-ridetube-d': '0.4.5'}
 
 
