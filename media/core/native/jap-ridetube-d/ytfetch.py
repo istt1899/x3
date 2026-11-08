@@ -1158,7 +1158,7 @@ def main(argv=None):
     ap.add_argument('--info')
     ap.add_argument('--proxy-file', dest='proxy_file',
                     help='daemon-written 0600 JSON {"url": ...}; ranged audio and yt-dlp go through it')
-    a = ap.parse_args(argv)
+    a = ap.parse_intermixed_args(argv)
     a.proxy = proxy_from_file(a.proxy_file)
     if a.cmd == 'check':
         return check(a)

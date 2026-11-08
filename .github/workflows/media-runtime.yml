@@ -16,17 +16,17 @@ on:
       release_tag:
         description: Release containing jap-ridetube-d@0.4.5.tgz
         required: true
-        default: media-preview-0.4.5
+        default: media-preview-0.4.5-r2
         type: string
       service_sha256:
         description: Expected SHA-256 of that exact service archive
         required: true
-        default: f381f550cd8e56fad9f81602eef98de190c8ced20b5f981dc7e95f072f7bda3f
+        default: 8a2256f16c89adefb2f8361fc43a43a641f62dc679a418b283f1cae99980bb7f
         type: string
       service_size:
         description: Expected service archive size in bytes
         required: true
-        default: '10664877'
+        default: '10664961'
         type: string
 
 permissions:
@@ -77,9 +77,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      RELEASE_TAG: ${{ inputs.release_tag || 'media-preview-0.4.5' }}
-      SERVICE_SHA256: ${{ inputs.service_sha256 || 'f381f550cd8e56fad9f81602eef98de190c8ced20b5f981dc7e95f072f7bda3f' }}
-      SERVICE_SIZE: ${{ inputs.service_size || '10664877' }}
+      RELEASE_TAG: ${{ inputs.release_tag || 'media-preview-0.4.5-r2' }}
+      SERVICE_SHA256: ${{ inputs.service_sha256 || '8a2256f16c89adefb2f8361fc43a43a641f62dc679a418b283f1cae99980bb7f' }}
+      SERVICE_SIZE: ${{ inputs.service_size || '10664961' }}
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - name: Download, verify and safely unpack the release

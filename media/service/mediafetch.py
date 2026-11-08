@@ -511,7 +511,9 @@ def main(argv=None):
     parser.add_argument('--ca-file')
     parser.add_argument('--lease', default=core.LEASE)
     parser.add_argument('--info')  # accepted for the existing player's prefetch protocol
-    a = parser.parse_args(argv)
+    # Python 3.12 otherwise loses optional positionals after options/`--` when
+    # cmd was already consumed. The daemon deliberately intermixes these fields.
+    a = parser.parse_intermixed_args(argv)
     os.environ.update(direct_env())
     for name in list(os.environ):
         if name.lower() in ('http_proxy', 'https_proxy', 'all_proxy'):

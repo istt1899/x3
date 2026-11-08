@@ -88,8 +88,8 @@ VK/RUTUBE подключаются напрямую. Эта установка �
 
 Обычная установка выполняется шагами выше. Прямые файлы:
 
-- [VK Видео 0.1.6](https://github.com/istt1899/x3/releases/download/media-preview-0.4.5/marku_vk_video@0.1.6.tgz)
-- [RUTUBE 0.1.6](https://github.com/istt1899/x3/releases/download/media-preview-0.4.5/marku_rutube@0.1.6.tgz)
+- [VK Видео 0.1.6](https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r2/marku_vk_video@0.1.6.tgz)
+- [RUTUBE 0.1.6](https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r2/marku_rutube@0.1.6.tgz)
 - [Общая служба 0.4.5](https://github.com/istt1899/ridetube/releases/download/catalog/jap-ridetube-d@0.4.5.tgz)
 - [Репозиторий](https://github.com/istt1899/x3)
 
