@@ -124,7 +124,7 @@ mgu.run({
             if (!model.connected) s = 'Видеосервис не запущен';
             else if (model.searchError) s = 'Поиск: ' + model.searchError;
             else if (model.error) s = 'Error: ' + model.error;
-            else if (model.active()) s = (model.state === 'preparing' ? 'Подготовка ' + Math.round(model.pct) + ' %: ' : model.state === 'paused' ? 'Пауза: ' : 'Сейчас играет: ') + model.title;
+            else if (model.active()) s = (model.state === 'preparing' ? prepText() + ': ' : model.state === 'paused' ? 'Пауза: ' : model.state === 'playing' && model.buffering ? 'Буферизация… ' : 'Сейчас играет: ') + model.title;
             else s = 'Введите запрос или выберите тему ниже';
             ui.text('MAIN_INFO', s);
         }
@@ -178,8 +178,8 @@ mgu.run({
         if (ctx.onTab) ctx.onTab((i) => { if (TABS[i]) show(TABS[i]); });
         ui.onClick('BTN_FIND', () => ui.open('MAIN'));
         // where the kit runs the screen: no bar at all (the rail and the player's overlay do its jobs), so the
-        // pages reach the screen's bottom; the HMI's own screen keeps all five
-        if (ctx.hideButton) ['BTN_PLAY', 'BTN_RW', 'BTN_FF', 'BTN_LIST', 'BTN_FIND'].forEach((b) => ctx.hideButton(b, true));
+        // pages reach the screen's bottom; the HMI's own screen keeps the controls and Network
+        if (ctx.hideButton) ['BTN_PLAY', 'BTN_RW', 'BTN_FF', 'BTN_LIST', 'BTN_FIND', 'BTN_NETWORK'].forEach((b) => ctx.hideButton(b, true));
         labels();
 
         /* ---------- the player's overlay (where the kit runs the screen): shown on a tap or the controller ---------- */
@@ -192,8 +192,13 @@ mgu.run({
             pendT = setTimeout(() => { const ms = pend; pend = 0; model.skip(ms); dirty = true; }, 350);
         }
         const shownAt = () => Math.max(0, Math.min(model.total > 0 ? model.total : Infinity, model.elapsed + pend));
-        // preparing: its percentage, or the network lost and the daemon trying again
-        const prepText = () => (model.retry ? 'Нет соединения, повторяем (' + model.retry + ')...' : 'Подготовка… ' + Math.round(model.pct || 0) + ' %');
+        // The percentage is readiness of the initial playable buffer, not the whole download.
+        function prepText() {
+            if (model.retry) return 'Нет соединения, повторяем (' + model.retry + ')…';
+            const stage = { connecting: 'Подключаемся', audio: 'Загружаем начальный звук',
+                video: 'Получаем первые кадры', download: 'Загружаем файл: потоковый старт недоступен' }[model.phase] || 'Готовим воспроизведение';
+            return stage + ' · стартовый буфер ' + Math.round(model.pct || 0) + ' %';
+        }
         // a failed play: Try again (the same video, the queue kept)
         const again = () => { if (model.id) play(model.id, model.item(model.id)); };
         /* ---------- SponsorBlock: per category Skip, a Skip button (ask) or Off (Settings) ---------- */
@@ -234,7 +239,7 @@ mgu.run({
         let ovUntil = 0, qrUntil = 0;   // qrUntil: the On phone QR card shows until then
         function wake() { ovUntil = Date.now() + OVERLAY_MS; dirty = true; }
         // it stays while there is no moving picture to look at
-        const pinned = () => model.state !== 'playing' || !videoShown || noVideo() || !!askSeg();
+        const pinned = () => model.state !== 'playing' || model.buffering || !videoShown || noVideo() || !!askSeg();
         const overlay = () => pinned() || Date.now() < ovUntil || Date.now() < qrUntil;
         // a tap beside the controls (no target): hides them
         if (ctx.onTap) ctx.onTap(() => { if (mode === 'player' && !pinned() && overlay()) { ovUntil = 0; dirty = true; } });
@@ -345,7 +350,7 @@ mgu.run({
         const PLAYING = ['player', 'Играет', (cv, x, y, c) => { [10, 20, 14].forEach((h, k) => cv.roundRect(x - 15 + k * 11, y + 8 - h, 8, h + 8, 2, c)); }];
         function drawRail(cv) {
             const sel = mode === 'results' ? 'search' : mode === 'channel' ? 'subs' : mode, bottom = H + (cv.own ? cv.extra : 0);
-            const items = cv.own && model.active() ? RAIL.concat([PLAYING]) : RAIL;
+            const items = model.active() ? RAIL.concat([PLAYING]) : RAIL;
             const pitch = Math.min(100, (bottom - 156) / (items.length - 1));   // (the page down to the screen's bottom where it reaches)
             items.forEach(([m, name, glyph], i) => {
                 const cx = 62, cy = 96 + Math.round(i * pitch), on = m === sel, bg = on ? '#2c2c2c' : C.bg, c = on ? '#ffffff' : C.dim;
@@ -635,6 +640,7 @@ mgu.run({
                 cv.text(prepText(), cx, cy + 82, 26, '#dddddd', { literal: true, align: 'center' });
             } else if (model.state === 'error') mid = 'Error: ' + (model.error || 'playback stopped');
             else if (!model.active()) mid = model.state === 'ended' ? 'Просмотр завершён' : 'Выберите видео в списке или поиске';
+            else if (model.state === 'playing' && model.buffering) mid = 'Буферизация…';
             else if (noVideo()) mid = 'Во время движения доступен только звук';
             else if (!cv.place || !gpu()) mid = 'Изображение недоступно. Проверьте mgu-render в магазине';
             else if (!videoShown) mid = settings.get('display') === 'cluster' ? 'Выбран вывод на приборку' : 'Готовим изображение…';
@@ -701,6 +707,7 @@ mgu.run({
                 cv.text(clock(el), x0, by + 50, 26, C.dim, LIT);
                 cv.text('-' + clock(tot - el), x0 + bw, by + 50, 26, C.dim, { literal: true, align: 'right' });
             } else if (model.state === 'preparing') cv.text(prepText(), x0, by + 50, 26, C.dim, LIT);
+            if (model.state === 'playing' && model.buffering) cv.text('Буферизация…', x0 + bw / 2, by + 50, 26, '#ffd27a', { literal: true, align: 'center' });
             // controls
             const mid = x0 + bw / 2 + (queue.length ? 0 : 100);   // with Next: four buttons; without: three, centred
             const big = (key, x, r, light, fn, glyph) => {
@@ -798,6 +805,7 @@ mgu.run({
                 mid = 'Следующее через ' + Math.max(1, Math.ceil((nextAt - Date.now()) / 1000)) + ' s: ' + String(up.title || up.id);
                 ctl('ov:play', cx, cy, 58, () => { nextAt = 1; }, (c) => tri(cv, cx + 5, cy, 46, c));
             } else if (!act && model.state !== 'error') mid = model.state === 'ended' ? 'Просмотр завершён' : 'Выберите видео в списке или поиске';
+            else if (model.state === 'playing' && model.buffering) mid = 'Буферизация…';
             else if (noVideo()) mid = 'Во время движения доступен только звук';
             else if (!gpu()) mid = 'Изображение недоступно. Проверьте mgu-render в магазине';
             else if (live && !videoShown) mid = settings.get('display') === 'cluster' ? 'Выбран вывод на приборку' : 'Готовим изображение…';
@@ -886,7 +894,7 @@ mgu.run({
                 frameNo++;
                 if (mode === 'player' && cv.own && cv.place && cv.place.full) drawFull(cv);
                 else {
-                    if (browsing()) drawRail(cv);
+                    if (browsing() && cv.own) drawRail(cv);
                     if (mode === 'player') drawPlayer(cv); else if (mode === 'channel') drawChannel(cv); else if (mode === 'results') drawResults(cv); else if (mode === 'account') drawSignIn(cv); else drawFeed(cv, isFeed(mode) ? mode : 'home');
                     // where the kit runs the screen the rail has the pages: the header shows just the name
                     if (cv.own) G.frame(cv, ctx.theme(), [], -1); else G.frame(cv, ctx.theme(), TABS.map((m) => NAMES[m]), TABS.indexOf(mode));

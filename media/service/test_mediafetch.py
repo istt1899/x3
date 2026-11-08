@@ -9,6 +9,7 @@ import struct
 import subprocess
 import tempfile
 import threading
+import time
 import types
 import unittest
 from unittest import mock
@@ -17,6 +18,21 @@ import mediafetch
 
 
 class MediaFetchTest(unittest.TestCase):
+    def test_prefix_targets_grow_without_waiting_for_full_audio(self):
+        self.assertEqual(mediafetch.head_target_ms(0, 120000), 8000)
+        self.assertEqual(mediafetch.head_target_ms(8000, 120000), 16000)
+        self.assertEqual(mediafetch.head_target_ms(16000, 120000), 32000)
+        self.assertEqual(mediafetch.head_target_ms(8000, 10000), 10000)
+        self.assertEqual(mediafetch.head_target_ms(12000, 10000), 24000)
+
+    def test_mp4_index_placement_selects_stream_or_seekable_fallback(self):
+        box = lambda name, data: struct.pack('>I4s', len(data) + 8, name) + data
+        faststart = box(b'ftyp', b'isom') + box(b'moov', b'index') + box(b'mdat', b'media')
+        late_index = box(b'ftyp', b'isom') + box(b'mdat', b'media') + box(b'moov', b'index')
+        self.assertFalse(mediafetch.mp4_needs_seek(faststart))
+        self.assertTrue(mediafetch.mp4_needs_seek(late_index))
+        self.assertFalse(mediafetch.mp4_needs_seek(b'\x47' * 4096), 'MPEG-TS remains on the streaming path')
+
     def test_direct_policy_ignores_inherited_proxy(self):
         with mock.patch.dict(os.environ, {'HTTP_PROXY': 'http://secret@example.invalid',
                                          'https_proxy': 'socks5://example.invalid'}):
@@ -92,7 +108,7 @@ class MediaFetchTest(unittest.TestCase):
         binary = os.environ.get('MGU_TEST_FFMPEG') or shutil.which('ffmpeg')
         if not binary:
             self.skipTest('set MGU_TEST_FFMPEG to a host FFmpeg binary')
-        for container in ['mp4', 'mpegts']:
+        for container in ['mp4', 'mp4_late_moov', 'mpegts']:
             with self.subTest(container=container), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 source = root / 'source.bin'
@@ -103,7 +119,8 @@ class MediaFetchTest(unittest.TestCase):
                        '-c:a', 'aac', '-b:a', '64k']
                 if container == 'mp4':
                     cmd += ['-movflags', '+faststart']
-                subprocess.run(cmd + ['-f', container, str(source)], check=True, capture_output=True)
+                subprocess.run(cmd + ['-f', 'mp4' if container == 'mp4_late_moov' else container, str(source)],
+                               check=True, capture_output=True)
                 out = root / 'output'
                 args = types.SimpleNamespace(dir=str(out), id='-123_456', ffmpeg=binary)
                 log = io.StringIO()
@@ -139,6 +156,133 @@ class MediaFetchTest(unittest.TestCase):
                                             capture_output=True, timeout=15)
                     self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
                     self.assertEqual(result.stderr, b'')
+
+    def test_slow_mp4_and_ts_emit_multiple_playable_prefixes_before_eof(self):
+        binary = os.environ.get('MGU_TEST_FFMPEG') or shutil.which('ffmpeg')
+        if not binary:
+            self.skipTest('set MGU_TEST_FFMPEG to a host FFmpeg binary')
+        for container in ('mp4', 'mpegts'):
+            with self.subTest(container=container):
+                self._assert_slow_stream_prefixes(binary, container)
+
+    def _assert_slow_stream_prefixes(self, binary, container):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / ('long.mp4' if container == 'mp4' else 'long.ts')
+            command = [binary, '-hide_banner', '-loglevel', 'error', '-y',
+                       '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=12',
+                       '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000',
+                       '-t', '120', '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '24',
+                       '-c:a', 'aac', '-b:a', '64k']
+            if container == 'mp4':
+                command += ['-movflags', '+faststart']
+            subprocess.run(command + ['-f', container, str(source)], check=True, capture_output=True, timeout=60)
+            data = source.read_bytes()
+            read_fd, write_fd = os.pipe()
+            sent = {'bytes': 0, 'done': False}
+            records = []
+            lock = threading.Lock()
+
+            class Capture:
+                def write(self, value):
+                    with lock:
+                        records.append((value, sent['bytes'], sent['done']))
+                def flush(self):
+                    pass
+
+            def writer():
+                try:
+                    with os.fdopen(write_fd, 'wb', buffering=0) as output:
+                        for start in range(0, len(data), 32768):
+                            chunk = data[start:start + 32768]
+                            output.write(chunk)
+                            with lock:
+                                sent['bytes'] += len(chunk)
+                            time.sleep(0.08)
+                finally:
+                    with lock:
+                        sent['done'] = True
+
+            thread = threading.Thread(target=writer, daemon=True)
+            args = types.SimpleNamespace(dir=str(root / 'output'), id='-123_456', ffmpeg=binary)
+            stack = contextlib.ExitStack()
+            with stack:
+                stack.enter_context(mock.patch.object(mediafetch, '_OUT', Capture()))
+                if not hasattr(os, 'pwrite'):
+                    real_write, real_lseek = os.write, os.lseek
+                    write_lock = threading.Lock()
+                    def pwrite(fd, chunk, offset):
+                        with write_lock:
+                            previous = real_lseek(fd, 0, os.SEEK_CUR)
+                            real_lseek(fd, offset, os.SEEK_SET)
+                            count = real_write(fd, chunk)
+                            real_lseek(fd, previous, os.SEEK_SET)
+                            return count
+                    stack.enter_context(mock.patch.object(os, 'pwrite', pwrite, create=True))
+                thread.start()
+                try:
+                    with os.fdopen(read_fd, 'rb', buffering=0) as stream:
+                        mediafetch.normalize(args, {'title': 'Slow fixture', 'duration_s': 120}, source=stream)
+                finally:
+                    thread.join(timeout=5)
+            events = [(json.loads(line), count, done) for line, count, done in records]
+            heads = [(event, count, done) for event, count, done in events if event['ev'] == 'audio_head']
+            self.assertGreaterEqual(len(heads), 3, heads)
+            self.assertLessEqual(heads[0][0]['ms'], 12000)
+            self.assertLess(heads[0][1], len(data) / 4)
+            self.assertFalse(heads[0][2])
+            self.assertEqual([item[0]['n'] for item in heads], list(range(len(heads))))
+            self.assertTrue(all((root / 'output' / ('audio.head.m4a' if event['n'] == 0
+                                                     else 'audio.head.%d.m4a' % event['n'])).is_file()
+                                for event, _, _ in heads))
+            self.assertEqual(events[-1][0]['ev'], 'done')
+
+    def test_late_moov_mp4_from_pipe_plays_after_private_staging(self):
+        binary = os.environ.get('MGU_TEST_FFMPEG') or shutil.which('ffmpeg')
+        if not binary:
+            self.skipTest('set MGU_TEST_FFMPEG to a host FFmpeg binary')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'late-moov.mp4'
+            subprocess.run([binary, '-hide_banner', '-loglevel', 'error', '-y',
+                            '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=12',
+                            '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000',
+                            '-t', '3', '-c:v', 'libx264', '-g', '12', '-c:a', 'aac', str(source)],
+                           check=True, capture_output=True, timeout=20)
+            data = source.read_bytes()
+            self.assertTrue(mediafetch.mp4_needs_seek(data[:4096]))
+            read_fd, write_fd = os.pipe()
+            def writer():
+                with os.fdopen(write_fd, 'wb', buffering=0) as output:
+                    for start in range(0, len(data), 16384):
+                        output.write(data[start:start + 16384])
+            thread = threading.Thread(target=writer, daemon=True)
+            args = types.SimpleNamespace(dir=str(root / 'output'), id='-123_456', ffmpeg=binary)
+            log = io.StringIO()
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(mock.patch.object(mediafetch, '_OUT', log))
+                if not hasattr(os, 'pwrite'):
+                    real_write, real_lseek = os.write, os.lseek
+                    write_lock = threading.Lock()
+                    def pwrite(fd, chunk, offset):
+                        with write_lock:
+                            previous = real_lseek(fd, 0, os.SEEK_CUR)
+                            real_lseek(fd, offset, os.SEEK_SET)
+                            count = real_write(fd, chunk)
+                            real_lseek(fd, previous, os.SEEK_SET)
+                            return count
+                    stack.enter_context(mock.patch.object(os, 'pwrite', pwrite, create=True))
+                thread.start()
+                try:
+                    with os.fdopen(read_fd, 'rb', buffering=0) as stream:
+                        mediafetch.normalize(args, {'title': 'Late index', 'duration_s': 3}, source=stream)
+                finally:
+                    thread.join(timeout=5)
+            events = [json.loads(line) for line in log.getvalue().splitlines()]
+            self.assertIn('source_wait', [event['ev'] for event in events])
+            self.assertIn('audio_ready', [event['ev'] for event in events])
+            self.assertEqual(events[-1]['ev'], 'done')
+            self.assertFalse((root / 'output' / 'source.media').exists(), 'private staged media is removed')
 
 
 if __name__ == '__main__':

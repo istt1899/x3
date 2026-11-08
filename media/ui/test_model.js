@@ -35,6 +35,14 @@ definitions.forEach(([appId, videoId]) => {
     assert.strictEqual(model.results[0].id, videoId);
     assert.ok(model.wantThumb(videoId));
     assert.ok(model.play(videoId, '1600x600', false), 'full VK/RUTUBE IDs must play');
+    assert.strictEqual(model.phase, 'connecting');
+    model.onMsg({ ev: 'state', state: 'preparing', id: videoId, pct: 35, phase: 'audio' });
+    assert.strictEqual(model.phase, 'audio');
+    assert.strictEqual(model.pct, 35);
+    model.onMsg({ ev: 'state', state: 'playing', id: videoId, buffering: true });
+    assert.strictEqual(model.buffering, true);
+    model.onMsg({ ev: 'state', state: 'playing', id: videoId, buffering: false });
+    assert.strictEqual(model.buffering, false);
     const before = sent.length;
     assert.strictEqual(model.play('../state/account.json', '1600x600', false), false);
     assert.strictEqual(sent.length, before, 'a path cannot become a playback request');

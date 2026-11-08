@@ -18,7 +18,8 @@ import tarfile
 
 MEDIA = Path(__file__).resolve().parents[1]
 CORE = MEDIA / "core"
-VERSION = "0.1.4"
+VERSION = "0.1.5"
+YOUTUBE_VERSION = "0.3.16"
 SERVICES = {
     "vk": {"id": "vk", "appId": "marku_vk_video", "title": "VK Видео", "accent": "#0077FF",
            "loggingId": "MKV1", "iconGlyph": "VK", "socket": "/run/jap-ridetube-d/vk.sock",
@@ -46,12 +47,13 @@ def app_spec(service):
     view = copy.deepcopy(base["screens"][0])
     view["title"] = service["title"]
     view["buttons"] = [["BTN_PLAY", "Играть"], ["BTN_RW", "−10 с"], ["BTN_FF", "+10 с"],
-                       ["BTN_LIST", "Плеер"], ["BTN_FIND", "Поиск"]]
+                       ["BTN_LIST", "Плеер"], ["BTN_FIND", "Поиск"],
+                       ["BTN_NETWORK", "Интернет"]]
     main = {"name": "MAIN", "kind": "menu", "title": service["title"] + ": поиск", "settings": True,
             "items": [["button", "BTN_SEARCH", "Найти видео"], ["text", "MAIN_INFO", ""],
                       ["button", "BTN_NOW", "Сейчас играет"], ["button", "BTN_RESULTS", "Результаты поиска"],
                       ["button", "BTN_HOME", "Видео"], ["button", "BTN_ACCOUNT", "Аккаунт"],
-                      ["button", "BTN_NETWORK", "Интернет и скорость"]]
+                      ["button", "BTN_MAIN_NETWORK", "Интернет и скорость"]]
             + [["button", f"BTN_S{i}", ""] for i in range(1, 7)]}
     base["screens"] = [view, main, json.loads((MEDIA / "ui/network-screen.json").read_text(encoding="utf-8"))]
     base["settings"] = [entry for entry in base["settings"] if entry["key"] in ("fill", "quality", "battery", "display")]
@@ -67,11 +69,17 @@ def prepare():
     youtube = CORE / "apps/jap_ridetube"
     spec_file = youtube / "app.json"
     spec = json.loads(spec_file.read_text(encoding="utf-8"))
-    spec["version"] = "0.3.15"
+    spec["version"] = YOUTUBE_VERSION
     spec["screens"] = [s for s in spec["screens"] if s["name"] != "NETWORK"]
     for screen in spec["screens"]:
-        if screen["name"] == "MAIN" and not any(item[1] == "BTN_NETWORK" for item in screen["items"]):
-            screen["items"].append(["button", "BTN_NETWORK", "Интернет и скорость"])
+        if screen["name"] == "VIEW" and not any(button[0] == "BTN_NETWORK" for button in screen["buttons"]):
+            screen["buttons"].append(["BTN_NETWORK", "Интернет"])
+        if screen["name"] == "MAIN":
+            for item in screen["items"]:
+                if item[1] == "BTN_NETWORK":
+                    item[1] = "BTN_MAIN_NETWORK"
+            if not any(item[1] == "BTN_MAIN_NETWORK" for item in screen["items"]):
+                screen["items"].append(["button", "BTN_MAIN_NETWORK", "Интернет и скорость"])
     spec["screens"].append(json.loads((MEDIA / "ui/network-screen.json").read_text(encoding="utf-8")))
     spec_file.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     shutil.copyfile(MEDIA / "ui/network-view.js", youtube / "network-view.js")
@@ -129,7 +137,7 @@ def main():
         uuids.append(inspect_package(package, service))
         print(f"Verified SDK-free source package: {package}")
     builder.build('jap_ridetube', source_only=True)
-    with tarfile.open(CORE / 'dist/jap_ridetube@0.3.15.tgz') as archive:
+    with tarfile.open(CORE / 'dist' / f'jap_ridetube@{YOUTUBE_VERSION}.tgz') as archive:
         assert not any('oap-sdk' in name for name in archive.getnames())
     assert len(set(uuids)) == len(SERVICES), "The app entry points must be independent"
 

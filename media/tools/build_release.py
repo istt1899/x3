@@ -15,8 +15,9 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[2]
 MEDIA = ROOT / 'media'
 OUT = MEDIA / 'dist/release'
-VERSION = '0.4.3'
-RELEASE_TAG = 'catalog'
+VERSION = '0.4.4'
+YOUTUBE_VERSION = '0.3.16'
+RELEASE_TAG = 'media-preview-0.4.4'
 BASE_SHA = '984429e16be494d8e17e53f2606c7aaf38ea5ea049e86046f4aafe8cebf7bb75'
 
 
@@ -130,9 +131,9 @@ def main():
     assert 'marku_x3_coding' in components
     youtube = components['jap_ridetube']
     youtube = copy.deepcopy(youtube)
-    youtube_file = OUT / 'jap_ridetube@0.3.15.tgz'
+    youtube_file = OUT / f'jap_ridetube@{YOUTUBE_VERSION}.tgz'
     shutil.copyfile(MEDIA / 'core/dist' / youtube_file.name, youtube_file)
-    youtube['version'] = '0.3.15'
+    youtube['version'] = YOUTUBE_VERSION
     youtube['artifact'] = artifact(youtube_file)
     youtube['requires']['jap-ridetube-d'] = VERSION
     youtube['requires']['mgu-deploy'] = '0.7.11'

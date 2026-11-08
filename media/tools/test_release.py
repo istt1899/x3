@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import tarfile
+from build_apps import VERSION as APP_VERSION
+from build_release import VERSION as SERVICE_VERSION, YOUTUBE_VERSION, RELEASE_TAG
 
 MEDIA = Path(__file__).resolve().parents[1]
 ROOT = MEDIA.parent
@@ -34,8 +36,8 @@ for original in coding['components']:
     assert components[original['id']] == original, 'existing coding component changed'
 youtube = json.loads((MEDIA / 'core/catalog.json').read_text(encoding='utf-8'))
 original_app = next(c for c in youtube['components'] if c['id'] == 'jap_ridetube')
-assert components['jap_ridetube']['version'] == '0.3.15'
-assert components['jap_ridetube']['requires']['jap-ridetube-d'] == '0.4.3'
+assert components['jap_ridetube']['version'] == YOUTUBE_VERSION
+assert components['jap_ridetube']['requires']['jap-ridetube-d'] == SERVICE_VERSION
 
 for app in ('marku_vk_video', 'marku_rutube', 'jap_ridetube', 'jap-ridetube-d'):
     spec = components[app]
@@ -44,14 +46,14 @@ for app in ('marku_vk_video', 'marku_rutube', 'jap_ridetube', 'jap-ridetube-d'):
     data = package.read_bytes()
     assert len(data) == artifact['size'] and digest(data) == artifact['sha256']
     assert artifact['url'].endswith('/' + package.name)
-    assert '/catalog/' in artifact['url'], 'installable Store packages must use the catalog release'
+    assert '/' + RELEASE_TAG + '/' in artifact['url'], 'candidate packages must use their own release tag'
     assert spec['requires']['mgu-deploy'] == '0.7.11'
     with tarfile.open(package) as archive:
         safe_members(archive)
 
 with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as archive:
     manifest = json.load(archive.extractfile('component.json'))
-    assert manifest['id'] == 'jap-ridetube-d' and manifest['version'] == '0.4.3'
+    assert manifest['id'] == 'jap-ridetube-d' and manifest['version'] == SERVICE_VERSION
     assert manifest['internet'] is True and manifest['uids'] == 'state/internet-uids'
     assert manifest['units'] == [{'name': 'jap-ridetube-d.service'}]
     assert manifest['check'] == ['service/check.sh']
@@ -98,10 +100,10 @@ with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as arc
 uuids = []
 for app, provider in [('marku_vk_video', 'vk'), ('marku_rutube', 'rutube')]:
     spec = components[app]
-    assert spec['requires']['jap-ridetube-d'] == '0.4.3'
+    assert spec['requires']['jap-ridetube-d'] == SERVICE_VERSION
     with tarfile.open(OUT / spec['artifact']['name']) as archive:
         app_json = json.load(archive.extractfile('package/rhmiData/application.json'))['application']
-        assert app_json['name'] == app and app_json['version'] == '0.1.4'
+        assert app_json['name'] == app and app_json['version'] == APP_VERSION
         uuids.append(app_json['uuid'])
         settings = archive.extractfile('package/javascript/service-config.js').read().decode()
         assert '/run/jap-ridetube-d/' + provider + '.sock' in settings

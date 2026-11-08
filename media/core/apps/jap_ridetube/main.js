@@ -227,8 +227,8 @@ mgu.run({
         if (ctx.onTab) ctx.onTab((i) => { if (TABS[i]) show(TABS[i]); });
         ui.onClick('BTN_FIND', () => ui.open('MAIN'));
         // where the kit runs the screen: no bar at all (the rail and the player's overlay do its jobs), so the
-        // pages reach the screen's bottom; the HMI's own screen keeps all five
-        if (ctx.hideButton) ['BTN_PLAY', 'BTN_RW', 'BTN_FF', 'BTN_LIST', 'BTN_FIND'].forEach((b) => ctx.hideButton(b, true));
+        // pages reach the screen's bottom; the HMI's own screen keeps the controls and Network
+        if (ctx.hideButton) ['BTN_PLAY', 'BTN_RW', 'BTN_FF', 'BTN_LIST', 'BTN_FIND', 'BTN_NETWORK'].forEach((b) => ctx.hideButton(b, true));
         labels();
 
         /* ---------- the player's overlay (where the kit runs the screen): shown on a tap or the controller ---------- */
@@ -401,7 +401,7 @@ mgu.run({
         const PLAYING = ['player', 'Playing', (cv, x, y, c) => { [10, 20, 14].forEach((h, k) => cv.roundRect(x - 15 + k * 11, y + 8 - h, 8, h + 8, 2, c)); }];
         function drawRail(cv) {
             const sel = mode === 'results' ? 'search' : mode === 'channel' ? 'subs' : mode, bottom = H + (cv.own ? cv.extra : 0);
-            const items = cv.own && model.active() ? RAIL.concat([PLAYING]) : RAIL;
+            const items = model.active() ? RAIL.concat([PLAYING]) : RAIL;
             const pitch = Math.min(100, (bottom - 156) / (items.length - 1));   // (the page down to the screen's bottom where it reaches)
             items.forEach(([m, name, glyph], i) => {
                 const cx = 62, cy = 96 + Math.round(i * pitch), on = m === sel, bg = on ? '#2c2c2c' : C.bg, c = on ? '#ffffff' : C.dim;
@@ -966,7 +966,7 @@ mgu.run({
                 frameNo++;
                 if (mode === 'player' && cv.own && cv.place && cv.place.full) drawFull(cv);
                 else {
-                    if (browsing()) drawRail(cv);
+                    if (browsing() && cv.own) drawRail(cv);
                     if (mode === 'player') drawPlayer(cv); else if (mode === 'channel') drawChannel(cv); else if (mode === 'results') drawResults(cv); else drawFeed(cv, isFeed(mode) ? mode : 'home');
                     // where the kit runs the screen the rail has the pages: the header shows just the name
                     if (cv.own) G.frame(cv, ctx.theme(), [], -1); else G.frame(cv, ctx.theme(), TABS.map((m) => NAMES[m]), TABS.indexOf(mode));

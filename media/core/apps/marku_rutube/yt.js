@@ -77,7 +77,8 @@ class Model {
         this.pending = new Set();    // ids whose thumb was asked and has not come yet
         this.searchError = null;     // what the last search got instead of results (proxy offline, no answer)
         this.searchT = 0;
-        this.state = 'idle'; this.pct = 0; this.id = null; this.title = ''; this.channel = '';
+        this.state = 'idle'; this.pct = 0; this.phase = null; this.buffering = false;
+        this.id = null; this.title = ''; this.channel = '';
         this.elapsed = 0; this.total = 0;
         this.error = null;
         this.videoOn = true;         // what the daemon was last told
@@ -106,7 +107,7 @@ class Model {
         if (on) { this.authT = Date.now(); this.positionsEpoch = this.accountEpoch; this.send({ cmd: 'status' }); this.send({ cmd: 'auth_status' }); this.send({ cmd: 'positions' }); this.videoOn = null; this.outputTarget = null; this._video(); } else {
             if (SERVICE.id === 'vk') this._forgetAccount(true);
             this.logoutPending = false;
-            this.searching = false; this.state = 'idle'; this.pending.clear();
+            this.searching = false; this.state = 'idle'; this.phase = null; this.buffering = false; this.pending.clear();
             this.auth = { state: 'unknown', code: null, url: null, msg: null };
             this.authT = 0;
             Object.keys(this.feeds).forEach((w) => { this.feeds[w].loading = false; });
@@ -140,6 +141,8 @@ class Model {
             const was = this.state;
             this.state = String(m.state || 'idle');
             if (typeof m.pct === 'number') this.pct = m.pct;
+            this.phase = this.state === 'preparing' && typeof m.phase === 'string' ? m.phase : null;
+            this.buffering = this.state === 'playing' && !!m.buffering;
             // another video than the one asked (the daemon's own, after an app restart): title and channel from a list;
             // either way the daemon's title wins unless it is only the id (said while preparing)
             if (m.id !== undefined && m.id !== this.id) { const r = this.item(m.id); this.id = m.id; this.title = r ? String(r.title || '') : ''; this.channel = r ? String(r.channel || '') : ''; }
@@ -294,7 +297,9 @@ class Model {
     play(id, rect, fill, it, o) {
         if (!validId(id) || this.logoutPending || (SERVICE.id === 'vk' && this.auth.state !== 'signed_in' && this.accountIds.has(id) && !this._known(id))) return false;
         const r = it || this.item(id);
-        this.id = id; this.title = r ? String(r.title || '') : ''; this.channel = r ? String(r.channel || '') : ''; this.state = 'preparing'; this.pct = 0; this.elapsed = 0; this.total = 0; this.error = null; this.retry = 0;
+        this.id = id; this.title = r ? String(r.title || '') : ''; this.channel = r ? String(r.channel || '') : '';
+        this.state = 'preparing'; this.pct = 0; this.phase = 'connecting'; this.buffering = false;
+        this.elapsed = 0; this.total = 0; this.error = null; this.retry = 0;
         this._changed();
         // the account's own resume point (the tile's), used by the daemon when this car never played it
         const sent = this.send(Object.assign({ cmd: 'play', id, rect, fill: !!fill }, r && r.start_s > 0 ? { at: r.start_s * 1000 } : {}, o || {}));

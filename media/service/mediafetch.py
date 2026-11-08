@@ -2,8 +2,9 @@
 """Direct VK/RUTUBE media -> AAC M4A + fragmented H264 -> RideTube's MGYI/Annex-B.
 
 The gateway resolves an accepted provider ID into a private job file. Network access
-runs in the service's internet UID, explicitly without proxies. FFmpeg only reads
-stdin: cookies, account tokens and signed CDN URLs never become process arguments.
+runs in the service's internet UID, explicitly without proxies. FFmpeg reads stdin
+for streamable media, or a private local file when an MP4 index follows its media.
+Cookies, account tokens and signed CDN URLs never become process arguments.
 """
 import argparse
 import contextlib
@@ -28,6 +29,7 @@ import ytfetch as core
 PROVIDERS = {'vk': re.compile(r'^-?\d+_\d+$'), 'rutube': re.compile(r'^[0-9a-f]{32}$')}
 CHILDREN = []
 _OUT = sys.stdout
+HEAD_START_MS = 8000  # a complete first audio file; later snapshots grow while the transfer continues
 
 
 def event(**fields):
@@ -170,30 +172,71 @@ def stream(a, job):
         sys.stdout = original
 
 
-def ffmpeg_command(binary, audio):
+def ffmpeg_command(binary, audio, input_file='pipe:0'):
     # Both outputs are copies. No CPU video transcoding and no FFmpeg network requests.
     fragmented = ['-movflags', '+frag_keyframe+empty_moov+default_base_moof',
                   '-frag_duration', '2000000', '-flush_packets', '1', '-f', 'mp4']
     return [binary, '-hide_banner', '-nostdin', '-loglevel', 'error', '-y',
-            '-i', 'pipe:0', '-map', '0:a:0', '-vn', '-sn', '-dn', '-c:a', 'copy',
+            '-i', input_file, '-map', '0:a:0', '-vn', '-sn', '-dn', '-c:a', 'copy',
             '-bsf:a', 'aac_adtstoasc',
             *fragmented, str(audio), '-map', '0:v:0', '-an', '-sn', '-dn', '-c:v', 'copy',
             *fragmented, 'pipe:1']
+
+
+def head_target_ms(previous_ms, duration_ms):
+    """Grow complete audio prefixes geometrically so playback need not wait for the whole download."""
+    target = max(HEAD_START_MS, previous_ms * 2)
+    # Provider duration is only a hint. It can be shorter than the actual media;
+    # never turn the target into an already reached value and copy every fragment.
+    return min(target, duration_ms) if duration_ms > previous_ms else target
+
+
+def mp4_needs_seek(prefix):
+    """A plain MP4 with mdat before moov cannot be demuxed from a non-seekable pipe."""
+    if len(prefix) < 8 or prefix[4:8] != b'ftyp':
+        return False  # MPEG-TS/HLS or another container: let FFmpeg validate it
+    pos = 0
+    for _ in range(8):
+        if pos + 8 > len(prefix):
+            return True  # uncertain MP4 layout: preserve playback with a local file
+        size = int.from_bytes(prefix[pos:pos + 4], 'big')
+        typ = prefix[pos + 4:pos + 8]
+        if typ in (b'moov', b'moof'):
+            return False
+        if typ == b'mdat' or size == 0:
+            return True
+        if size == 1:
+            if pos + 16 > len(prefix):
+                return True
+            size = int.from_bytes(prefix[pos + 8:pos + 16], 'big')
+        if size < 8 or pos + size > len(prefix):
+            return True
+        pos += size
+    return True
+
+
+def media_chunks(source):
+    read = getattr(source, 'read1', source.read)
+    while True:
+        chunk = read(65536)
+        if not chunk:
+            break
+        yield chunk
 
 
 def normalize(a, job, source=None):
     directory = Path(a.dir)
     directory.mkdir(parents=True, exist_ok=True)
     audio_src = directory / 'audio.src.m4a'
-    audio_head = directory / 'audio.head.m4a'
     audio_part = directory / 'audio.head.m4a.part'
+    local_source = directory / 'source.media'
     duration = float(job.get('duration_s') or 0)
     meta = {'id': a.id, 'title': job.get('title') or a.id, 'channel': job.get('channel') or '',
             'duration_s': duration, 'chapters': []}
     (directory / 'meta.json').write_text(json.dumps(meta), encoding='utf-8')
     event(ev='meta', title=meta['title'], duration_s=duration, chapters=[])
     stopped = threading.Event()
-    state = {'eta': None, 'head': False, 'progress': 0}
+    state = {'eta': None, 'head_ms': 0, 'head_n': -1, 'progress': 0}
     if source is None:
         cmd = [sys.executable, '-I', str(Path(__file__).resolve()), 'stream', a.id,
                '--provider', a.provider, '--job-dir', a.job_dir,
@@ -220,11 +263,40 @@ def normalize(a, job, source=None):
         threading.Thread(target=read_progress, daemon=True).start()
     else:
         download = None  # local fixture path in tests
-    remux = subprocess.Popen(ffmpeg_command(a.ffmpeg, audio_src), stdin=source,
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=direct_env())
-    CHILDREN.append(remux)
-    if download:
+    prefix = source.read(4096)
+    seek_required = mp4_needs_seek(prefix)
+    feeder = None
+    if seek_required:
+        event(ev='source_wait', reason='mp4_index')
+        fd = os.open(local_source, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        with os.fdopen(fd, 'wb') as staged:
+            staged.write(prefix)
+            for chunk in media_chunks(source):
+                staged.write(chunk)
         source.close()
+        remux = subprocess.Popen(ffmpeg_command(a.ffmpeg, audio_src, str(local_source)), stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=direct_env())
+    else:
+        remux = subprocess.Popen(ffmpeg_command(a.ffmpeg, audio_src), stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=direct_env())
+        def feed():
+            try:
+                remux.stdin.write(prefix)
+                remux.stdin.flush()
+                for chunk in media_chunks(source):
+                    remux.stdin.write(chunk)
+                    remux.stdin.flush()
+            except (BrokenPipeError, OSError):
+                pass  # FFmpeg rejected the stream; normalize reports its failure
+            finally:
+                try:
+                    remux.stdin.close()
+                except OSError:
+                    pass
+                source.close()
+        feeder = threading.Thread(target=feed, daemon=True)
+        feeder.start()
+    CHILDREN.append(remux)
     errors = []
     def drain_errors():
         for raw in remux.stderr:
@@ -233,18 +305,38 @@ def normalize(a, job, source=None):
     threading.Thread(target=drain_errors, daemon=True).start()
 
     def watch_audio():
+        last_size = 0
+        probe_at = 0
         while not stopped.wait(0.5):
-            if state['head'] or not audio_src.exists():
+            if not audio_src.exists():
                 continue
             try:
                 size = audio_src.stat().st_size
+                if size <= last_size:
+                    continue
+                if size < probe_at:
+                    continue
+                last_size = size
                 result = core.flatten_m4a(str(audio_src), str(audio_part), limit=size)
-                eta = state.get('eta')
-                need = max(60000, float(eta or 0) * 1500)
-                if result and result[1] >= min(duration * 1000 or need, need):
-                    os.replace(audio_part, audio_head)
-                    state['head'] = True
-                    event(ev='audio_head', ms=result[1], bytes=result[0])
+                if not result:
+                    continue
+                ms = result[1]
+                target = head_target_ms(state['head_ms'], duration * 1000)
+                if state['head_n'] < 0 and ms > 0:
+                    event(ev='audio_buffer', ms=ms, target_ms=target)
+                if ms >= target and ms > state['head_ms']:
+                    n = state['head_n'] + 1
+                    name = 'audio.head.m4a' if n == 0 else 'audio.head.%d.m4a' % n
+                    os.replace(audio_part, directory / name)
+                    state['head_ms'], state['head_n'] = ms, n
+                    event(ev='audio_head', ms=ms, bytes=result[0], n=n)
+                    target = head_target_ms(ms, duration * 1000)
+                # FFmpeg's fragmented MP4 has enough samples only when the next
+                # moof/mdat is complete. Avoid copying a long prefix every 0.5 s.
+                if ms > 0 and target > ms:
+                    probe_at = max(size + 4096, int(size * target / ms * 0.85))
+                else:
+                    probe_at = size + 4096
             except (OSError, ValueError, IndexError, KeyError, core.struct.error):
                 pass  # a trailing MP4 fragment is not complete yet
     monitor = threading.Thread(target=watch_audio, daemon=True)
@@ -254,17 +346,23 @@ def normalize(a, job, source=None):
             event(ev='video', pct=min(100, round(ms / (duration * 10))) if duration else state['progress'],
                   ms=ms, frames=count, bytes=size)
         frames, size, ms = core.demux_video(remux.stdout, str(directory), duration, video_progress)
+        if feeder:
+            feeder.join()
         if remux.wait() != 0 or (download and download.wait() != 0):
             raise ValueError('media download/remux failed; compatible H.264/AAC is required')
-        core.flatten_m4a(str(audio_src), str(directory / 'audio.m4a'))
-        event(ev='audio_ready')
+        ready = core.flatten_m4a(str(audio_src), str(directory / 'audio.m4a'))
+        if not ready:
+            raise ValueError('complete audio is unavailable')
+        event(ev='audio_ready', ms=ready[1])
         event(ev='video', pct=100, ms=ms, frames=frames, bytes=size)
         event(ev='done')
     finally:
         stopped.set()
         monitor.join(timeout=3)
         terminate_children()
-        for path in (audio_part, audio_src):
+        if feeder:
+            feeder.join(timeout=3)
+        for path in (audio_part, audio_src, local_source):
             try:
                 path.unlink()
             except FileNotFoundError:
