@@ -1,109 +1,84 @@
 {
-  "schema": 3,
-  "date": "2026-11-07",
+  "schema": 4,
+  "date": "2026-11-08",
   "repo": "istt1899/x3",
   "channel": "catalog",
-  "service_version": "0.4.3",
-  "apps_version": "0.1.4",
-  "youtube_version": "0.3.15",
+  "package_release": "media-preview-0.4.4",
+  "service_version": "0.4.4",
+  "apps_version": "0.1.5",
+  "youtube_version": "0.3.16",
+  "source_commit": "df2745c65922d08d4ade3b79d01eebbb2ddb419c",
   "preserved": {
-    "coding": "0.1.5"
+    "coding": "0.2.0"
   },
   "artifacts": [
     {
       "name": "catalog.json",
-      "size": 5453,
-      "sha256": "99fd9b133c9798ead4a21430a62650db5477fa16ef2486472340ea9ba178419d"
-    },
-    {
-      "name": "jap-ridetube-d@0.4.3.tgz",
-      "size": 10660366,
-      "sha256": "c6d4d5c46d6716202fa03c255ddaf2311acf0b6612d3df3184cfc9fdfecf9cef"
-    },
-    {
-      "name": "jap_ridetube@0.3.15.tgz",
-      "size": 1290674,
-      "sha256": "8fdfc41ac0016732b61c0f4c65f9455e044a1cc65c75e4a626cf8f669f0ff8ae"
-    },
-    {
-      "name": "marku_vk_video@0.1.4.tgz",
-      "size": 1276439,
-      "sha256": "b092cc1e2cba2ddcee854decb7fe05cb4373d1d05a4f0ffc7d29b80b733007c3"
-    },
-    {
-      "name": "marku_rutube@0.1.4.tgz",
-      "size": 1276073,
-      "sha256": "bd636fa8e9359f2dc9394cad297f0d648258559808a0b42e7a1540b904ca41b7"
-    },
-    {
-      "name": "marku_vk_video@0.1.4.png",
-      "size": 1920,
-      "sha256": "c1fbca216dc8bd1076678272fa417c927de444121c2fe25feced24b960f6c612"
-    },
-    {
-      "name": "marku_rutube@0.1.4.png",
-      "size": 1662,
-      "sha256": "7fd5f5e022633b7f66cef1a57fc40b248b3346a3f5bc29fefb75c41cb41b85ac"
+      "size": 5504,
+      "sha256": "703547831ef12e5d590c2dd872f7fd089b2a48090f6379a7f44432a7d9e3293b"
     },
     {
       "name": "ffmpeg-9.0.2-mgu-media-sources.tar.xz",
       "size": 12125968,
       "sha256": "6f164f34bdbec44d842e399815319969a0972fc534ec652cee4018ff61d23798"
+    },
+    {
+      "name": "jap-ridetube-d@0.4.4.tgz",
+      "size": 10662867,
+      "sha256": "13431cb9bb13241fb3f8d880d53dacd0645cc630bb6bb5d299dba2bd220a5c44"
+    },
+    {
+      "name": "jap_ridetube@0.3.16.tgz",
+      "size": 1291133,
+      "sha256": "e675486d4d8bd7dcd38ddcd8158843237460fe0e29cae0d1c5edf97ade20c4c6"
+    },
+    {
+      "name": "marku_rutube@0.1.5.png",
+      "size": 1662,
+      "sha256": "7fd5f5e022633b7f66cef1a57fc40b248b3346a3f5bc29fefb75c41cb41b85ac"
+    },
+    {
+      "name": "marku_rutube@0.1.5.tgz",
+      "size": 1276911,
+      "sha256": "aa2601139ed1497c899a962c3228be888164f9d5c22c9e187db2eab327fb5688"
+    },
+    {
+      "name": "marku_vk_video@0.1.5.png",
+      "size": 1920,
+      "sha256": "c1fbca216dc8bd1076678272fa417c927de444121c2fe25feced24b960f6c612"
+    },
+    {
+      "name": "marku_vk_video@0.1.5.tgz",
+      "size": 1277386,
+      "sha256": "8a7a44875a63bc7c2f34b7627cc2eec40b3011ee59ec05d2818171d80d938777"
     }
   ],
   "checks": {
-    "provider_tests": 64,
-    "service_python_tests": 20,
-    "service_python_skipped": 1,
-    "node8_network_access": true,
-    "node8_native_binding": true,
-    "node8_gateway_network": true,
-    "node8_network_ui": true,
-    "node8_gateway": true,
-    "node8_python_bridge": true,
-    "legacy_daemon_harness_host_node": true,
-    "node8_app_ui": true,
-    "deploy_0_7_11_and_0_8_4_prepare_synthetic_sdk": true,
+    "slow_120s_faststart_mp4_and_mpegts": true,
+    "mediafetch_tests": 10,
+    "audio_prefix_boundaries_and_delayed_commands": true,
+    "node8_network_and_navigation": true,
+    "legacy_daemon_unix_socket": true,
+    "provider_gateway_isolation": true,
     "package_hashes_and_source_freshness": true
   },
   "runtime": {
     "linux_elf_executed": true,
-    "exact_package_evidence": "validation/linux-runtime-0.4.3.json",
-    "workflow_run": "https://github.com/istt1899/x3/actions/runs/42366252801",
+    "exact_package_evidence": "validation/linux-runtime-0.4.4.json",
+    "workflow_run": "https://github.com/istt1899/x3/actions/runs/42476696215",
     "mgu_runtime_tested": false
-  },
-  "network": {
-    "default": "external",
-    "choice_shared_across_apps": true,
-    "builtin_requires_verified_per_car_profile": true,
-    "builtin_profile_bundled": false,
-    "builtin_car_tested": false,
-    "download_limit_per_source": 4194304,
-    "test_url": "https://speed.cloudflare.com/__down",
-    "youtube_retains_existing_proxy": true,
-    "speed_baseline_uses_proxy": false,
-    "global_bmw_routes_changed": false,
-    "automatic_fallback": false
   },
   "not_verified": {
     "mgu_playback": true,
-    "native_bmw_internet": true,
-    "owner_vk_and_rutube_login": true
+    "audible_prefix_transition": true,
+    "native_bmw_internet": true
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "99fd9b133c9798ead4a21430a62650db5477fa16ef2486472340ea9ba178419d"
+      "sha256": "703547831ef12e5d590c2dd872f7fd089b2a48090f6379a7f44432a7d9e3293b"
     },
     "istt1899/ridetube": {
-      "sha256": "123023c229d1366457bf8711b363dedccf13fa2ab3c1ff388d9d6f997dd08469"
+      "sha256": "0297fa42228d5d18124957b441a9777e82e99e41dad0341eb31d19b4a134bfca"
     }
-  },
-  "cluster": {
-    "owner_map_confirmed": true,
-    "video_hardware_tested": false,
-    "fps_limit": 5,
-    "frame_size": "544x240",
-    "target": "map",
-    "mgu_patch_applied": false
   }
 }

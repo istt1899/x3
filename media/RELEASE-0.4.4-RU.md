@@ -39,6 +39,11 @@ VK Видео и RUTUBE начинают просмотр с первых гот
 Тесты UI, gateway и провайдеров прошли. Архивы сверены с исходниками и SHA-256;
 BMW SDK и учётных данных в них нет.
 
+Точный опубликованный архив 0.4.4 прошёл штатный `check.sh` и обработку MP4/TS
+с закреплённым FFmpeg на Ubuntu. Там же прошли проверки Node 8 и полный тест
+демона с Unix-сокетом: [GitHub Actions](https://github.com/istt1899/x3/actions/runs/42476696215).
+[Сохранённое доказательство](https://github.com/istt1899/x3/blob/main/media/validation/linux-runtime-0.4.4.json).
+
 Проверка на конкретном MGU выполняется владельцем. Локальные тесты не подтверждают
 слышимость переходов между аудиофайлами или время старта через его Wi-Fi.
-ТЗ и вывод совета: [specs/vk-streaming-internet.md](../specs/vk-streaming-internet.md).
+ТЗ и вывод совета: [specs/vk-streaming-internet.md](https://github.com/istt1899/x3/blob/main/specs/vk-streaming-internet.md).
