@@ -195,7 +195,8 @@ mgu.run({
         // The percentage is readiness of the initial playable buffer, not the whole download.
         function prepText() {
             if (model.retry) return 'Нет соединения, повторяем (' + model.retry + ')…';
-            const stage = { connecting: 'Подключаемся', audio: 'Загружаем начальный звук',
+            const stage = { resolve: 'Получаем ссылку на видео', connecting: 'Подключаемся к серверу видео',
+                transfer: 'Получаем данные видео', audio: 'Загружаем начальный звук',
                 video: 'Получаем первые кадры', download: 'Загружаем файл: потоковый старт недоступен' }[model.phase] || 'Готовим воспроизведение';
             return stage + ' · стартовый буфер ' + Math.round(model.pct || 0) + ' %';
         }

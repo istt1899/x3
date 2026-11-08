@@ -54,6 +54,9 @@ function player() {
     proto.chownFetch = () => {}; proto.spawnJob = () => child;
     const ready = proto.fetchVideo('-123_456', fetchDir);
     const send = (event) => child.stdout.write(JSON.stringify(event) + '\n');
+    send({ ev: 'source', bytes: 4096 });
+    await turn();
+    assert.strictEqual(proto.phase, 'transfer');
     send({ ev: 'audio_buffer', ms: 4000, target_ms: 8000 });
     await turn();
     assert.strictEqual(proto.pct, 35);

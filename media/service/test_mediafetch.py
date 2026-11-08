@@ -7,17 +7,80 @@ from pathlib import Path
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import threading
 import time
 import types
 import unittest
+import zipfile
 from unittest import mock
 
 import mediafetch
 
 
 class MediaFetchTest(unittest.TestCase):
+    def fixture_stream(self, root, body, video_id='-123_456'):
+        pyz = root / 'fixture-ytdlp.pyz'
+        module = """import sys, types, time
+extractor = types.SimpleNamespace()
+class YoutubeDL:
+    def __init__(self, params): self.params = params
+    def __enter__(self): return self
+    def __exit__(self, *args): return False
+    def process_ie_result(self, info, download):
+""" + '\n'.join('        ' + line for line in body.splitlines()) + '\n'
+        with zipfile.ZipFile(pyz, 'w') as archive:
+            archive.writestr('yt_dlp/__init__.py', module)
+        job = {'id': video_id, 'provider': 'vk', 'created_at': time.time(),
+               'url': 'https://cdn.example/video?private=must-not-enter-argv',
+               'format': {'url': 'https://cdn.example/video', 'ext': 'mp4'}}
+        (root / (video_id + '.json')).write_text(json.dumps(job), encoding='utf-8')
+        args = types.SimpleNamespace(provider='vk', id=video_id, job_dir=str(root),
+            cache_dir=str(root), dir=str(root / 'output'), ffmpeg='unused-before-first-byte',
+            height=360, node='node', lease=str(root / 'no-lease.json'), pyz=str(pyz), ca_file=None)
+        return args, job
+
+    def test_real_stream_subprocess_accepts_negative_vk_id(self):
+        # Exercise argparse and the nested process, not a mocked Popen call.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for video_id in ('-123_456', '123_456'):
+                args, _ = self.fixture_stream(root, "sys.stdout.buffer.write(b'MGU-fixture-stream')", video_id)
+                cmd = mediafetch.stream_command(args)
+                self.assertEqual(cmd[-2:], ['--', video_id])
+                self.assertNotIn('https://', ' '.join(cmd))
+                result = subprocess.run(cmd, capture_output=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
+                self.assertEqual(result.stdout, b'MGU-fixture-stream')
+
+    def test_silent_real_downloader_is_killed_instead_of_waiting_forever(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            args, job = self.fixture_stream(Path(temporary), 'time.sleep(60)')
+            args.first_byte_timeout = 0.3
+            started = time.monotonic()
+            with mock.patch.object(mediafetch, '_OUT', io.StringIO()), self.assertRaisesRegex(ValueError, 'первые данные'):
+                mediafetch.normalize(args, job)
+            self.assertLess(time.monotonic() - started, 5)
+            self.assertTrue(all(child.poll() is not None for child in mediafetch.CHILDREN))
+
+    def test_real_downloader_http_failure_is_safe_and_actionable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            args, job = self.fixture_stream(Path(temporary),
+                "raise RuntimeError('HTTP Error 403: https://cdn.example/?token=fixture-secret')")
+            log = io.StringIO()
+            with mock.patch.object(mediafetch, '_OUT', log), self.assertRaisesRegex(ValueError, 'HTTP 403') as result:
+                mediafetch.normalize(args, job)
+            self.assertNotIn('fixture-secret', str(result.exception) + log.getvalue())
+
+    def test_stalled_transfer_kills_its_process_after_data_started(self):
+        child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+        mediafetch.CHILDREN.append(child)
+        with mock.patch.object(mediafetch, '_OUT', io.StringIO()), mediafetch.TransferWatch(first_timeout=2, idle_timeout=0.2) as watch:
+            watch.received(4096)
+            child.wait(timeout=5)
+        self.assertIn('остановился', watch.error)
+
     def test_prefix_targets_grow_without_waiting_for_full_audio(self):
         self.assertEqual(mediafetch.head_target_ms(0, 120000), 8000)
         self.assertEqual(mediafetch.head_target_ms(8000, 120000), 16000)

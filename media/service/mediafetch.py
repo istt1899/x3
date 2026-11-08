@@ -14,6 +14,8 @@ import os
 from pathlib import Path
 import re
 import signal
+import socket
+import ssl
 import subprocess
 import sys
 import threading
@@ -29,12 +31,96 @@ import ytfetch as core
 PROVIDERS = {'vk': re.compile(r'^-?\d+_\d+$'), 'rutube': re.compile(r'^[0-9a-f]{32}$')}
 CHILDREN = []
 _OUT = sys.stdout
+_OUT_LOCK = threading.Lock()
 HEAD_START_MS = 8000  # a complete first audio file; later snapshots grow while the transfer continues
+STREAM_ERRORS = {
+    'http_401': 'Сервер видео требует повторного входа (HTTP 401).',
+    'http_403': 'Сервер видео отклонил ссылку (HTTP 403). Выберите ролик заново.',
+    'http_404': 'Файл видео не найден на сервере (HTTP 404).',
+    'dns': 'Не удалось найти сервер видео через DNS подключения MGU Store.',
+    'tls': 'Не удалось проверить защищённое соединение с сервером видео.',
+    'timeout': 'Сервер видео не передаёт данные. Повторите запуск.',
+    'downloader': 'Не удалось загрузить поток с сервера видео.',
+}
 
 
 def event(**fields):
-    _OUT.write(json.dumps(fields, ensure_ascii=True) + '\n')
-    _OUT.flush()
+    with _OUT_LOCK:
+        _OUT.write(json.dumps(fields, ensure_ascii=True) + '\n')
+        _OUT.flush()
+
+
+def stream_error_code(error):
+    """Classify failures without forwarding extractor messages/signed URLs."""
+    chain, seen = [error], set()
+    while chain:
+        item = chain.pop()
+        if id(item) in seen:
+            continue
+        seen.add(id(item))
+        code = getattr(item, 'code', None) or getattr(item, 'status', None)
+        if code in (401, 403, 404):
+            return 'http_%s' % code
+        if isinstance(item, socket.gaierror):
+            return 'dns'
+        if isinstance(item, ssl.SSLError):
+            return 'tls'
+        if isinstance(item, (TimeoutError, socket.timeout)):
+            return 'timeout'
+        # yt-dlp wraps urllib/network errors in DownloadError/ExtractorError.
+        info = getattr(item, 'exc_info', None)
+        chain.extend(value for value in (getattr(item, '__cause__', None), getattr(item, 'cause', None),
+                                        getattr(item, 'reason', None), info[1] if isinstance(info, tuple) and len(info) > 1 else None)
+                     if isinstance(value, BaseException))
+        message = str(item).lower()
+        for status in (401, 403, 404):
+            if 'http error %s' % status in message or 'http error %s' % status in message.replace(':', ''):
+                return 'http_%s' % status
+        if 'certificate_verify_failed' in message:
+            return 'tls'
+        if 'timed out' in message:
+            return 'timeout'
+    return 'downloader'
+
+
+class TransferWatch:
+    """Bound silence in real downloader/remux subprocesses, including before byte one."""
+    def __init__(self, first_timeout=25, idle_timeout=35):
+        self.first_timeout, self.idle_timeout = first_timeout, idle_timeout
+        self.started = self.last = time.monotonic()
+        self.bytes = 0
+        self.last_event = 0
+        self.error = None
+        self.done = threading.Event()
+        self.thread = threading.Thread(target=self.watch, daemon=True)
+
+    def received(self, count):
+        self.bytes += count
+        self.last = time.monotonic()
+        if self.last - self.last_event >= 1:
+            self.last_event = self.last
+            event(ev='source', bytes=self.bytes)
+
+    def activity(self):
+        self.last = time.monotonic()
+
+    def watch(self):
+        while not self.done.wait(0.1):
+            now = time.monotonic()
+            if (not self.bytes and now - self.started > self.first_timeout
+                    or self.bytes and now - self.last > self.idle_timeout):
+                self.error = ('Сервер видео не прислал первые данные за 25 секунд.' if not self.bytes
+                              else 'Поток видео остановился: новые данные не поступают.')
+                terminate_children()
+                return
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *_):
+        self.done.set()
+        self.thread.join(timeout=5)
 
 
 def direct_env():
@@ -224,7 +310,33 @@ def media_chunks(source):
         yield chunk
 
 
+def stream_command(a):
+    # VK group IDs start with '-'. Every option must precede the positional
+    # separator, including in this second subprocess (not only the daemon).
+    cmd = [sys.executable, '-I', str(Path(__file__).resolve()), 'stream',
+           '--provider', a.provider, '--job-dir', a.job_dir,
+           '--cache-dir', a.cache_dir, '--height', str(a.height), '--node', a.node, '--lease', a.lease]
+    if a.pyz:
+        cmd += ['--pyz', a.pyz]
+    if a.ca_file:
+        cmd += ['--ca-file', a.ca_file]
+    return cmd + ['--', a.id]
+
+
 def normalize(a, job, source=None):
+    with TransferWatch(getattr(a, 'first_byte_timeout', 25), getattr(a, 'idle_timeout', 35)) as watch:
+        try:
+            result = _normalize(a, job, source, watch)
+        except Exception:
+            if watch.error:
+                raise ValueError(watch.error) from None
+            raise
+        if watch.error:
+            raise ValueError(watch.error)
+        return result
+
+
+def _normalize(a, job, source, watch):
     directory = Path(a.dir)
     directory.mkdir(parents=True, exist_ok=True)
     audio_src = directory / 'audio.src.m4a'
@@ -236,22 +348,20 @@ def normalize(a, job, source=None):
     (directory / 'meta.json').write_text(json.dumps(meta), encoding='utf-8')
     event(ev='meta', title=meta['title'], duration_s=duration, chapters=[])
     stopped = threading.Event()
-    state = {'eta': None, 'head_ms': 0, 'head_n': -1, 'progress': 0}
+    state = {'eta': None, 'head_ms': 0, 'head_n': -1, 'progress': 0, 'stream_error': None}
+    progress_thread = None
     if source is None:
-        cmd = [sys.executable, '-I', str(Path(__file__).resolve()), 'stream', a.id,
-               '--provider', a.provider, '--job-dir', a.job_dir,
-               '--cache-dir', a.cache_dir, '--height', str(a.height), '--node', a.node, '--lease', a.lease]
-        if a.pyz:
-            cmd += ['--pyz', a.pyz]
-        if a.ca_file:
-            cmd += ['--ca-file', a.ca_file]
+        cmd = stream_command(a)
         download = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=direct_env())
         CHILDREN.append(download)
         source = download.stdout
         def read_progress():
             for raw in download.stderr:
                 try:
-                    progress = json.loads(raw).get('progress') or {}
+                    status = json.loads(raw)
+                    if status.get('stream_error') in STREAM_ERRORS:
+                        state['stream_error'] = status['stream_error']
+                    progress = status.get('progress') or {}
                 except (ValueError, UnicodeError):
                     continue  # never forward signed URLs or private headers from downloader errors
                 state['eta'] = progress.get('eta')
@@ -260,10 +370,24 @@ def normalize(a, job, source=None):
                 if total:
                     state['progress'] = min(100, round(done * 100 / total))
                     event(ev='audio', pct=state['progress'])
-        threading.Thread(target=read_progress, daemon=True).start()
+        progress_thread = threading.Thread(target=read_progress, daemon=True)
+        progress_thread.start()
     else:
         download = None  # local fixture path in tests
     prefix = source.read(4096)
+    if not prefix:
+        terminate_children()
+        if progress_thread:
+            progress_thread.join(timeout=1)
+        if download:
+            download.stdout.close()
+            download.stderr.close()
+        raise ValueError(STREAM_ERRORS.get(state['stream_error'], 'Загрузчик не получил данные видео. Повторите запуск.'))
+    watch.received(len(prefix))
+    def chunks():
+        for data in media_chunks(source):
+            watch.received(len(data))
+            yield data
     seek_required = mp4_needs_seek(prefix)
     feeder = None
     if seek_required:
@@ -271,7 +395,7 @@ def normalize(a, job, source=None):
         fd = os.open(local_source, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         with os.fdopen(fd, 'wb') as staged:
             staged.write(prefix)
-            for chunk in media_chunks(source):
+            for chunk in chunks():
                 staged.write(chunk)
         source.close()
         remux = subprocess.Popen(ffmpeg_command(a.ffmpeg, audio_src, str(local_source)), stdin=subprocess.DEVNULL,
@@ -283,7 +407,7 @@ def normalize(a, job, source=None):
             try:
                 remux.stdin.write(prefix)
                 remux.stdin.flush()
-                for chunk in media_chunks(source):
+                for chunk in chunks():
                     remux.stdin.write(chunk)
                     remux.stdin.flush()
             except (BrokenPipeError, OSError):
@@ -317,6 +441,7 @@ def normalize(a, job, source=None):
                 if size < probe_at:
                     continue
                 last_size = size
+                watch.activity()
                 result = core.flatten_m4a(str(audio_src), str(audio_part), limit=size)
                 if not result:
                     continue
@@ -343,13 +468,15 @@ def normalize(a, job, source=None):
     monitor.start()
     try:
         def video_progress(ms, count, size):
+            watch.activity()
             event(ev='video', pct=min(100, round(ms / (duration * 10))) if duration else state['progress'],
                   ms=ms, frames=count, bytes=size)
         frames, size, ms = core.demux_video(remux.stdout, str(directory), duration, video_progress)
         if feeder:
             feeder.join()
         if remux.wait() != 0 or (download and download.wait() != 0):
-            raise ValueError('media download/remux failed; compatible H.264/AAC is required')
+            raise ValueError(STREAM_ERRORS.get(state['stream_error'],
+                'Не удалось обработать видео. Нужен совместимый поток H.264/AAC.'))
         ready = core.flatten_m4a(str(audio_src), str(directory / 'audio.m4a'))
         if not ready:
             raise ValueError('complete audio is unavailable')
@@ -428,7 +555,7 @@ if __name__ == '__main__':
         terminate_children()
         if 'stream' in sys.argv[1:]:
             # stdout is connected to FFmpeg: never inject JSON into the media stream.
-            print(json.dumps({'stream_error': type(error).__name__}), file=sys.stderr, flush=True)
+            print(json.dumps({'stream_error': stream_error_code(error)}), file=sys.stderr, flush=True)
         else:
             event(ev='error', msg=str(error) if isinstance(error, ValueError) else 'media processing failed')
         raise SystemExit(1)

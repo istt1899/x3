@@ -1642,6 +1642,9 @@ Daemon.prototype.fetchVideo = function (id, dir) {
                 if (m.title) this.cur.title = String(m.title);
                 if (m.duration_s > 0) this.cur.durationMs = m.duration_s * 1000;
                 if (Array.isArray(m.chapters)) this.cur.chapters = m.chapters;
+            } else if (m.ev === 'source' && this.opts.genericMediaIds && this.phase === 'connecting') {
+                this.phase = 'transfer';
+                if (this.state === 'preparing') this.sendState();
             } else if (m.ev === 'source_wait' && m.reason === 'mp4_index') {
                 this.phase = 'download';
                 if (this.state === 'preparing') this.sendState();

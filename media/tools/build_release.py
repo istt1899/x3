@@ -15,9 +15,9 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[2]
 MEDIA = ROOT / 'media'
 OUT = MEDIA / 'dist/release'
-VERSION = '0.4.4'
+VERSION = '0.4.5'
 YOUTUBE_VERSION = '0.3.16'
-RELEASE_TAG = 'media-preview-0.4.4'
+RELEASE_TAG = 'media-preview-0.4.5'
 BASE_SHA = '984429e16be494d8e17e53f2606c7aaf38ea5ea049e86046f4aafe8cebf7bb75'
 
 

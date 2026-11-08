@@ -72,6 +72,7 @@ class Gateway {
         this.epoch = 0;
         this.ticket = 0;
         this.pendingPlay = null;
+        this.prepareTimeoutMs = Math.max(10, Math.min(120000, o.prepareTimeoutMs || 45000));
         this.nextSession = 0;
         this.queue = Promise.resolve();
         this.authEpoch = Object.create(null);
@@ -393,11 +394,27 @@ class Gateway {
         const authEpoch = this.authEpoch[session.providerId] || 0;
         const currentAuth = () => authEpoch === (this.authEpoch[session.providerId] || 0) && !this.signingOut[session.providerId];
         this.pendingPlay = { ticket, session };
-        const prepared = await provider.preparePlayback(id, ctx);
-        if (!currentAuth()) return;
-        if (!prepared || prepared.id !== id || typeof prepared.cacheDir !== 'string' || !inside(ctx.cacheDir, prepared.cacheDir)) throw new Error('invalid playback context');
-        if (!Array.isArray(prepared.fetcher) || !prepared.fetcher.length || prepared.fetcher.some((a) => typeof a !== 'string' || a.indexOf('\0') >= 0)) throw new Error('invalid fetch helper');
-        if (ctx.proxyPolicy === 'direct' && prepared.fetcher.some((a) => /^--proxy(?:=|-file(?:=|$)|$)/.test(a))) throw new Error('direct provider cannot use a proxy');
+        const current = () => !this.closed && !session.closed && ticket === this.ticket && currentAuth();
+        const fail = (error) => {
+            if (!current()) return;
+            this.pendingPlay = null;
+            // A resolve failure used to emit only `error`; the UI stayed on its
+            // local preparing 0% state forever, hiding the actual failure.
+            this._send(session, { ev: 'state', state: 'error', id, buffering: false });
+            this._send(session, { ev: 'error', cmd: 'play', id, msg: cleanError(error) });
+        };
+        this._send(session, { ev: 'state', state: 'preparing', id, phase: 'resolve', pct: 0, buffering: false });
+        let prepared, timer;
+        try {
+            prepared = await Promise.race([provider.preparePlayback(id, ctx), new Promise((resolve, reject) => {
+                timer = setTimeout(() => reject(new Error('Видеосервис не выдал ссылку на ролик за 45 секунд. Повторите запуск.')), this.prepareTimeoutMs);
+            })]);
+            if (!current()) return;
+            if (!prepared || prepared.id !== id || typeof prepared.cacheDir !== 'string' || !inside(ctx.cacheDir, prepared.cacheDir)) throw new Error('invalid playback context');
+            if (!Array.isArray(prepared.fetcher) || !prepared.fetcher.length || prepared.fetcher.some((a) => typeof a !== 'string' || a.indexOf('\0') >= 0)) throw new Error('invalid fetch helper');
+            if (ctx.proxyPolicy === 'direct' && prepared.fetcher.some((a) => /^--proxy(?:=|-file(?:=|$)|$)/.test(a))) throw new Error('direct provider cannot use a proxy');
+        } catch (error) { fail(error); return; }
+        finally { clearTimeout(timer); }
         const context = Object.freeze({ providerId: session.providerId, id, cacheDir: prepared.cacheDir,
             leaseFile: ctx.leaseFile,
             fetcher: Object.freeze(prepared.fetcher.slice()), thumbCmd: prepared.thumbCmd && Object.freeze(prepared.thumbCmd.slice()),
@@ -420,8 +437,8 @@ class Gateway {
             await this.player.command('video', { on: session.videoOn });
             if (this.closed || session.closed || !this.owner || this.owner.epoch !== epoch || ticket !== this.ticket || !currentAuth()) return;
             // Loading can take seconds: do not block a newer play/stop behind it.
-            Promise.resolve().then(() => this.player.play(message)).catch((e) => emit({ ev: 'error', msg: cleanError(e) }));
-        });
+            Promise.resolve().then(() => this.player.play(message)).catch(fail);
+        }).catch(fail);
     }
     async close() {
         if (this.closed) return;

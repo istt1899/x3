@@ -1,0 +1,24 @@
+{
+  "date": "2026-11-08",
+  "mode": "anonymous public VK video, computer network, bounded download",
+  "video_id": "-4276079_456239068",
+  "query": "Ma Lin Alexey Smirnov",
+  "search_items": 36,
+  "search_seconds": 2.8,
+  "search_and_resolve_seconds": 4.2,
+  "selected_height": 360,
+  "protocol": "m3u8_native",
+  "cdn_host": "vkvd260.okcdn.ru",
+  "first_65536_bytes_seconds": 2.08,
+  "first_complete_audio_prefix": {
+    "audio_ms": 20201,
+    "seconds_since_normalizer_start": 2.78,
+    "video_ms_received": 20006
+  },
+  "production_downloader_and_normalizer_code": true,
+  "host_ffmpeg_used": true,
+  "download_cancelled_after_first_audio_prefix": true,
+  "signed_urls_and_account_credentials_in_evidence": false,
+  "mgu_runtime_tested": false,
+  "owner_private_video_tested": false
+}

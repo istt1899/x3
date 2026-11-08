@@ -90,6 +90,12 @@ async function app(own) {
     fallback.model.state = 'playing'; fallback.model.buffering = true; fallback.model.rev++;
     await fallback.render();
     assert(fallback.words.includes('Буферизация…'), 'buffering remains visible after playback starts');
+    fallback.model.state = 'preparing'; fallback.model.phase = 'resolve'; fallback.model.pct = 0; fallback.model.rev++;
+    await fallback.render();
+    assert(fallback.words.some((word) => /Получаем ссылку на видео/.test(word)));
+    fallback.model.state = 'error'; fallback.model.error = 'Сервер видео отклонил ссылку (HTTP 403).'; fallback.model.rev++;
+    await fallback.render();
+    assert(fallback.words.some((word) => /HTTP 403/.test(word)), 'playback failure replaces the preparing ring');
 
     const native = await app(true);
     await native.render();
