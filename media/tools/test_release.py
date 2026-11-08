@@ -31,11 +31,11 @@ catalog = json.loads((OUT / 'catalog.json').read_text(encoding='utf-8'))
 assert catalog['schema'] == 2
 components = {c['id']: c for c in catalog['components']}
 assert len(components) == len(catalog['components'])
-coding = json.loads((ROOT / 'mgu-coder/dist/publish/x3-coding/catalog.github.json').read_text(encoding='utf-8'))
-for original in coding['components']:
-    assert components[original['id']] == original, 'existing coding component changed'
-youtube = json.loads((MEDIA / 'core/catalog.json').read_text(encoding='utf-8'))
-original_app = next(c for c in youtube['components'] if c['id'] == 'jap_ridetube')
+original_catalog = json.loads((ROOT / 'catalog.json').read_text(encoding='utf-8'))
+updated_ids = {'marku_vk_video', 'marku_rutube', 'jap_ridetube', 'jap-ridetube-d'}
+for original in original_catalog['components']:
+    if original['id'] not in updated_ids:
+        assert components[original['id']] == original, 'unrelated component changed: ' + original['id']
 assert components['jap_ridetube']['version'] == YOUTUBE_VERSION
 assert components['jap_ridetube']['requires']['jap-ridetube-d'] == SERVICE_VERSION
 
@@ -77,7 +77,8 @@ with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as arc
         if current.is_file():
             assert contents == current.read_bytes(), 'stale service build: ' + item['path']
         else:
-            assert item['path'] in ('core/native/jap-ridetube-d/ytdec', 'core/native/jap-ridetube-d/ytdlp.pyz')
+            assert item['path'] in ('core/native/jap-ridetube-d/ytdec', 'core/native/jap-ridetube-d/ytdlp.pyz',
+                                    'runtime/ffmpeg') # external pinned binaries are verified below
     assert set(archive.getnames()) == expected
     for name in ('LICENSE', 'THIRD_PARTY_LICENSES', 'runtime/LICENSE.ffmpeg', 'runtime/LICENSE.musl',
                  'runtime/NOTICE.ffmpeg', 'runtime/LICENSE.certifi', 'runtime/test-fixtures/sample.mp4',

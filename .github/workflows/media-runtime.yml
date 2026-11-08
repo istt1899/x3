@@ -4,7 +4,7 @@ name: Released MGU media runtime
 # This tests the published, hash-pinned package, not a substitute host FFmpeg.
 on:
   push:
-    branches: [feature/cluster-video, feature/network-source-speed]
+    branches: [main, feature/cluster-video, feature/network-source-speed, fix/vk-streaming-internet]
     paths:
       - .github/workflows/media-runtime.yml
       - media/runtime/**
@@ -14,19 +14,19 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Release containing jap-ridetube-d@0.4.3.tgz
+        description: Release containing jap-ridetube-d@0.4.4.tgz
         required: true
-        default: catalog
+        default: media-preview-0.4.4
         type: string
       service_sha256:
         description: Expected SHA-256 of that exact service archive
         required: true
-        default: c6d4d5c46d6716202fa03c255ddaf2311acf0b6612d3df3184cfc9fdfecf9cef
+        default: 13431cb9bb13241fb3f8d880d53dacd0645cc630bb6bb5d299dba2bd220a5c44
         type: string
       service_size:
         description: Expected service archive size in bytes
         required: true
-        default: '10660366'
+        default: '10662867'
         type: string
 
 permissions:
@@ -61,10 +61,13 @@ jobs:
           node media/service/test_native_binding.js
           node media/service/test_helper_arguments.js
           node media/ui/test_network_view.js
+          node media/ui/test_navigation.js
+          node media/core/kit/tools/test_display_network.js
           node media/service/test_gateway.js
           node media/service/test_python_provider.js
           # The legacy harness uses fs.rmSync; production modules above run on Node 8.
           export PATH="$ORIGINAL_PATH"
+          node media/service/test_audio_prefixes.js
           node media/core/native/jap-ridetube-d/test/test_ytd.js
           python3 -m unittest discover -s media/service -p 'test_*.py' -q
           python3 -m unittest discover -s media/providers/tests -q
@@ -73,9 +76,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      RELEASE_TAG: ${{ inputs.release_tag || 'catalog' }}
-      SERVICE_SHA256: ${{ inputs.service_sha256 || 'c6d4d5c46d6716202fa03c255ddaf2311acf0b6612d3df3184cfc9fdfecf9cef' }}
-      SERVICE_SIZE: ${{ inputs.service_size || '10660366' }}
+      RELEASE_TAG: ${{ inputs.release_tag || 'media-preview-0.4.4' }}
+      SERVICE_SHA256: ${{ inputs.service_sha256 || '13431cb9bb13241fb3f8d880d53dacd0645cc630bb6bb5d299dba2bd220a5c44' }}
+      SERVICE_SIZE: ${{ inputs.service_size || '10662867' }}
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - name: Download, verify and safely unpack the release
@@ -103,7 +106,7 @@ jobs:
           if not re.fullmatch(r'[0-9a-f]{64}', expected) or not 1 <= size <= 64 * 1024 * 1024:
               raise ValueError('A pinned SHA-256 and bounded size are required')
           url = ('https://github.com/istt1899/x3/releases/download/' + tag
-                 + '/jap-ridetube-d@0.4.3.tgz')
+                 + '/jap-ridetube-d@0.4.4.tgz')
           request = urllib.request.Request(url, headers={'User-Agent': 'MGU-runtime-gate'})
           chunks, count = [], 0
           with urllib.request.urlopen(request, timeout=45) as response:
@@ -139,7 +142,7 @@ jobs:
                       raise ValueError('Only unique regular files are allowed; no links or devices')
                   names.add(member.name)
               manifest = json.load(archive.extractfile('component.json'))
-              if manifest['id'] != 'jap-ridetube-d' or manifest['version'] != '0.4.3':
+              if manifest['id'] != 'jap-ridetube-d' or manifest['version'] != '0.4.4':
                   raise ValueError('Unexpected component identity')
               declared = {}
               for entry in manifest['files']:
