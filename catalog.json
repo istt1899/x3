@@ -31,7 +31,7 @@
         "name": "jap_ridetube@0.3.16.tgz",
         "size": 1291133,
         "sha256": "e675486d4d8bd7dcd38ddcd8158843237460fe0e29cae0d1c5edf97ade20c4c6",
-        "url": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r2/jap_ridetube@0.3.16.tgz"
+        "url": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r3/jap_ridetube@0.3.16.tgz"
       },
       "requires": {
         "jap-ridetube-d": "0.4.5",
@@ -50,13 +50,13 @@
       "id": "marku_vk_video",
       "kind": "app",
       "title": "VK Видео",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "description": "VK Видео: тестовый выпуск для MGU, поиск и видео напрямую, вход с телефона.",
       "artifact": {
-        "name": "marku_vk_video@0.1.6.tgz",
-        "size": 1277456,
-        "sha256": "133df3be604a938b6ca271f90b400ab317a1f5d91f34ed729c96afe0bb5f7ef3",
-        "url": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r2/marku_vk_video@0.1.6.tgz"
+        "name": "marku_vk_video@0.1.7.tgz",
+        "size": 1301945,
+        "sha256": "96afe8078acd3f86daaa5551a04f8b02baa2eb12882cd13aa43f79210279ee77",
+        "url": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r3/marku_vk_video@0.1.7.tgz"
       },
       "requires": {
         "jap-ridetube-d": "0.4.5",
@@ -68,20 +68,20 @@
         "ID7"
       ],
       "uninstallable": true,
-      "icon": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r2/marku_vk_video@0.1.6.png",
+      "icon": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r3/marku_vk_video@0.1.7.png",
       "iconSha256": "c1fbca216dc8bd1076678272fa417c927de444121c2fe25feced24b960f6c612"
     },
     {
       "id": "marku_rutube",
       "kind": "app",
       "title": "RUTUBE",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "description": "RUTUBE: тестовый выпуск для MGU, поиск и видео напрямую, вход с телефона.",
       "artifact": {
-        "name": "marku_rutube@0.1.6.tgz",
-        "size": 1276978,
-        "sha256": "1c8ef9b9ebc14a2f07d6d9c8e7a2c60c03d266ab3004f331942ee256652efd5f",
-        "url": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r2/marku_rutube@0.1.6.tgz"
+        "name": "marku_rutube@0.1.7.tgz",
+        "size": 1301605,
+        "sha256": "ba4b6d0f548611f2ba6016f43d8ae6b4d5cb14dcf6a094522f56d776ac8b985c",
+        "url": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r3/marku_rutube@0.1.7.tgz"
       },
       "requires": {
         "jap-ridetube-d": "0.4.5",
@@ -93,7 +93,7 @@
         "ID7"
       ],
       "uninstallable": true,
-      "icon": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r2/marku_rutube@0.1.6.png",
+      "icon": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r3/marku_rutube@0.1.7.png",
       "iconSha256": "7fd5f5e022633b7f66cef1a57fc40b248b3346a3f5bc29fefb75c41cb41b85ac"
     },
     {
@@ -114,7 +114,7 @@
         "name": "jap-ridetube-d@0.4.5.tgz",
         "size": 10664961,
         "sha256": "8a2256f16c89adefb2f8361fc43a43a641f62dc679a418b283f1cae99980bb7f",
-        "url": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r2/jap-ridetube-d@0.4.5.tgz"
+        "url": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r3/jap-ridetube-d@0.4.5.tgz"
       },
       "uninstallable": true,
       "mguHmi": [
