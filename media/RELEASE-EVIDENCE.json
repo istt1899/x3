@@ -3,9 +3,9 @@
   "date": "2026-11-08",
   "repo": "istt1899/x3",
   "channel": "catalog",
-  "package_release": "media-preview-0.4.5-r2",
+  "package_release": "media-preview-0.4.5-r3",
   "service_version": "0.4.5",
-  "apps_version": "0.1.6",
+  "apps_version": "0.1.7",
   "youtube_version": "0.3.16",
   "source_commit": "ad44500dc9de08cfd794ab68638d43f8f97e384d",
   "preserved": {
@@ -15,7 +15,7 @@
     {
       "name": "catalog.json",
       "size": 5522,
-      "sha256": "b76e64e03856f92817d1b8528806ab09cd13a3b75aca7b509b7f9320317bfc6c"
+      "sha256": "1a0398e2a03183214410b1a955ce9d8d030ead3bc866cb025e0ad700bce3d535"
     },
     {
       "name": "ffmpeg-9.0.2-mgu-media-sources.tar.xz",
@@ -33,24 +33,24 @@
       "sha256": "e675486d4d8bd7dcd38ddcd8158843237460fe0e29cae0d1c5edf97ade20c4c6"
     },
     {
-      "name": "marku_rutube@0.1.6.png",
+      "name": "marku_rutube@0.1.7.png",
       "size": 1662,
       "sha256": "7fd5f5e022633b7f66cef1a57fc40b248b3346a3f5bc29fefb75c41cb41b85ac"
     },
     {
-      "name": "marku_rutube@0.1.6.tgz",
-      "size": 1276978,
-      "sha256": "1c8ef9b9ebc14a2f07d6d9c8e7a2c60c03d266ab3004f331942ee256652efd5f"
+      "name": "marku_rutube@0.1.7.tgz",
+      "size": 1301605,
+      "sha256": "ba4b6d0f548611f2ba6016f43d8ae6b4d5cb14dcf6a094522f56d776ac8b985c"
     },
     {
-      "name": "marku_vk_video@0.1.6.png",
+      "name": "marku_vk_video@0.1.7.png",
       "size": 1920,
       "sha256": "c1fbca216dc8bd1076678272fa417c927de444121c2fe25feced24b960f6c612"
     },
     {
-      "name": "marku_vk_video@0.1.6.tgz",
-      "size": 1277456,
-      "sha256": "133df3be604a938b6ca271f90b400ab317a1f5d91f34ed729c96afe0bb5f7ef3"
+      "name": "marku_vk_video@0.1.7.tgz",
+      "size": 1301945,
+      "sha256": "96afe8078acd3f86daaa5551a04f8b02baa2eb12882cd13aa43f79210279ee77"
     }
   ],
   "checks": {
