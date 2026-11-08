@@ -38,8 +38,14 @@ mgu.run({
     async start(ctx) {
         const { ui, settings, log } = ctx;
         const parked = Parked.watch(ctx, log, { strict: true });
-        // Fail closed: no speed, stale speed or moving means audio-only.
-        const noVideo = () => parked.moving();
+        // the drive lock: Video while driving counts only once switched on while parked, so a press while moving
+        // cannot bring the picture up; switching it off works at once (same latch as the YouTube app)
+        let videoDrivingOk = false;
+        const noVideo = () => {
+            const on = settings.get('video_driving') === true, moving = parked.moving();
+            videoDrivingOk = moving ? videoDrivingOk && on : on;
+            return moving && !videoDrivingOk;
+        };
 
         /* ---------- the daemon ---------- */
         const ctl = new Ctl(SOCKET, log);

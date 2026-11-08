@@ -10,8 +10,10 @@ const { attachNetwork } = require('./network-view');
 
 const source = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
 async function app(own) {
-    const sent = [], clicks = {}, labels = {}, opened = [], targets = {}, words = [], hidden = [];
+    const sent = [], clicks = {}, labels = {}, opened = [], targets = {}, words = [], hidden = [], wants = [];
     let start, render, model;
+    let moving = false;
+    const settingsMap = {};
     class Ctl extends Events {
         send(message) { sent.push(message); return true; }
         connect() {}
@@ -25,7 +27,7 @@ async function app(own) {
             model = this;
         }
         active() { return ['preparing', 'playing', 'paused'].indexOf(this.state) >= 0; }
-        feed() {} setDisplayTarget() {} setWantVideo() {}
+        feed() {} setDisplayTarget() {} setWantVideo(v) { wants.push(!!v); }
         checkSearch() {} checkFeeds() {} checkAuth() {}
         item() { return null; }
     }
@@ -38,7 +40,7 @@ async function app(own) {
         './kit/qr': { encode() { return []; }, draw() {} },
         './kit/record': { setImage() {} },
         './kit/display': { HMI: { left: 120 } },
-        './kit/parked': { watch() { return { moving() { return false; } }; } },
+        './kit/parked': { watch() { return { moving() { return moving; } }; } },
         './yt': { Ctl, Model, SOCKET: 'test', FEEDS: ['home'], SHELF_MAX: 12, clock() { return '0:00'; } },
         './speller': { spell() { return Promise.resolve(''); } },
     };
@@ -64,14 +66,15 @@ async function app(own) {
     };
     await start({
         ui, spec: { id: 'marku_vk_video' }, dataDir: os.tmpdir(),
-        settings: { get() { return undefined; } },
+        settings: { get(key) { return settingsMap[key]; } },
         log: { info() {}, warn() {}, error(e) { throw e; } },
         signals: { watch() {} },
         canvas, theme() { return {}; },
         hideButton: (id) => hidden.push(id),
         loop: (name, fps, fn) => { assert.strictEqual(name, 'VIEW'); render = fn; },
     });
-    return { sent, clicks, labels, opened, targets, words, hidden, model, render };
+    return { sent, clicks, labels, opened, targets, words, hidden, model, render, wants, settingsMap,
+        setMoving: (v) => { moving = v; } };
 }
 
 (async () => {
@@ -105,5 +108,57 @@ async function app(own) {
     native.targets['rail:network']();
     assert.deepStrictEqual(native.sent[native.sent.length - 1], { cmd: 'network_status' });
     assert.strictEqual(native.opened.pop(), 'NETWORK');
-    console.log('ok: fallback HMI and own rail open NETWORK; preparing and buffering appear in the UI');
+
+    /* ---- the drive-lock latch (specs/video-driving-20261108 AC-001..007): gate decisions via setWantVideo ---- */
+    async function driveLock() {
+        const a = await app(false);
+        a.model.state = 'playing';
+        const gate = () => { a.clicks.BTN_NOW(); return a.wants[a.wants.length - 1]; };
+        // AC-001: parked + setting on -> video
+        a.settingsMap.video_driving = true;
+        assert.strictEqual(gate(), true, 'AC-001 parked + on shows video');
+        // AC-002: moving, armed while parked -> video stays
+        a.setMoving(true);
+        assert.strictEqual(gate(), true, 'AC-002 moving + armed keeps video');
+        // AC-005: switched off while moving -> off at the next tick
+        a.settingsMap.video_driving = false;
+        assert.strictEqual(gate(), false, 'AC-005 off while moving hides video');
+        // AC-004: switched on while moving -> does not arm
+        a.settingsMap.video_driving = true;
+        assert.strictEqual(gate(), false, 'AC-004 on while moving does not arm');
+        // back to parked: the setting arms again
+        a.setMoving(false);
+        assert.strictEqual(gate(), true, 're-armed once parked');
+
+        // AC-003: a fresh app whose first gate decision happens while moving never arms
+        const b = await app(false);
+        b.model.state = 'playing';
+        b.settingsMap.video_driving = true;
+        b.setMoving(true);
+        b.clicks.BTN_NOW();
+        assert.strictEqual(b.wants[b.wants.length - 1], false, 'AC-003 never-armed while moving hides video');
+
+        // AC-006: armed, then speed goes stale/missing (strict: moving() reports true) -> picture stays, as in RideTube
+        const c = await app(false);
+        c.model.state = 'playing';
+        c.settingsMap.video_driving = true;
+        c.clicks.BTN_NOW();
+        c.setMoving(true);
+        assert.strictEqual(c.wants[c.wants.length - 1], true, 'AC-006 armed latch holds through a stale speed read');
+
+        // AC-007: cluster never gets video while moving; main does when armed
+        const d = await app(false);
+        d.model.state = 'playing';
+        d.settingsMap.video_driving = true;
+        d.settingsMap.display = 'cluster';
+        d.clicks.BTN_NOW();
+        d.setMoving(true);
+        d.clicks.BTN_NOW();
+        assert.strictEqual(d.wants[d.wants.length - 1], false, 'AC-007 cluster: never while moving');
+        d.settingsMap.display = 'main';
+        d.clicks.BTN_NOW();
+        assert.strictEqual(d.wants[d.wants.length - 1], true, 'AC-007 main: armed latch shows video');
+    }
+    await driveLock();
+    console.log('ok: fallback HMI and own rail open NETWORK; preparing and buffering appear in the UI; drive-lock latch matrix');
 })().catch((e) => { console.error(e); process.exitCode = 1; });

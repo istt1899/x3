@@ -13,9 +13,11 @@ authentication. RUTUBE's public home is a catalogue; VK starts with a search inv
 without presenting a keyword search as personal recommendations. Account setup/errors
 appear only in Account. A long VK OAuth URL is not replaced by a Google device URL.
 
-Safety is stricter than the optional legacy override: `Parked.watch(..., {strict:true})`
-is required and video is hidden whenever speed is unknown, stale, or moving. Audio
-and playback controls remain available. There is no video-while-driving switch.
+Safety is fail-closed by default, with the same optional latch as the YouTube app:
+`Parked.watch(..., {strict:true})` hides video whenever speed is unknown, stale, or moving,
+unless the "video_driving" setting was switched on while parked (arm-on-park only; switching
+it off while moving hides the picture at once). The instrument cluster never gets video while
+moving. Audio and playback controls remain available in every case.
 
 `build_apps.py` copies these shared UI sources into the two independent source apps.
 `--source-only` omits BMW SDK files entirely; the Store uses the car's own SDK.
