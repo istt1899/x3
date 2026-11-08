@@ -23,7 +23,12 @@
 На ПК проверена гостевая цепочка настоящего VK: поиск похожего матча, получение
 источника и первые данные CDN. Нормализатор получил пригодный аудиофрагмент
 за 2,78 с после своего запуска; это результат сети ПК, не замер на автомобиле.
-[Запись проверки](validation/live-vk-start-0.4.5.json).
+[Запись проверки](https://github.com/istt1899/x3/blob/main/media/validation/live-vk-start-0.4.5.json).
+
+Точный архив 0.4.5 прошёл штатный install check и MP4/TS remux с закреплённым
+FFmpeg на Linux. Проверки Python 3.12, Node 8, отрицательных ID, отказов и таймаутов
+прошли: [GitHub Actions](https://github.com/istt1899/x3/actions/runs/42480669734),
+[доказательство архива](https://github.com/istt1899/x3/blob/main/media/validation/linux-runtime-0.4.5.json).
 
 ## Обновление
 

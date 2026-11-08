@@ -1,0 +1,37 @@
+{
+  "service_url": "https://github.com/istt1899/x3/releases/download/media-preview-0.4.5-r2/jap-ridetube-d@0.4.5.tgz",
+  "service_size": 10664961,
+  "service_sha256": "8a2256f16c89adefb2f8361fc43a43a641f62dc679a418b283f1cae99980bb7f",
+  "ffmpeg_sha256": "f95ade609cc31a6808c0df683dc77a55937ad58ccb7822ac88d5627de7dca1ea",
+  "python": "3.12.3",
+  "linux_runtime_tested": true,
+  "mgu_runtime_tested": false,
+  "install_check_passed": true,
+  "remux": [
+    {
+      "input": "mp4",
+      "frames": 5,
+      "annex_b_bytes": 2691,
+      "last_video_ms": 800,
+      "audio_bytes": 9794,
+      "audio_ms": 1023
+    },
+    {
+      "input": "ts",
+      "frames": 5,
+      "annex_b_bytes": 2716,
+      "last_video_ms": 800,
+      "audio_bytes": 9864,
+      "audio_ms": 1044
+    }
+  ],
+  "environment": {
+    "network_interfaces": [
+      "lo"
+    ],
+    "kernel": "7.0.0-1017-azure",
+    "architecture": "x86_64",
+    "node": "v22.23.4"
+  },
+  "workflow_run": "https://github.com/istt1899/x3/actions/runs/42480669734"
+}

@@ -3,19 +3,19 @@
   "date": "2026-11-08",
   "repo": "istt1899/x3",
   "channel": "catalog",
-  "package_release": "media-preview-0.4.4",
-  "service_version": "0.4.4",
-  "apps_version": "0.1.5",
+  "package_release": "media-preview-0.4.5-r2",
+  "service_version": "0.4.5",
+  "apps_version": "0.1.6",
   "youtube_version": "0.3.16",
-  "source_commit": "df2745c65922d08d4ade3b79d01eebbb2ddb419c",
+  "source_commit": "ad44500dc9de08cfd794ab68638d43f8f97e384d",
   "preserved": {
     "coding": "0.2.0"
   },
   "artifacts": [
     {
       "name": "catalog.json",
-      "size": 5504,
-      "sha256": "703547831ef12e5d590c2dd872f7fd089b2a48090f6379a7f44432a7d9e3293b"
+      "size": 5522,
+      "sha256": "b76e64e03856f92817d1b8528806ab09cd13a3b75aca7b509b7f9320317bfc6c"
     },
     {
       "name": "ffmpeg-9.0.2-mgu-media-sources.tar.xz",
@@ -23,9 +23,9 @@
       "sha256": "6f164f34bdbec44d842e399815319969a0972fc534ec652cee4018ff61d23798"
     },
     {
-      "name": "jap-ridetube-d@0.4.4.tgz",
-      "size": 10662867,
-      "sha256": "13431cb9bb13241fb3f8d880d53dacd0645cc630bb6bb5d299dba2bd220a5c44"
+      "name": "jap-ridetube-d@0.4.5.tgz",
+      "size": 10664961,
+      "sha256": "8a2256f16c89adefb2f8361fc43a43a641f62dc679a418b283f1cae99980bb7f"
     },
     {
       "name": "jap_ridetube@0.3.16.tgz",
@@ -33,52 +33,58 @@
       "sha256": "e675486d4d8bd7dcd38ddcd8158843237460fe0e29cae0d1c5edf97ade20c4c6"
     },
     {
-      "name": "marku_rutube@0.1.5.png",
+      "name": "marku_rutube@0.1.6.png",
       "size": 1662,
       "sha256": "7fd5f5e022633b7f66cef1a57fc40b248b3346a3f5bc29fefb75c41cb41b85ac"
     },
     {
-      "name": "marku_rutube@0.1.5.tgz",
-      "size": 1276911,
-      "sha256": "aa2601139ed1497c899a962c3228be888164f9d5c22c9e187db2eab327fb5688"
+      "name": "marku_rutube@0.1.6.tgz",
+      "size": 1276978,
+      "sha256": "1c8ef9b9ebc14a2f07d6d9c8e7a2c60c03d266ab3004f331942ee256652efd5f"
     },
     {
-      "name": "marku_vk_video@0.1.5.png",
+      "name": "marku_vk_video@0.1.6.png",
       "size": 1920,
       "sha256": "c1fbca216dc8bd1076678272fa417c927de444121c2fe25feced24b960f6c612"
     },
     {
-      "name": "marku_vk_video@0.1.5.tgz",
-      "size": 1277386,
-      "sha256": "8a7a44875a63bc7c2f34b7627cc2eec40b3011ee59ec05d2818171d80d938777"
+      "name": "marku_vk_video@0.1.6.tgz",
+      "size": 1277456,
+      "sha256": "133df3be604a938b6ca271f90b400ab317a1f5d91f34ed729c96afe0bb5f7ef3"
     }
   ],
   "checks": {
     "slow_120s_faststart_mp4_and_mpegts": true,
-    "mediafetch_tests": 10,
+    "mediafetch_tests": 14,
     "audio_prefix_boundaries_and_delayed_commands": true,
     "node8_network_and_navigation": true,
     "legacy_daemon_unix_socket": true,
     "provider_gateway_isolation": true,
-    "package_hashes_and_source_freshness": true
+    "package_hashes_and_source_freshness": true,
+    "python312_mixed_helper_arguments": true,
+    "real_subprocess_negative_vk_id": true,
+    "resolve_error_state_and_deadline": true,
+    "silent_downloader_termination_and_safe_http_errors": true,
+    "live_public_vk_start": "validation/live-vk-start-0.4.5.json"
   },
   "runtime": {
     "linux_elf_executed": true,
-    "exact_package_evidence": "validation/linux-runtime-0.4.4.json",
-    "workflow_run": "https://github.com/istt1899/x3/actions/runs/42476696215",
+    "exact_package_evidence": "validation/linux-runtime-0.4.5.json",
+    "workflow_run": "https://github.com/istt1899/x3/actions/runs/42480669734",
     "mgu_runtime_tested": false
   },
   "not_verified": {
     "mgu_playback": true,
     "audible_prefix_transition": true,
-    "native_bmw_internet": true
+    "native_bmw_internet": true,
+    "owner_private_vk_video": true
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "703547831ef12e5d590c2dd872f7fd089b2a48090f6379a7f44432a7d9e3293b"
+      "sha256": "b76e64e03856f92817d1b8528806ab09cd13a3b75aca7b509b7f9320317bfc6c"
     },
     "istt1899/ridetube": {
-      "sha256": "0297fa42228d5d18124957b441a9777e82e99e41dad0341eb31d19b4a134bfca"
+      "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
     }
   }
 }
