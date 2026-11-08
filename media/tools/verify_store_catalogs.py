@@ -5,6 +5,8 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import time
+import urllib.error
 import urllib.request
 
 MEDIA = Path(__file__).resolve().parents[1]
@@ -16,9 +18,20 @@ VERSIONS = {'marku_vk_video': '0.1.5', 'marku_rutube': '0.1.5',
 def download(url, limit):
     if not url.startswith('https://github.com/istt1899/'):
         raise ValueError('Unexpected published artifact URL')
-    request = urllib.request.Request(url, headers={'User-Agent': 'MGU-public-catalog-verification'})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        data = response.read(limit + 1)
+    request = urllib.request.Request(url, headers={'User-Agent': 'MGU-public-catalog-verification',
+                                                 'Accept': 'application/octet-stream'})
+    print('downloading ' + url, file=sys.stderr, flush=True)
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                data = response.read(limit + 1)
+            break
+        except (TimeoutError, urllib.error.URLError) as error:
+            if isinstance(error, urllib.error.HTTPError) and error.code < 500:
+                raise
+            if attempt == 2:
+                raise
+            time.sleep(1)
     if len(data) > limit:
         raise ValueError('Download exceeds its size bound')
     return data
