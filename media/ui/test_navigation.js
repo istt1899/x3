@@ -13,6 +13,7 @@ async function app(own) {
     const sent = [], clicks = {}, labels = {}, opened = [], targets = {}, words = [], hidden = [], wants = [];
     let start, render, model;
     let moving = false;
+    let speedValue = null;   // null: this head unit never delivered a speed read
     const settingsMap = {};
     class Ctl extends Events {
         send(message) { sent.push(message); return true; }
@@ -40,7 +41,7 @@ async function app(own) {
         './kit/qr': { encode() { return []; }, draw() {} },
         './kit/record': { setImage() {} },
         './kit/display': { HMI: { left: 120 } },
-        './kit/parked': { watch() { return { moving() { return moving; } }; } },
+        './kit/parked': { watch() { return { moving() { return moving; }, speed() { return speedValue; } }; } },
         './yt': { Ctl, Model, SOCKET: 'test', FEEDS: ['home'], SHELF_MAX: 12, clock() { return '0:00'; } },
         './speller': { spell() { return Promise.resolve(''); } },
     };
@@ -74,7 +75,7 @@ async function app(own) {
         loop: (name, fps, fn) => { assert.strictEqual(name, 'VIEW'); render = fn; },
     });
     return { sent, clicks, labels, opened, targets, words, hidden, model, render, wants, settingsMap,
-        setMoving: (v) => { moving = v; } };
+        setMoving: (v) => { moving = v; }, setSpeed: (v) => { speedValue = v; } };
 }
 
 (async () => {
@@ -115,9 +116,11 @@ async function app(own) {
         a.model.state = 'playing';
         const gate = () => { a.clicks.BTN_NOW(); return a.wants[a.wants.length - 1]; };
         // AC-001: parked + setting on -> video
+        a.setSpeed(0);
         a.settingsMap.video_driving = true;
         assert.strictEqual(gate(), true, 'AC-001 parked + on shows video');
-        // AC-002: moving, armed while parked -> video stays
+        // AC-002: moving with a working speed signal, armed while parked -> video stays
+        a.setSpeed(50);
         a.setMoving(true);
         assert.strictEqual(gate(), true, 'AC-002 moving + armed keeps video');
         // AC-005: switched off while moving -> off at the next tick
@@ -127,6 +130,7 @@ async function app(own) {
         a.settingsMap.video_driving = true;
         assert.strictEqual(gate(), false, 'AC-004 on while moving does not arm');
         // back to parked: the setting arms again
+        a.setSpeed(0);
         a.setMoving(false);
         assert.strictEqual(gate(), true, 're-armed once parked');
 
@@ -134,13 +138,15 @@ async function app(own) {
         const b = await app(false);
         b.model.state = 'playing';
         b.settingsMap.video_driving = true;
+        b.setSpeed(50);
         b.setMoving(true);
         b.clicks.BTN_NOW();
         assert.strictEqual(b.wants[b.wants.length - 1], false, 'AC-003 never-armed while moving hides video');
 
-        // AC-006: armed, then speed goes stale/missing (strict: moving() reports true) -> picture stays, as in RideTube
+        // AC-006: armed, then speed goes stale (strict: moving() reports true, last read kept) -> picture stays, as in RideTube
         const c = await app(false);
         c.model.state = 'playing';
+        c.setSpeed(0);
         c.settingsMap.video_driving = true;
         c.clicks.BTN_NOW();
         c.setMoving(true);
@@ -151,13 +157,32 @@ async function app(own) {
         d.model.state = 'playing';
         d.settingsMap.video_driving = true;
         d.settingsMap.display = 'cluster';
+        d.setSpeed(0);
         d.clicks.BTN_NOW();
+        d.setSpeed(50);
         d.setMoving(true);
         d.clicks.BTN_NOW();
         assert.strictEqual(d.wants[d.wants.length - 1], false, 'AC-007 cluster: never while moving');
         d.settingsMap.display = 'main';
         d.clicks.BTN_NOW();
         assert.strictEqual(d.wants[d.wants.length - 1], true, 'AC-007 main: armed latch shows video');
+
+        // AC-008 (0.1.8): armed, and this head unit never delivered a speed signal -> treated as parked
+        const e = await app(false);
+        e.model.state = 'playing';
+        e.settingsMap.video_driving = true;
+        e.setMoving(true);       // strict would report moving: no speed was ever read
+        e.setSpeed(null);
+        e.clicks.BTN_NOW();
+        assert.strictEqual(e.wants[e.wants.length - 1], true, 'AC-008 armed + no speed signal: video allowed');
+
+        // AC-009: unarmed + no speed signal -> fail closed, as before
+        const f = await app(false);
+        f.model.state = 'playing';
+        f.setMoving(true);
+        f.setSpeed(null);
+        f.clicks.BTN_NOW();
+        assert.strictEqual(f.wants[f.wants.length - 1], false, 'AC-009 unarmed + no speed signal: no video');
     }
     await driveLock();
     console.log('ok: fallback HMI and own rail open NETWORK; preparing and buffering appear in the UI; drive-lock latch matrix');

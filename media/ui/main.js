@@ -42,7 +42,10 @@ mgu.run({
         // cannot bring the picture up; switching it off works at once (same latch as the YouTube app)
         let videoDrivingOk = false;
         const noVideo = () => {
-            const on = settings.get('video_driving') === true, moving = parked.moving();
+            const on = settings.get('video_driving') === true;
+            let moving = parked.moving();
+            // armed and this head unit never delivers a speed signal: treat it as parked (explicit owner choice)
+            if (on && parked.speed() === null) moving = false;
             videoDrivingOk = moving ? videoDrivingOk && on : on;
             return moving && !videoDrivingOk;
         };
