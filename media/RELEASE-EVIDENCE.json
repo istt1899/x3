@@ -15,7 +15,7 @@
     {
       "name": "catalog.json",
       "size": 31560,
-      "sha256": "71d5232dd3eb7dea630ecb5d74dd07d160dce1bf1713038b4fcd3eaa95d055f5"
+      "sha256": "3fb01ad8101636f4b6239a2e85f16720bcb5feb8d5a7504c7ebb0fbd3a8da39c"
     },
     {
       "name": "ffmpeg-9.0.2-mgu-media-sources.tar.xz",
@@ -81,16 +81,16 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "71d5232dd3eb7dea630ecb5d74dd07d160dce1bf1713038b4fcd3eaa95d055f5"
+      "sha256": "3fb01ad8101636f4b6239a2e85f16720bcb5feb8d5a7504c7ebb0fbd3a8da39c"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
     }
   },
   "catalog_update": {
-    "date": "2026-11-09",
-    "reason": "Update Waze Strelka app and service to0.8.0 in the sole configured x3 Store source",
-    "previous_sha256": "dd6f848e58be1624ef19174d7bb39d5793976f7773fbf666b9fb05dfcf36acfd",
+    "date": "2026-11-10",
+    "reason": "Update Waze Strelka app and service to 0.8.1 with X6 preview and renderer diagnostics in the sole configured x3 Store source",
+    "previous_sha256": "71d5232dd3eb7dea630ecb5d74dd07d160dce1bf1713038b4fcd3eaa95d055f5",
     "preserved_components": {
       "marku_x3_coding": "0.2.0",
       "jap_ridetube": "0.3.16",
@@ -102,8 +102,8 @@
       "waze-on-cluster": "0.9.0"
     },
     "updated_components": {
-      "marku-kaluga-cameras": "0.8.0",
-      "marku_kaluga_cameras": "0.8.0"
+      "marku-kaluga-cameras": "0.8.1",
+      "marku_kaluga_cameras": "0.8.1"
     }
   }
 }
