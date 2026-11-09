@@ -1,15 +1,21 @@
 {
   "schema": 1,
   "sourceRepository": "istt1899/bmw-kaluga-cameras",
-  "sourceCommit": "e2c48762465a022af221c2de3c74ec1f9e831e03",
-  "version": "0.7.0",
+  "sourceCommit": "c3ce3e72c1b45c26f6af19fdc703f94631996d7b",
+  "sourceRepositoryMeaning": "historical provenance only; all future publication is istt1899/x3",
+  "version": "0.8.0",
   "importedInto": "istt1899/x3",
   "sourceDirectory": "waze-strelka",
   "packages": [
     {
-      "name": "marku-kaluga-cameras@0.7.0.tgz",
-      "size": 571792,
-      "sha256": "6803b036d111048ff32ab2cba7fa40eff3a6105d80b1cc520feee7f626fa51f5"
+      "name": "marku_kaluga_cameras@0.8.0.tgz",
+      "size": 135310,
+      "sha256": "cc5f3b4d3f5910fe9be58a5c9b7382925e053cde20591e82c730dad2192fd759"
+    },
+    {
+      "name": "marku-kaluga-cameras@0.8.0.tgz",
+      "size": 572715,
+      "sha256": "e82b77e280ab62e8f5f0b844744569521fd0aa46874462d37c2e0a83a72bdb06"
     },
     {
       "name": "marku_kaluga_cameras.png",
@@ -17,21 +23,24 @@
       "sha256": "6afaa3655ab866b5f969685340d26b8774f1f72c32e30de275623119999b0dfd"
     },
     {
-      "name": "marku_kaluga_cameras@0.7.0.tgz",
-      "size": 130836,
-      "sha256": "ef42d79938839f459be43f80aee54f4c5019efdf752498a59ed498b7e022bb18"
-    },
-    {
-      "name": "Waze-Strelka-0.7.0-USB.zip",
-      "size": 704432,
-      "sha256": "c5a66d850aed45e117bd996a72f9d3c9cbb7723f78050777abf7e73a318b0657"
+      "name": "Waze-Strelka-0.8.0-USB.zip",
+      "size": 709087,
+      "sha256": "20c5755e6dc6fed046d0797d51937466999019b5151ff58540d2faccdb38d7e9"
     }
   ],
   "onCarVerified": false,
   "integrationAdjustments": [
     {
       "path": "data/quality/regional-coverage-2026-11-08.json",
-      "reason": "Rebound the official normalized JSON input byte count and SHA-256 to the committed LF bytes; coverage, source facts, runtime data and package bytes are unchanged."
+      "reason": "Preserve the existing x3 LF-bound source evidence; camera data and runtime package bytes remain unchanged."
+    },
+    {
+      "path": "tools/release-downloads.js",
+      "reason": "Host-only immutable mirror owner is now x3; legacy standalone preparation is disabled."
+    },
+    {
+      "path": "native/marku-kaluga-cameras/files/database-store.js",
+      "reason": "Existing embedded read-only database channel is unchanged for byte-identical0.8.0; it is not a Store publication target."
     }
   ]
 }

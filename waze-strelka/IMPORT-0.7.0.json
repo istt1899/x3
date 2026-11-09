@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "sourceRepository": "istt1899/bmw-kaluga-cameras",
+  "sourceCommit": "e2c48762465a022af221c2de3c74ec1f9e831e03",
+  "version": "0.7.0",
+  "importedInto": "istt1899/x3",
+  "sourceDirectory": "waze-strelka",
+  "packages": [
+    {
+      "name": "marku-kaluga-cameras@0.7.0.tgz",
+      "size": 571792,
+      "sha256": "6803b036d111048ff32ab2cba7fa40eff3a6105d80b1cc520feee7f626fa51f5"
+    },
+    {
+      "name": "marku_kaluga_cameras.png",
+      "size": 5118,
+      "sha256": "6afaa3655ab866b5f969685340d26b8774f1f72c32e30de275623119999b0dfd"
+    },
+    {
+      "name": "marku_kaluga_cameras@0.7.0.tgz",
+      "size": 130836,
+      "sha256": "ef42d79938839f459be43f80aee54f4c5019efdf752498a59ed498b7e022bb18"
+    },
+    {
+      "name": "Waze-Strelka-0.7.0-USB.zip",
+      "size": 704432,
+      "sha256": "c5a66d850aed45e117bd996a72f9d3c9cbb7723f78050777abf7e73a318b0657"
+    }
+  ],
+  "onCarVerified": false,
+  "integrationAdjustments": [
+    {
+      "path": "data/quality/regional-coverage-2026-11-08.json",
+      "reason": "Rebound the official normalized JSON input byte count and SHA-256 to the committed LF bytes; coverage, source facts, runtime data and package bytes are unchanged."
+    }
+  ]
+}

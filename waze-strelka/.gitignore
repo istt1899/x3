@@ -4,6 +4,3 @@ node_modules/
 *.osm.pbf
 .env
 .env.*
-__pycache__/
-*.pyc
-source-check-output/

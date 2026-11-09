@@ -8,7 +8,7 @@ function create(table) {
         if (!entry || allowed.indexOf(entry.id) < 0 || !/^\d+\.\d+\.\d+$/.test(entry.version) ||
             typeof entry.name !== 'string' || !/^[A-Za-z0-9_@.\-]+$/.test(entry.name) ||
             !Number.isSafeInteger(entry.size) || entry.size <= 0 || !/^[a-f0-9]{64}$/.test(entry.sha256)) throw Error('Invalid mirror identity');
-        const prefix = 'https://raw.githubusercontent.com/istt1899/bmw-kaluga-cameras/';
+        const prefix = 'https://raw.githubusercontent.com/istt1899/x3/';
         const path = typeof entry.url === 'string' && entry.url.indexOf(prefix) === 0 ? entry.url.slice(prefix.length) : '';
         if (!/^[a-f0-9]{40}\//.test(path) || path.slice(41) !== encodeURIComponent(entry.name)) throw Error('Mirror needs an owner-bound immutable commit URL');
         const key = entry.id+'@'+entry.version;

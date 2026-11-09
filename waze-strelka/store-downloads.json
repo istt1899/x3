@@ -3,27 +3,27 @@
   "entries": [
     {
       "id": "marku_kaluga_cameras",
-      "version": "0.7.0",
-      "name": "marku_kaluga_cameras@0.7.0.tgz",
-      "size": 130836,
-      "sha256": "ef42d79938839f459be43f80aee54f4c5019efdf752498a59ed498b7e022bb18",
-      "url": "https://raw.githubusercontent.com/istt1899/bmw-kaluga-cameras/64520258d0828946c18d8efb71115be8b430b8a6/marku_kaluga_cameras%400.7.0.tgz"
-    },
-    {
-      "id": "marku-kaluga-cameras",
-      "version": "0.7.0",
-      "name": "marku-kaluga-cameras@0.7.0.tgz",
-      "size": 571792,
-      "sha256": "6803b036d111048ff32ab2cba7fa40eff3a6105d80b1cc520feee7f626fa51f5",
-      "url": "https://raw.githubusercontent.com/istt1899/bmw-kaluga-cameras/64520258d0828946c18d8efb71115be8b430b8a6/marku-kaluga-cameras%400.7.0.tgz"
+      "version": "0.8.0",
+      "name": "marku_kaluga_cameras@0.8.0.tgz",
+      "size": 135310,
+      "sha256": "cc5f3b4d3f5910fe9be58a5c9b7382925e053cde20591e82c730dad2192fd759",
+      "url": "https://raw.githubusercontent.com/istt1899/x3/16e7d750a9e6545b9e62178ffb83cfc62a548423/marku_kaluga_cameras%400.8.0.tgz"
     },
     {
       "id": "marku_kaluga_cameras-icon",
-      "version": "0.7.0",
+      "version": "0.8.0",
       "name": "marku_kaluga_cameras.png",
       "size": 5118,
       "sha256": "6afaa3655ab866b5f969685340d26b8774f1f72c32e30de275623119999b0dfd",
-      "url": "https://raw.githubusercontent.com/istt1899/bmw-kaluga-cameras/64520258d0828946c18d8efb71115be8b430b8a6/marku_kaluga_cameras.png"
+      "url": "https://raw.githubusercontent.com/istt1899/x3/16e7d750a9e6545b9e62178ffb83cfc62a548423/marku_kaluga_cameras.png"
+    },
+    {
+      "id": "marku-kaluga-cameras",
+      "version": "0.8.0",
+      "name": "marku-kaluga-cameras@0.8.0.tgz",
+      "size": 572715,
+      "sha256": "e82b77e280ab62e8f5f0b844744569521fd0aa46874462d37c2e0a83a72bdb06",
+      "url": "https://raw.githubusercontent.com/istt1899/x3/16e7d750a9e6545b9e62178ffb83cfc62a548423/marku-kaluga-cameras%400.8.0.tgz"
     }
   ]
 }
