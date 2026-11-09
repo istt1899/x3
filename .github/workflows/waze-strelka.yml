@@ -1,0 +1,45 @@
+name: Waze Strelka in shared Store
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/waze-strelka.yml
+      - waze-strelka/**
+      - tools/verify_waze_strelka.py
+      - catalog.json
+      - media/RELEASE-EVIDENCE.json
+
+permissions:
+  contents: read
+
+jobs:
+  source-and-packages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.22.2'
+      - name: Build and test the imported release
+        working-directory: waze-strelka
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+          npm test
+          npm run test:packages
+      - name: Verify shared catalog and package reproducibility
+        run: python3 tools/verify_waze_strelka.py
+  public-downloads:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Check anonymous Store downloads
+        run: python3 tools/verify_waze_strelka.py --public

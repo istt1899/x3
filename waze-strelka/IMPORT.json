@@ -27,5 +27,11 @@
       "sha256": "c5a66d850aed45e117bd996a72f9d3c9cbb7723f78050777abf7e73a318b0657"
     }
   ],
-  "onCarVerified": false
+  "onCarVerified": false,
+  "integrationAdjustments": [
+    {
+      "path": "data/quality/regional-coverage-2026-11-08.json",
+      "reason": "Rebound the official normalized JSON input byte count and SHA-256 to the committed LF bytes; coverage, source facts, runtime data and package bytes are unchanged."
+    }
+  ]
 }

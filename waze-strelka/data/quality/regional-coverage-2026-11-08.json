@@ -20,8 +20,8 @@
     },
     "official": {
       "path": "data/references/gibdd-kaluga-2026-10-01.json",
-      "sha256": "3d70e9fbb1cb57657c5f646c680ef4dbd0c20d685cccef2a663d21327864915b",
-      "bytes": 621254
+      "sha256": "b4a31da963211d7d5bb16deeab9014c100f584e44e71a8641dfa4e92fedb50a7",
+      "bytes": 608485
     },
     "quality": {
       "path": "native/marku-kaluga-cameras/files/official-camera-quality.json",
