@@ -24,7 +24,10 @@ def digest(data):
 
 def download(url, limit):
     require(url.startswith('https://'), 'HTTPS required')
-    request = urllib.request.Request(url, headers={'User-Agent': 'mgu-updater/0.8.18'})
+    # Match sources.js/raw() in the actual MGU Updater. A request without its
+    # Accept header can hit a different, stale cached catalog representation.
+    request = urllib.request.Request(url, headers={'User-Agent': 'mgu-updater/0.8.18',
+                                                 'Accept': 'application/octet-stream'})
     with urllib.request.urlopen(request, timeout=30) as response:
         data = response.read(limit + 1)
     require(len(data) <= limit, 'Download exceeds size bound')

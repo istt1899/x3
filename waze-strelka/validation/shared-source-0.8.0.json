@@ -1,0 +1,42 @@
+{
+  "repository": "istt1899/x3",
+  "version": "0.8.0",
+  "published": true,
+  "catalogSha256": "71d5232dd3eb7dea630ecb5d74dd07d160dce1bf1713038b4fcd3eaa95d055f5",
+  "catalogBytes": 31560,
+  "artifactCommit": "16e7d750a9e6545b9e62178ffb83cfc62a548423",
+  "artifacts": {
+    "marku_kaluga_cameras@0.8.0.tgz": "cc5f3b4d3f5910fe9be58a5c9b7382925e053cde20591e82c730dad2192fd759",
+    "marku-kaluga-cameras@0.8.0.tgz": "e82b77e280ab62e8f5f0b844744569521fd0aa46874462d37c2e0a83a72bdb06"
+  },
+  "preservedComponents": {
+    "marku_x3_coding": "0.2.0",
+    "jap_ridetube": "0.3.16",
+    "marku_vk_video": "0.1.8",
+    "marku_rutube": "0.1.8",
+    "jap-ridetube-d": "0.4.5",
+    "jap-node22": "22.23.4",
+    "cluster-render": "0.4.0",
+    "waze-on-cluster": "0.9.0"
+  },
+  "checks": {
+    "localNpmTest": "pass",
+    "rebuiltExactArtifactsAndUpstreamValidators": "pass",
+    "actualUnmodifiedUpdater01818ReaderAndNode8Fetch": "pass",
+    "actualReaderRepository": "istt1899/x3",
+    "actualReaderAppAndServiceVersion": "0.8.0",
+    "actualReaderRetries": 0,
+    "publicCatalogMainCatalogFourRequiredArtifactsAndIcon": "pass",
+    "linuxSourceBuildTestsAndPackages": "pass",
+    "anonymousCloudDownloads": "pass"
+  },
+  "workflows": [
+    "https://github.com/istt1899/x3/actions/runs/42607160712",
+    "https://github.com/istt1899/x3/actions/runs/42607160730"
+  ],
+  "httpVerificationNote": "A local Python request without Accept received a stale0.7.0 cached representation. Verification now uses the actual Updater Accept: application/octet-stream header; unmodified actual reader and cloud checks returned0.8.0.",
+  "futurePublicationRepository": "istt1899/x3",
+  "embeddedReadOnlyDatabaseChannelMigrated": false,
+  "physicalCarInstallationPerformed": false,
+  "onCarVerified": false
+}
