@@ -74,7 +74,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.8.0', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.8.1', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -85,7 +85,7 @@ function start(options) {
     commandResult: null, actions: {}, databaseUpdate: { phase: 'idle', busy: false }, nearestCandidates: [],
     hudDimming: 'unavailable', capabilities: { outputs: false, update: false, hudOpacity: false, displayTest: false, alertPreferences: true, overspeedPreferences: true, gpsReset: false },
     rendererDetails: {}, displayTest: { active: false, pinned: false, target: null, calibration: false, untilMs: 0 },
-    gps: 'Ожидание моста GPS BMW', gpsFix: null, clock: clockSnapshot(Date.now(), null),
+    gps: 'Ожидание моста GPS BMW', gpsFix: null, gpsMotion: { state:'unknown', conflict:false, roadMismatch:false, sources:[] }, clock: clockSnapshot(Date.now(), null),
     gpsBridge: { state: 'stopped', errorCode: null, ageMs: null },
     gpsInput: { source: 'bmw-nmea', packets: 0, badPackets: 0, checksumErrors: 0, sentences: { RMC: 0, GGA: 0, GST: 0 }, lastPacketAgeMs: null, fixUtcAgeMs: null },
     database: { state: 'error', source: 'OpenStreetMap', count: 0, error: null },
@@ -137,6 +137,12 @@ function start(options) {
     port: Number(process.env.KALUGA_GPSD_PORT) || 2947, nmeaHost: process.env.KALUGA_NMEA_HOST || '127.0.0.1',
     nmeaPort: process.env.KALUGA_NMEA_PORT === '0' ? 0 : Number(process.env.KALUGA_NMEA_PORT) || 5001 });
   state.capabilities.gpsReset = typeof gps.resetEpoch === 'function';
+  function motionFixes(now) {
+    if (typeof gps.motionFixes !== 'function') return null; // older injected GPS providers
+    try { return gps.motionFixes(now); }
+    catch (e) { state.error = 'GPS motion: ' + e.message; return []; }
+  }
+  function actionsAt(now, fix) { return actionPolicy.policies(state, fix, now, motionFixes(now)); }
   function requestToken(msg) {
     return msg && typeof msg.requestId === 'string' && /^[A-Za-z0-9._:-]{1,96}$/.test(msg.requestId) ? msg.requestId : null;
   }
@@ -220,7 +226,7 @@ function start(options) {
     // Read the current renderer session before moving; the periodic snapshot
     // may predate a socket disconnect or a changed runtime canvas.
     tick();
-    var policy = actionPolicy.policies(state, gps.current(Date.now()), Date.now()).cardMove;
+    var now = Date.now(), policy = actionsAt(now, gps.current(now)).cardMove;
     if (!policy.allowed) throw new Error(policy.reason);
     if (state.displayTest.target && state.displayTest.target !== target) throw new Error('Включите тест того экрана, который перемещаете');
     var detail = state.rendererDetails[target], layout = detail && detail.layout, canvas = layout && layout.canvas, card = layout && layout.card;
@@ -240,14 +246,17 @@ function start(options) {
   }
   function tick() {
     if(closed)return;
-    var now = Date.now(), fix = null;
-    try { fix = gps.current(now); } catch (e) { state.error = 'GPS provider: ' + e.message; }
+    var now = Date.now(), fix = null, gpsError = false;
+    try { fix = gps.current(now); } catch (e) { state.error = 'GPS provider: ' + e.message; gpsError = true; }
+    var motions = gpsError ? [] : motionFixes(now), motion = actionPolicy.motionStatus(fix, now, motions);
+    var roadBlocked = motion.conflict || motion.roadMismatch;
     var valid = fix && typeof fix.accuracyM === 'number' && fix.accuracyM > 0 && fix.accuracyM <= 15 &&
       typeof fix.speedKmh === 'number' && isFinite(fix.speedKmh) && fix.speedKmh >= 0 && typeof fix.headingDeg === 'number' && isFinite(fix.headingDeg);
     state.gpsFix = fix || null;
+    state.gpsMotion = motion;
     if(state.gpsReset.phase==='waiting-new-fix'&&validPosition(fix,now)&&fix.timeMs>state.gpsReset.afterUtc)state.gpsReset.phase='receiving';
     if (state.street.observedAtMs !== null && now - state.street.observedAtMs > 15000) state.street = { name: null, source: 'BMW', state: 'stale', reason: 'Название улицы BMW устарело', observedAtMs: null };
-    state.actions = actionPolicy.policies(state, fix, now);
+    state.actions = actionPolicy.policies(state, fix, now, motions);
     state.clock = clockSnapshot(now, null);
     if (typeof gps.diagnostics === 'function') {
       var gpsDiagnostics = gps.diagnostics(now); state.gpsBridge = gpsDiagnostics.gpsBridge; state.gpsInput = gpsDiagnostics.gpsInput;
@@ -255,6 +264,18 @@ function start(options) {
     }
     state.gps = typeof gps.description === 'function' ? gps.description(fix, now) : !fix ? 'Нет свежих подтверждённых координат UTC (максимум 3 с)' :
       !valid ? 'Координаты есть; точность, скорость или курс не подтверждены' : 'Свежие координаты, скорость, курс и точность получены';
+    var gpsLabel = function(source) { return source === 'bmw-nmea' ? 'BMW' : source === 'gpsd' ? 'GPSD' : 'NMEA'; };
+    if (motion.sources.length > 1 || motion.roadMismatch) {
+      var sourceSpeeds = motion.sources.map(function(item) { return gpsLabel(item.source) + ' ' +
+        (item.speedKmh === null ? '?' : item.speedKmh.toFixed(1)); }).join(', ');
+      state.gps = (fix ? gpsLabel(fix.source) + ' выбран' + (motion.roadMismatch ? ' ' + fix.speedKmh.toFixed(1) : '') + ' • ' : '') +
+        'скорости ' + sourceSpeeds + ' км/ч' + (motion.conflict ? ' • КОНФЛИКТ' : '') +
+        (motion.roadMismatch ? ' • РАЗНЫЕ ЭПОХИ' : '') + ' • ' + state.gps;
+    } else if (fix && !Number.isFinite(fix.speedKmh) && motion.sources.length === 1 && motion.sources[0].speedKmh !== null) {
+      var sample = motion.sources[0];
+      state.gps = 'Для теста скорость ' + gpsLabel(sample.source) + ' ' + sample.speedKmh.toFixed(1) +
+        ' км/ч (UTC ' + new Date(sample.motionTimeMs).toISOString() + ') • ' + state.gps;
+    }
     state.nearestCandidates = database && fix ? database.records.map(function(r) {
       var item = nearest([r],fix,describeCamera);
       if (item) item.filterMatched = alertPreferences.matches(r,settings.alertPreferences);
@@ -264,9 +285,9 @@ function start(options) {
     var alert = null;
     // Guidance validates the source itself and needs the rejected measurement
     // to explain accuracy/UTC failures. The native output gate below remains.
-    try { if (guidance) alert = guidance.evaluate(database ? fix : null, now, settings.enabled, settings.alertPreferences); }
+    try { if (guidance) alert = guidance.evaluate(database && !roadBlocked ? fix : null, now, settings.enabled, settings.alertPreferences); }
     catch (e) { state.error = 'Guidance: ' + e.message; }
-    if (!settings.enabled || !validPosition(fix, now) || !database) alert = null;
+    if (!settings.enabled || !validPosition(fix, now) || !database || roadBlocked) alert = null;
     if (alert && (!alertPreferences.matches(alert, settings.alertPreferences) || !Number.isFinite(alert.distanceM) || alert.distanceM < 0 || alert.distanceM > settings.alertPreferences.warningDistanceM + 0.000001)) alert = null;
     state.guidance = guidance && typeof guidance.diagnostic === 'function' ? guidance.diagnostic() : null;
     state.nearestCandidates = state.nearestCandidates.map(function(item){
@@ -276,7 +297,8 @@ function start(options) {
     state.observedAtMs = now;
     state.alert = alert ? Object.assign({}, alert, { filterMatched: true, limit: alert.limitKmh, distance: Math.round(alert.distanceM), stage: alert.stage || (alert.roadConfirmed ? 'approach' : 'nearby') }) : null;
     state.speedWarning = warningPolicy.evaluate(state.alert,fix,now,settings.overspeedPreferences);
-    if(!settings.enabled)state.speedWarning.reason='DISABLED';
+    if(roadBlocked)state.speedWarning.reason=motion.conflict?'MOTION_CONFLICT':'MOTION_EPOCH_MISMATCH';
+    else if(!settings.enabled)state.speedWarning.reason='DISABLED';
     else if(!validPosition(fix,now))state.speedWarning.reason=fix?'GPS_INVALID':'GPS_MISSING';
     else if(!state.alert&&state.nearest&&state.nearest.filterMatched===false)state.speedWarning.reason='TYPE_DISABLED';
     if (state.alert) { state.alert.speedKmh = fix.speedKmh; state.alert.overspeed = state.speedWarning.overspeed; state.alert.speedWarning = state.speedWarning; }
@@ -292,25 +314,40 @@ function start(options) {
       catch (e) { state.renderer = 'error: ' + e.message; state.error = 'Display: ' + e.message; }
     }
     if (state.commandResult && ['display-test','calibration-test'].indexOf(state.commandResult.command) >= 0 && state.commandResult.phase === 'requested') {
-      var details = state.rendererDetails || {}, results = [], completed = true, failed = false;
+      var details = state.rendererDetails || {}, results = [], selected = 0, settled = true, verifiedAll = true, failed = false;
       [['map',settings.outputs.cluster],['hud',settings.outputs.hud]].forEach(function(pair) {
         if(state.displayTest.target && pair[0] !== state.displayTest.target)return;
         if(!pair[1])return;
+        selected++;
         var item = details[pair[0]], label = pair[0] === 'map' ? 'Приборы' : 'HUD';
-        var shown = item && item.state === 'shown';
-        var refused = item && (item.state === 'отказ' || item.state === 'error' || item.reason === 'CANVAS_UNKNOWN' || item.disabled);
-        if(!shown && !refused)completed=false;
+        var refused = item && (item.state === 'отказ' || item.state === 'error' ||
+          item.reason === 'CANVAS_UNKNOWN' || item.reason === 'CANVAS_TOO_SMALL' || item.disabled);
+        var targetShown = item && (item.target === 'shown' || item.target === 'lingering');
+        var verified = !refused && item && item.state === 'shown' && targetShown && item.rendering === 'verified';
+        var unobservable = !refused && item && item.state === 'shown' && targetShown && item.rendering === 'unobservable';
+        if(!verified && !refused && !unobservable)settled=false;
+        if(!verified)verifiedAll=false;
         if(refused)failed=true;
-        results.push(label + ': ' + (shown ? 'renderer подтвердил показ' : refused ? 'отказ ' + (item.reason || item.targetReason || 'вывод недоступен') : 'ожидание подтверждения'));
+        var message = refused ? 'отказ ' + (item.reason || item.targetReason || 'вывод недоступен') :
+          verified ? 'renderer подписан на сцену; физическая видимость не подтверждена' :
+          unobservable ? 'подписку renderer нельзя проверить; проверьте изображение в автомобиле' :
+          item && item.state === 'shown' && !targetShown ? 'цель ' + (item.target || 'неизвестна') + '; ожидание показа' :
+          item && item.state === 'shown' && item.rendering === 'checking' ? 'renderer пока не подписан; идёт проверка' :
+          item && item.state === 'shown' && item.rendering === 'none' ? 'подписка renderer пока не подтверждена' :
+          item && item.state === 'shown' ? 'renderer не сообщил статус подписки; ожидание' :
+          'ожидание подтверждения' + (item && (item.reason || item.targetReason) ? ' (' + (item.reason || item.targetReason) + ')' : '');
+        results.push(label + ': ' + message);
       });
-      if(completed || !state.displayTest.active) commandResult(state.commandResult.command, failed ? 'error' : completed ? 'shown' : 'unconfirmed',
-        results.join('; ') + (!state.displayTest.active && !completed ? '; тест завершён без подтверждения показа' : ''), state.commandResult.id);
+      if(failed || (selected && settled) || !state.displayTest.active) commandResult(state.commandResult.command,
+        failed ? 'error' : selected && verifiedAll ? 'shown' : 'unconfirmed',
+        results.join('; ') + (!state.displayTest.active && !(selected && verifiedAll) ? '; тест завершён без подтверждения подписки renderer' : ''),
+        state.commandResult.id);
     }
     if (audio) { audio.configure(settings.overspeedPreferences.soundEnabled,settings.overspeedPreferences.soundOffsetKmh); audio.update(state.alert, fix, now); var audioState = audio.status();
       if(state.audio && state.audio.probeState)audioState.probeState=state.audio.probeState;
       state.audio=audioState;
     }
-    state.actions = actionPolicy.policies(state, fix, now);
+    state.actions = actionPolicy.policies(state, fix, now, motions);
     if (dimmer) {
       try { dimmer.update(settings.hudOpacityPct); state.hudDimming = dimmer.status(); }
       catch (e) { state.hudDimming = 'error: ' + e.message; }
@@ -337,7 +374,7 @@ function start(options) {
       return;
     }
     if (msg.cmd === 'display-test' || msg.cmd === 'calibration-test') {
-      state.actions = actionPolicy.policies(state, gps.current(Date.now()), Date.now());
+      var now = Date.now(); state.actions = actionsAt(now, gps.current(now));
       var policy = state.actions[msg.cmd === 'display-test' ? 'displayTest' : 'calibrationTest'];
       if(!policy.allowed)throw new Error(policy.reason);
       var target = msg.target === undefined ? null : cardLayout.validateTarget(msg.target);
@@ -407,7 +444,7 @@ function start(options) {
       if (!Number.isInteger(msg.percent) || msg.percent < 10 || msg.percent > 100) throw new Error('HUD opacity requires an integer from 10 to 100');
       next.hudOpacityPct = msg.percent;
     } else if (['card-layout','card-layout-reset','card-move'].indexOf(msg.cmd) >= 0) {
-      var cardPolicy = actionPolicy.policies(state, gps.current(Date.now()), Date.now()).cardLayout;
+      var now = Date.now(), cardPolicy = actionsAt(now, gps.current(now)).cardLayout;
       if(!cardPolicy.allowed)throw new Error(cardPolicy.reason);
       var cardTarget = cardLayout.validateTarget(msg.target);
       if (msg.cmd === 'card-layout-reset') next.cardLayout[cardTarget] = cardLayout.defaultLayouts()[cardTarget];

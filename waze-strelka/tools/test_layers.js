@@ -57,7 +57,7 @@ const server=net.createServer(sock=>{
                     }
                 }
                 if(msg.op==='set'&&msg.visible===1){displayed.add(msg.ref);sock.write(frame({ev:'layer',ref:msg.ref,state:'visible'}));
-                    sock.write(frame({ev:'target',target:layers.get(msg.ref),state:'mapped'}));}
+                    sock.write(frame({ev:'target',target:layers.get(msg.ref),state:'shown',rendering:'verified'}));}
             }
         }catch(e){pendingError=e;}
     });
@@ -83,6 +83,17 @@ function styleMatches(actual,original,brightnessPct,opacityPct){
         assert.deepStrictEqual(Array.from(layers.values()).sort(),['hud','map']);
         for(const ref of layers.keys()){assert(pixels.has(ref));assert(displayed.has(ref));}
         const layout=display.diagnostics();
+        await until('target rendering evidence',()=>display.diagnostics().map.rendering==='verified'&&display.diagnostics().hud.rendering==='verified');
+        assert.strictEqual(display.diagnostics().map.retryInMs,null,'a shown target has no retry timer');
+        peers.forEach(sock=>sock.write(frame({ev:'target',target:'hud',state:'waiting',rendering:'none',retry_in_ms:2500})));
+        await until('waiting target evidence',()=>display.diagnostics().hud.rendering==='none');
+        assert.strictEqual(display.diagnostics().hud.retryInMs,2500);
+        peers.forEach(sock=>sock.write(frame({ev:'target',target:'hud',state:'shown',rendering:'checking'})));
+        await until('checking target evidence',()=>display.diagnostics().hud.rendering==='checking');
+        assert.strictEqual(display.diagnostics().hud.retryInMs,null,'a new target event clears an old retry timer');
+        peers.forEach(sock=>sock.write(frame({ev:'target',target:'map',state:'shown',rendering:'unobservable'})));
+        await until('unobservable target evidence',()=>display.diagnostics().map.rendering==='unobservable');
+        assert.strictEqual(display.diagnostics().map.retryInMs,null,'absent retry clears a previous timer');
         assert.strictEqual(layout.connection,'ready');
         assert.strictEqual(layout.version,null);
         assert.strictEqual(layout.versionReported,false,'protocol without version must not invent one');
@@ -145,6 +156,7 @@ function styleMatches(actual,original,brightnessPct,opacityPct){
         // the renderer is told to display anything on its smaller new canvas.
         peers.forEach(sock=>sock.destroy());
         await until('renderer disconnect',()=>display.diagnostics().connection==='disconnected');
+        assert.strictEqual(display.diagnostics().map.rendering,null,'disconnect invalidates stale scene subscription evidence');
         const offline=JSON.parse(JSON.stringify(saved));offline.hud={x:1000,y:1000,scalePct:150,brightnessPct:30,opacityPct:30};
         display.update(liveAlert,outputs,offline);
         announcedTargets='map:874x749,hud:353x203';
@@ -163,6 +175,7 @@ function styleMatches(actual,original,brightnessPct,opacityPct){
         await sleep(25);const count=await new Promise((resolve,reject)=>server.getConnections((e,n)=>e?reject(e):resolve(n)));
         assert.strictEqual(count,0);
         assert.strictEqual(display.diagnostics().map.state,'скрыт');
+        assert.strictEqual(display.diagnostics().map.rendering,null,'release invalidates stale scene subscription evidence');
         assert.strictEqual(display.diagnostics().connection,'disconnected');
         assert.strictEqual(display.diagnostics().map.layout.canvas.width,874,'released layer keeps latest calibration evidence');
         layers.clear();pixels.clear();displayed.clear();wireLayers.clear();wirePixels.clear();announcedTargets='map,hud';

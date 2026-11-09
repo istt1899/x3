@@ -7,6 +7,11 @@ var BRIDGE_STATES = ['starting', 'subscribed', 'unavailable', 'error', 'stopped'
 function number(n) { return typeof n === 'number' && isFinite(n); }
 function numeric(s) { return typeof s === 'string' && s.trim() !== '' && isFinite(Number(s)) ? Number(s) : null; }
 function fresh(time, now) { return number(time) && time >= now - MAX_AGE && time <= now + 500; }
+function roadReady(fix) {
+  return fix && number(fix.speedKmh) && fix.speedKmh >= 0 && number(fix.headingDeg) &&
+    fix.headingDeg >= 0 && fix.headingDeg < 360 && number(fix.accuracyM) &&
+    fix.accuracyM > 0 && fix.accuracyM <= 15;
+}
 function inc(n) { return Math.min(MAX_COUNTER, n + 1); }
 function coordinate(s, hemisphere, longitude) {
   var n = numeric(s), allowed = longitude ? /^[EW]$/ : /^[NS]$/;
@@ -44,7 +49,7 @@ function todDelta(a, b) { return (a - b + DAY * 1.5) % DAY - DAY / 2; }
 var MOTION_PAIR_MS = 500, ACCURACY_PAIR_MS = 100;
 function GpsDecoder(now, nmeaSource) {
   EventEmitter.call(this); this.now = now || Date.now; this.nmeaSource = nmeaSource === 'bmw-nmea' ? nmeaSource : 'nmea';
-  this.last = {}; this.complete = {}; this.parts = {}; this.rmc = null; this.gga = null; this.gst = null;
+  this.last = {}; this.complete = {}; this.lastMotion = {}; this.parts = {}; this.rmc = null; this.gga = null; this.gst = null;
   this.lastParsedUtc = null; this.lastRejectReason = null;
   this.lastRmcUtc = null;
   this.admissionAfterUtc = null;
@@ -52,10 +57,10 @@ function GpsDecoder(now, nmeaSource) {
 }
 GpsDecoder.prototype = Object.create(EventEmitter.prototype);
 GpsDecoder.prototype.constructor = GpsDecoder;
-GpsDecoder.prototype.invalidate = function (source, reason) { this.last[source] = null; this.complete[source] = null; if (source === this.nmeaSource) this.lastRejectReason = reason; this.emit('quality', source + ': ' + reason); };
+GpsDecoder.prototype.invalidate = function (source, reason) { this.last[source] = null; this.complete[source] = null; this.lastMotion[source] = null; if (source === this.nmeaSource) this.lastRejectReason = reason; this.emit('quality', source + ': ' + reason); };
 GpsDecoder.prototype.resetEpoch = function (afterUtc) {
   if (!number(afterUtc)) throw new Error('GPS_RESET_TIME_INVALID');
-  this.last = {}; this.complete = {}; this.parts = {}; this.rmc = this.gga = this.gst = null;
+  this.last = {}; this.complete = {}; this.lastMotion = {}; this.parts = {}; this.rmc = this.gga = this.gst = null;
   this.lastRmcUtc = this.lastParsedUtc = null; this.lastRejectReason = 'manual GPS session reset';
   this.admissionAfterUtc = afterUtc;
   this.timing = { RMC:null, GGA:null, GST:null, pairReason:'MANUAL_RESET_WAITING_SOURCE' };
@@ -68,10 +73,13 @@ GpsDecoder.prototype.accept = function (fix) {
   var previous = this.last[fix.source];
   if (previous && fix.timeMs < previous.timeMs) { this.lastRejectReason = 'out-of-order source UTC'; this.emit('quality', fix.source + ': out-of-order source UTC'); return false; }
   this.last[fix.source] = fix;
+  // Stationary preview needs a fresh accepted speed, independent of the
+  // metric accuracy required for road guidance. Keep its own source epoch.
+  if (number(fix.speedKmh) && fix.speedKmh >= 0) this.lastMotion[fix.source] = fix;
   // NMEA sentences arrive separately and at different rates. Retain the last
   // complete measurement, with ITS original UTC, while the next epoch is being
   // assembled. Never attach an old GST's accuracy to newer coordinates.
-  if (fix.source === this.nmeaSource && number(fix.accuracyM) && fix.accuracyM > 0) this.complete[fix.source] = fix;
+  if (fix.source === this.nmeaSource && roadReady(fix)) this.complete[fix.source] = fix;
   if (fix.source === this.nmeaSource) this.lastRejectReason = null; this.emit('fix', fix);
   return true;
 };
@@ -190,8 +198,10 @@ GpsDecoder.prototype.current = function (now) {
   ['gpsd', this.nmeaSource].forEach(function (source) {
     var fix = self.last[source];
     var complete = self.complete[source];
-    if (fix && !number(fix.accuracyM) && complete && fresh(complete.timeMs, now)) fix = complete;
-    if (fix && fresh(fix.timeMs, now) && (!best || fix.timeMs > best.timeMs || (fix.timeMs === best.timeMs && number(fix.accuracyM) && !number(best.accuracyM)))) best = fix;
+    if (fix && !roadReady(fix) && complete && fresh(complete.timeMs, now)) fix = complete;
+    if (fix && fresh(fix.timeMs, now) && (!best || roadReady(fix) && !roadReady(best) ||
+        roadReady(fix) === roadReady(best) && (fix.timeMs > best.timeMs ||
+          fix.timeMs === best.timeMs && number(fix.accuracyM) && !number(best.accuracyM)))) best = fix;
   });
   return best;
 };
@@ -218,6 +228,7 @@ GpsProvider.prototype.setBridgeStatus = function (state, errorCode) {
     this.bmwDecoder.rmc = this.bmwDecoder.gga = this.bmwDecoder.gst = null;
     this.bmwDecoder.last['bmw-nmea'] = null;
     this.bmwDecoder.complete['bmw-nmea'] = null;
+    this.bmwDecoder.lastMotion['bmw-nmea'] = null;
     this.bmwDecoder.lastRmcUtc = null;
     this.bmwDecoder.timing = { RMC: null, GGA: null, GST: null, pairReason: 'MISSING_RMC' };
   }
@@ -351,7 +362,26 @@ GpsProvider.prototype.connect = function () {
 GpsProvider.prototype.current = function (now) {
   var a = this.decoder.current(now), b = this.bmwDecoder.current(now);
   if (!a) return b; if (!b) return a;
+  // A newer partial position must not eclipse a still-fresh road-ready one.
+  if (roadReady(a) !== roadReady(b)) return roadReady(b) ? b : a;
   return b.timeMs > a.timeMs || (b.timeMs === a.timeMs && number(b.accuracyM) && !number(a.accuracyM)) ? b : a;
+};
+GpsProvider.prototype.motionFixes = function (now) {
+  var result = [];
+  [['gpsd', this.decoder], [this.decoder.nmeaSource, this.decoder],
+    [this.bmwDecoder.nmeaSource, this.bmwDecoder]].forEach(function (entry) {
+    var fix = entry[1].last[entry[0]];
+    if (!fix || !fresh(fix.timeMs, now)) return;
+    var prior = entry[1].lastMotion[entry[0]], motion = fix;
+    // A partial new epoch may omit speed. For stationary checks only, use the
+    // last fresh speed from this source at its own UTC, even if accuracy was
+    // worse than road guidance permits. Never graft it onto a new position.
+    if ((!number(fix.speedKmh) || fix.speedKmh < 0) && prior && fresh(prior.timeMs, now) &&
+        fresh(number(prior.motionTimeMs) ? prior.motionTimeMs : prior.timeMs, now)) motion = prior;
+    result.push({ source: motion.source, timeMs: motion.timeMs,
+      motionTimeMs: motion.motionTimeMs, speedKmh: motion.speedKmh });
+  });
+  return result;
 };
 GpsProvider.prototype.close = function () {
   this.closed = true; this.generation++; clearTimeout(this.retry); if (this.sock) this.sock.destroy();

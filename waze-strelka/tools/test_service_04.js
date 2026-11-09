@@ -11,7 +11,7 @@ async function main(){let app;
   await new Promise((resolve,reject)=>{app=service.start({dataDir:dir,socket:process.platform==='win32'?'\\\\.\\pipe\\strelka04-'+process.pid:path.join(dir,'ctl.sock'),gps,
    storeFactory:o=>{storeOptions=o;return {current:()=>o.initial,status:()=>({phase:'idle',canCheck:true,canRollback:false}),check:()=>{o.onStatus({phase:'checking'});return new Promise(r=>{resolveCheck=r;});},close:()=>{}};},
    audio:{play:()=>new Promise(r=>{resolveAudio=r;})},guidance:{evaluate:()=>null},
-   display:{update:a=>{displayAlert=a;},status:()=>'ready',diagnostics:()=>({map:{state:'shown'},hud:{state:'shown'}}),close:()=>{}},
+   display:{update:a=>{displayAlert=a;},status:()=>'ready',diagnostics:()=>({map:{state:'shown',target:'shown',rendering:'verified'},hud:{state:'shown',target:'shown',rendering:'verified'}}),close:()=>{}},
    dimmer:{update:()=>{},status:()=>'off',close:()=>{}},onListening:resolve,onError:reject});});
   app.command({cmd:'outputs',cluster:true,hud:true});
   assert.strictEqual(app.state().gpsFix.accuracyM,19.4);assert(app.state().actions.displayTest.allowed);

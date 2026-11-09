@@ -140,6 +140,14 @@ function reportPage(report, live, version, pageIndex, blockIndex, localResult, c
         const t=r[name]||{}; return (name==='map'?'Приборы':'HUD')+': '+clean(t.state||s.renderer)+
             ' • цель '+clean(t.target)+' • '+clean(t.reason||t.targetReason||'нет причины отказа');
     };
+    const renderingRow=name=>{
+        const t=r[name]||{}, label=name==='map'?'Приборы':'HUD';
+        const status={verified:'renderer подписан на сцену',checking:'renderer пока не подписан, идёт проверка',
+            unobservable:'подписку renderer нельзя проверить',none:'статус подписки не применяется'};
+        const detail=Object.prototype.hasOwnProperty.call(status,t.rendering)?status[t.rendering]:'статус подписки неизвестен';
+        return label+' • сцена: '+detail+(Number.isFinite(t.retryInMs)&&t.retryInMs>=0?
+            ' • повтор через '+Math.round(t.retryInMs)+' мс':'');
+    };
     const rawTargets=layout.targets||r.targets||{};
     const targetLayout=name=>(r[name]||{}).layout||{};
     const targetRow=name=>{
@@ -219,7 +227,7 @@ function reportPage(report, live, version, pageIndex, blockIndex, localResult, c
             'Превышение — полные данные: '+JSON.stringify(s.speedWarning||null)].concat(preferenceRows,candidates.map((v,i)=>
                 'Кандидат '+(i+1)+': '+clean(v.id)+' • '+n(v.distanceM,0)+' м • '+clean(v.reason)+
                     ' • фильтр '+(typeof v.filterMatched==='boolean'?(v.filterMatched?'да':'нет'):'не сообщается'))),
-        [existing.outputs,renderTarget('map'),renderTarget('hud'),
+        [existing.outputs,renderTarget('map'),renderingRow('map'),renderTarget('hud'),renderingRow('hud'),
             'Renderer: '+(r.versionReported===false?'версия renderer не сообщается протоколом':
                 layout.rendererVersion||r.version?'версия '+clean(layout.rendererVersion||r.version):'версия renderer не сообщается протоколом'),
             'Соединение renderer: '+clean(r.connection||layout.connection||'неизвестно')+

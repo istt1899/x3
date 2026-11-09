@@ -23,7 +23,7 @@ async function start(dir, gps, options) {
     latest = { alert: clone(alert), outputs: clone(outputs), layouts: clone(layouts) };
     if (alert) ['map','hud'].forEach(function (target) {
       if (!(target === 'map' ? outputs.cluster : outputs.hud)) return;
-      details[target] = { state: 'shown', layout: renderer.layoutFor(target, target === 'map' ? { width: 1088, height: 480 } : { width: 800, height: 400 }, 'test', layouts[target]) };
+      details[target] = { state: 'shown', target: 'shown', rendering: 'verified', layout: renderer.layoutFor(target, target === 'map' ? { width: 1088, height: 480 } : { width: 800, height: 400 }, 'test', layouts[target]) };
     });
   }, diagnostics: function () { return clone(details); }, status: function () { return 'ready'; }, close: function () { closed++; } };
   var app;
@@ -55,7 +55,7 @@ async function processStart(dir) {
   // A real separate service process and control socket, with explicit local
   // GPS/display adapters. It neither discovers nor connects to a head unit.
   var code = "var E=require('events'),s=require(process.argv[1]),g=new E();g.start=g.close=function(){};g.current=function(){return {lat:54.4932,lon:36.2282,timeMs:Date.now(),motionTimeMs:Date.now(),speedKmh:0,headingDeg:0,accuracyM:19.4};};" +
-    "var a=s.start({dataDir:process.argv[2],socket:process.argv[3],gps:g,guidance:{evaluate:function(){return null;}},display:{update:function(){},status:function(){return 'ready';},diagnostics:function(){return {connection:'ready',map:{state:'shown'},hud:{state:'shown'}};},close:function(){}},dimmer:{update:function(){},status:function(){return 'off';},close:function(){}},onListening:function(){process.stdout.write('READY\\n');},onError:function(e){process.stderr.write(e.message);process.exit(1);}});process.stdin.on('data',function(){a.close();process.exit(0);});";
+    "var a=s.start({dataDir:process.argv[2],socket:process.argv[3],gps:g,guidance:{evaluate:function(){return null;}},display:{update:function(){},status:function(){return 'ready';},diagnostics:function(){return {connection:'ready',map:{state:'shown',target:'shown',rendering:'verified'},hud:{state:'shown',target:'shown',rendering:'verified'}};},close:function(){}},dimmer:{update:function(){},status:function(){return 'off';},close:function(){}},onListening:function(){process.stdout.write('READY\\n');},onError:function(e){process.stderr.write(e.message);process.exit(1);}});process.stdin.on('data',function(){a.close();process.exit(0);});";
   var child = cp.spawn(process.execPath, ['-e', code, path.join(base, 'marku-kaluga-cameras.js'), dir, control], { windowsHide: true, stdio: ['pipe','pipe','pipe'] }); children.push(child);
   child.stdout.on('data', function (bytes) { if (String(bytes).indexOf('READY') >= 0) ready = true; }); child.stderr.on('data', function (bytes) { stderr += bytes; });
   await until(function () { if (child.exitCode !== null) throw Error('Service process failed: ' + stderr); return ready; });

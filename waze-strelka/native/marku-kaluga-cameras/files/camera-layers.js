@@ -46,7 +46,9 @@ function createDisplay(options){
     function release(remember){
         if(client)client.close();
         client=null;layers={};sentPixels={};signature='';profileSignature='';requested='';active=null;
-        if(remember)Object.keys(states).forEach(n=>{states[n]=Object.assign({},states[n],{lastState:states[n].state,state:'скрыт',reason:'NO_ACTIVE_ALERT'});});
+        if(remember)Object.keys(states).forEach(n=>{states[n]=Object.assign({},states[n],{
+            lastState:states[n].state,state:'скрыт',reason:'NO_ACTIVE_ALERT',target:null,holder:null,
+            targetReason:null,rendering:null,retryInMs:null});});
         else states={};
     }
     function send(){
@@ -76,7 +78,9 @@ function createDisplay(options){
             const layout=layoutFor(name,canvases[name],client.backend,profiles[name]),r=layout.card;
             states[name]=Object.assign({},states[name],{layout,state:forcePixels||!layers[name]?'ожидание':states[name].state,
                 reason:!layout.canvas?'CANVAS_UNKNOWN':!layout.withinBounds?'CANVAS_TOO_SMALL':
-                    forcePixels||!layers[name]?null:states[name].reason||null});
+                    forcePixels||!layers[name]?null:states[name].reason||null,
+                rendering:forcePixels?null:states[name].rendering||null,
+                retryInMs:forcePixels?null:states[name].retryInMs===undefined?null:states[name].retryInMs});
             if(!r||!layout.withinBounds){if(layers[name])client.set(layers[name],{visible:false});continue;}
             const box={x:r.x,y:r.y,w:r.width,h:r.height};
             if(layers[name])client.set(layers[name],forcePixels?Object.assign({visible:false},box):box);
@@ -98,13 +102,17 @@ function createDisplay(options){
             targets.forEach(n=>{states[n]={state:'ожидание',reason:'WAITING_RENDERER',layout:layoutFor(n,null,null,profiles[n])};});
             client.on('ready',()=>{if(client===session&&active)arrange(targets,true);});
             client.on('layer',(ref,state,reason)=>{if(client===session)for(const n of targets)if(layers[n]===ref&&states[n].layout.withinBounds)states[n]=Object.assign({},states[n],{state:String(state),reason:reason?String(reason).slice(0,120):null});});
-            client.on('target',(target,state,holder,reason,guideDisabled,disabled)=>{if(client===session&&states[target])states[target]=Object.assign({},states[target],{
-                target:String(state),holder:holder?String(holder).slice(0,80):null,targetReason:reason?String(reason).slice(0,120):null,guideDisabled:!!guideDisabled,disabled:!!disabled});});
+            client.on('target',(target,state,holder,reason,guideDisabled,disabled,rendering,retryInMs)=>{if(client===session&&states[target])states[target]=Object.assign({},states[target],{
+                target:String(state),holder:holder?String(holder).slice(0,80):null,targetReason:reason?String(reason).slice(0,120):null,
+                guideDisabled:!!guideDisabled,disabled:!!disabled,
+                rendering:['verified','checking','unobservable','none'].indexOf(rendering)>=0?rendering:null,
+                retryInMs:Number.isFinite(retryInMs)&&retryInMs>=0?Math.round(retryInMs):null});});
             client.on('disconnected',()=>{if(client===session)for(const n of targets){
                 // Update replay options while disconnected: an old visible
                 // rectangle must not replay before a new target hello.
                 if(layers[n])client.set(layers[n],{visible:false});
-                states[n]=Object.assign({},states[n],{state:'нет связи',reason:'RENDERER_DISCONNECTED'});
+                states[n]=Object.assign({},states[n],{state:'нет связи',reason:'RENDERER_DISCONNECTED',
+                    target:null,holder:null,targetReason:null,rendering:null,retryInMs:null});
             }});
             client.on('refused',(op,ref,reason)=>{if(client===session)for(const n of targets)if(!ref||layers[n]===ref)states[n]=Object.assign({},states[n],{state:'отказ',reason:String(reason||op||'unknown').slice(0,120)});});
             client.connect();

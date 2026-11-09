@@ -218,7 +218,8 @@ class ClusterRender extends EventEmitter {
         } else if (ev.ev === 'layer') {
             this.emit('layer', ev.ref, ev.state, ev.reason);
         } else if (ev.ev === 'target') {
-            this.emit('target', ev.target, ev.state, ev.holder, ev.reason, ev.guide_disabled === 1, ev.disabled === 1);
+            this.emit('target', ev.target, ev.state, ev.holder, ev.reason, ev.guide_disabled === 1, ev.disabled === 1,
+                ev.rendering, ev.retry_in_ms);
         } else if (ev.ev === 'budget') {
             this.emit('budget', ev.cap_kb_per_s, ev.max_kb_per_s, ev.reason);
         } else if (ev.ev === 'error') {

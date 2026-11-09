@@ -29,6 +29,24 @@ async function main(){
   assert(view.KEYS.every(k=>typeof rows[k]==='string'));
   assert.strictEqual(app.state().displayTest.pinned,true);
   assert(rows.test.includes('закреплён'),'diagnostics describes the pinned preview rather than an expiry time');
+  const outputState=app.state();
+  outputState.rendererDetails={map:{state:'shown',target:'shown',rendering:'verified'},
+   hud:{state:'waiting',target:'waiting',rendering:'none',retryInMs:2500}};
+  const outputRows=[];
+  let outputPage=view.reportPage(null,outputState,'0.8.0',3,0);
+  for(let block=0;block<outputPage.blocks;block++){
+   outputPage=view.reportPage(null,outputState,'0.8.0',3,block);
+   for(let i=1;i<=view.PAGE_ROWS;i++)outputRows.push(outputPage.rows['row'+i]);
+  }
+  assert(outputRows.some(row=>row.includes('renderer подписан на сцену')),'Output page reports renderer subscription separately');
+  assert(outputRows.some(row=>row.includes('статус подписки не применяется')),'Output page distinguishes a target outside rendering');
+  assert(outputRows.some(row=>row.includes('повтор через 2500 мс')),'Output page includes renderer retry timer');
+  outputState.rendererDetails.hud={state:'shown',target:'shown',rendering:'checking'};
+  const checkingRows=view.reportPage(null,outputState,'0.8.0',3,0).rows;
+  assert(Object.keys(checkingRows).some(key=>checkingRows[key].includes('renderer пока не подписан')),
+   'Output page distinguishes subscription checking');
+  assert(outputRows.some(row=>row.includes('физическое отображение в автомобиле не подтверждены')),
+   'Output page does not equate subscription with physical display');
   app.command({cmd:'display-test-stop'});assert.strictEqual(app.state().displayTest.active,false);assert.strictEqual(shown,null);
   app.command({cmd:'display-test'});fix.speedKmh=2;app.tick();assert.strictEqual(app.state().displayTest.active,false);
   rows=view.values(null,'0.3.1',false);assert(rows.service.includes('нет связи'));

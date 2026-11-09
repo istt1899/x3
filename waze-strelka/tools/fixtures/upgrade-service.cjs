@@ -16,7 +16,7 @@ gps.current=function(){return{lat:54.4932,lon:36.2282,timeMs:Date.now(),motionTi
 var details={connection:'ready'},layers=require(path.join(root,'camera-layers'));
 var app=require(path.join(root,'marku-kaluga-cameras')).start({dataDir:dir,socket:socket,gps:gps,
  guidance:{evaluate:function(){return null;}},
- display:{update:function(alert,outputs,layouts){['map','hud'].forEach(function(target){details[target]={state:alert?'shown':'off',layout:layers.layoutFor(target,target==='map'?{width:1088,height:480}:{width:800,height:400},'fixture',layouts[target])};});},
+ display:{update:function(alert,outputs,layouts){['map','hud'].forEach(function(target){details[target]={state:alert?'shown':'off',target:alert?'shown':'idle',rendering:alert?'verified':'none',layout:layers.layoutFor(target,target==='map'?{width:1088,height:480}:{width:800,height:400},'fixture',layouts[target])};});},
   diagnostics:function(){return details;},status:function(){return'ready';},close:function(){}},
  dimmer:{update:function(){},status:function(){return'off';},close:function(){}},
  onListening:function(){process.stdout.write('READY\n');},onError:function(error){process.stderr.write(error.stack);process.exitCode=1;}});

@@ -463,8 +463,8 @@ class WazeClusterApp extends OnlineApp {
             if(Number.isInteger(row)&&row>=0&&row<cameraDiagnostics.PAGE_TITLES.length){this._diagPage=row;this._diagBlock=0;}
             delete this._written['cell:cameraDiagSelector:SelectedItem'];this._renderDiagnostics();
         });
-        this._bind('cameraDiagTest', () => {if(this._startCameraTest(false))return this._openCameraPage('calibration');});
-        this._bind('cameraDiagCalibration', () => {if(this._startCameraTest(true))return this._openCameraPage('calibration');});
+        this._bind('cameraDiagTest', () => {if(this._startCameraTest(false,true))return this._openCameraPage('calibration');});
+        this._bind('cameraDiagCalibration', () => {if(this._startCameraTest(true,true))return this._openCameraPage('calibration');});
         this._bind('cameraDiagAudio', () => this._cameraAction('audioTest','audio-test'));
         this._bind('cameraDiagExport', () => this._exportDiagnostic());
         this._bind('cameraDiagMore', () => {
@@ -911,7 +911,8 @@ class WazeClusterApp extends OnlineApp {
             'card-layout-reset':'сброс настроек предупреждения','card-move':'положение предупреждения',
             'alert-preferences':'настройки предупреждений','overspeed-preferences':'настройки превышения',
             'gps-reset':'сброс истории GPS; ожидайте свежие координаты'}[message.cmd]||message.cmd;
-        const pending={message:'Ожидание ответа: '+commandName,command:message.cmd,target:message.target,requestId,pending:true};
+        const targetName=message.target==='map'?'приборы':message.target==='hud'?'HUD':null;
+        const pending={message:'Ожидание ответа: '+commandName+(targetName?' • '+targetName:''),command:message.cmd,target:message.target,requestId,pending:true};
         this._cameraFeedback=pending; this._cameraPending=pending;
         if (!this._cameras.send(Object.assign({},message,{requestId}))) {
             this._cameraPending=null; this._cameraFeedback={message:this._cameras.diagnostic()};
@@ -944,20 +945,30 @@ class WazeClusterApp extends OnlineApp {
         return this._cameraCommand(Object.assign({cmd:command},fields||{}));
     }
 
-    _cameraTestGuard() {
+    _diagnosticCameraTarget() {
+        const outputs=(this._cameras.state||{}).outputs||{};
+        if(this._cameraCardTarget==='map'&&outputs.cluster===true||this._cameraCardTarget==='hud'&&outputs.hud===true)
+            return this._cameraCardTarget;
+        return outputs.cluster===true?'map':outputs.hud===true?'hud':null;
+    }
+
+    _cameraTestGuard(target) {
         const state=this._cameras.state, allowed=cameraDiagnostics.action(state,'displayTest');
         if(!allowed.allowed)return allowed;
-        const output=this._cameraCardTarget==='map'?'cluster':'hud';
+        if(!target)return {allowed:false,reason:'Для теста включите приборы или HUD'};
+        const output=target==='map'?'cluster':'hud';
         return state.outputs&&state.outputs[output]===true?allowed:
             {allowed:false,reason:(output==='hud'?'Проекция HUD':'Приборная панель')+' выключена. Включите выбранный выход выше.'};
     }
 
-    _startCameraTest(calibration) {
-        const allowed=this._cameraTestGuard();
+    _startCameraTest(calibration,fromDiagnostics) {
+        const target=fromDiagnostics?this._diagnosticCameraTarget():this._cameraCardTarget;
+        const allowed=this._cameraTestGuard(target);
         this._cameraCardSelectionReason=allowed.allowed?null:allowed.reason;
         if(!allowed.allowed){this._cameraFeedback={message:allowed.reason};this._renderCameras();return null;}
+        if(fromDiagnostics&&target!==this._cameraCardTarget)this._cameraCardTarget=target;
         return this._cameraAction(calibration?'calibrationTest':'displayTest',calibration?'calibration-test':'display-test',
-            {target:this._cameraCardTarget});
+            {target});
     }
 
     _syncCameraHold() {
@@ -1241,8 +1252,10 @@ class WazeClusterApp extends OnlineApp {
         this._write('cameraDiagFreeze',this._diagFrozen?'Вернуться к живым данным':'Зафиксировать снимок');
         this._write('cameraDiagMore',page.blocks>1?'Следующие строки • '+(page.block+1)+'/'+page.blocks:'Все строки показаны');
         this._write('cameraDiagResultMore',result.label);
-        this._write('cameraDiagTest','Тест изображения • на стоянке');
-        this._write('cameraDiagCalibration','Проверить границы • на стоянке');
+        const testTarget=this._diagnosticCameraTarget();
+        const testTargetName=testTarget==='map'?'на приборах':'на HUD';
+        this._write('cameraDiagTest',testTarget?'Тест изображения '+testTargetName+' • на стоянке':'Тест изображения • включите приборы или HUD');
+        this._write('cameraDiagCalibration',testTarget?'Проверить границы '+testTargetName+' • на стоянке':'Проверка границ • включите приборы или HUD');
         this._write('cameraDiagAudio','Проверить звук'); this._write('cameraDiagExport','Сохранить JSON локально • RAM');
         // Keep diagnostic actions reachable: every press either acts or explains the exact service guard.
         ['cameraDiagFreeze','cameraDiagTest','cameraDiagCalibration','cameraDiagAudio','cameraDiagExport',
