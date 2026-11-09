@@ -1,11 +1,11 @@
 {
   "schema": 4,
-  "date": "2026-11-08",
+  "date": "2026-11-09",
   "repo": "istt1899/x3",
   "channel": "catalog",
-  "package_release": "media-preview-0.4.5-r3",
+  "package_release": "media-preview-0.4.5-r4",
   "service_version": "0.4.5",
-  "apps_version": "0.1.7",
+  "apps_version": "0.1.8",
   "youtube_version": "0.3.16",
   "source_commit": "ad44500dc9de08cfd794ab68638d43f8f97e384d",
   "preserved": {
@@ -15,7 +15,7 @@
     {
       "name": "catalog.json",
       "size": 5522,
-      "sha256": "1a0398e2a03183214410b1a955ce9d8d030ead3bc866cb025e0ad700bce3d535"
+      "sha256": "60fd5569f6982c69103cea6982802c161a5b213181161ea650959842482b14e0"
     },
     {
       "name": "ffmpeg-9.0.2-mgu-media-sources.tar.xz",
@@ -33,24 +33,24 @@
       "sha256": "e675486d4d8bd7dcd38ddcd8158843237460fe0e29cae0d1c5edf97ade20c4c6"
     },
     {
-      "name": "marku_rutube@0.1.7.png",
+      "name": "marku_rutube@0.1.8.png",
       "size": 1662,
       "sha256": "7fd5f5e022633b7f66cef1a57fc40b248b3346a3f5bc29fefb75c41cb41b85ac"
     },
     {
-      "name": "marku_rutube@0.1.7.tgz",
-      "size": 1301605,
-      "sha256": "ba4b6d0f548611f2ba6016f43d8ae6b4d5cb14dcf6a094522f56d776ac8b985c"
+      "name": "marku_rutube@0.1.8.tgz",
+      "size": 1301727,
+      "sha256": "a5436d2744503ca49bdbc855e4ff4e9e55393ca7f6e9856d8ea1057c5c681837"
     },
     {
-      "name": "marku_vk_video@0.1.7.png",
+      "name": "marku_vk_video@0.1.8.png",
       "size": 1920,
       "sha256": "c1fbca216dc8bd1076678272fa417c927de444121c2fe25feced24b960f6c612"
     },
     {
-      "name": "marku_vk_video@0.1.7.tgz",
-      "size": 1301945,
-      "sha256": "96afe8078acd3f86daaa5551a04f8b02baa2eb12882cd13aa43f79210279ee77"
+      "name": "marku_vk_video@0.1.8.tgz",
+      "size": 1302067,
+      "sha256": "cc7a833c197cb69e78393bbfac7edfc5666fb1126e7a36005e7d307df7cd800a"
     }
   ],
   "checks": {
@@ -81,7 +81,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "1a0398e2a03183214410b1a955ce9d8d030ead3bc866cb025e0ad700bce3d535"
+      "sha256": "60fd5569f6982c69103cea6982802c161a5b213181161ea650959842482b14e0"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
