@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "id": "marku_kaluga_cameras",
+  "version": "0.7.0",
+  "tree": "marku_kaluga_cameras@0.7.0",
+  "modules": [
+    "src/robertn_waze_cluster.js",
+    "src/i18n.js",
+    "src/locales.js",
+    "src/waze_cluster_control.js",
+    "src/logs_control.js",
+    "src/qr.js",
+    "src/qrcodegen.js",
+    "src/control.js",
+    "src/view_model.js",
+    "src/bmw_gps_bridge.js",
+    "src/diagnostics_view.js",
+    "src/bmw_navigation_bridge.js",
+    "src/bmw_hold_bridge.js",
+    "src/camera_move_repeater.js"
+  ],
+  "sdk": [
+    "oap-sdk/src/core/OnlineApp.js",
+    "oap-sdk/src/logging/logging",
+    "oap-sdk/src/someip/someipBuilders"
+  ],
+  "mguHmi": [
+    "ID7"
+  ]
+}

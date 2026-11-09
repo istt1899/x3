@@ -1,0 +1,9 @@
+dist/
+node_modules/
+*.pbf
+*.osm.pbf
+.env
+.env.*
+__pycache__/
+*.pyc
+source-check-output/

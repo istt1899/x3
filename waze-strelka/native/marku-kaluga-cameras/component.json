@@ -1,0 +1,184 @@
+{
+  "id": "marku-kaluga-cameras",
+  "kind": "tool",
+  "version": "0.7.0",
+  "title": "Waze Strelka camera service",
+  "description": "Local Kaluga OSM camera snapshot, strict GPS diagnostics and optional verified-road camera alerts",
+  "optional": true,
+  "uninstallable": true,
+  "internet": true,
+  "uids": [
+    5000
+  ],
+  "requires": {
+    "cluster-render": "0.4.0"
+  },
+  "mguHmi": [
+    "ID7"
+  ],
+  "files": [
+    {
+      "path": "marku-kaluga-cameras.js",
+      "mode": "0644"
+    },
+    {
+      "path": "card-layout.js",
+      "mode": "0644"
+    },
+    {
+      "path": "alert-preferences.js",
+      "mode": "0644"
+    },
+    {
+      "path": "warning-policy.js",
+      "mode": "0644"
+    },
+    {
+      "path": "camera-orientation.js",
+      "mode": "0644"
+    },
+    {
+      "path": "database-coverage.js",
+      "mode": "0644"
+    },
+    {
+      "path": "gps-source.js",
+      "mode": "0644"
+    },
+    {
+      "path": "kaluga-speed.json",
+      "mode": "0644"
+    },
+    {
+      "path": "road-zones.json",
+      "mode": "0644"
+    },
+    {
+      "path": "vehicle-guidance.js",
+      "mode": "0644"
+    },
+    {
+      "path": "camera-layers.js",
+      "mode": "0644"
+    },
+    {
+      "path": "cluster_render_client.js",
+      "mode": "0644"
+    },
+    {
+      "path": "LICENSE",
+      "mode": "0644"
+    },
+    {
+      "path": "NOTICE-data.txt",
+      "mode": "0644"
+    },
+    {
+      "path": "LICENSE.MPL-2.0",
+      "mode": "0644"
+    },
+    {
+      "path": "check.js",
+      "mode": "0644"
+    },
+    {
+      "path": "prepare.js",
+      "mode": "0644"
+    },
+    {
+      "path": "hud-dimmer.js",
+      "mode": "0644"
+    },
+    {
+      "path": "camera-info.js",
+      "mode": "0644"
+    },
+    {
+      "path": "camera-details.json",
+      "mode": "0644"
+    },
+    {
+      "path": "alert-card.js",
+      "mode": "0644"
+    },
+    {
+      "path": "camera-font.json",
+      "mode": "0644"
+    },
+    {
+      "path": "LICENSE-Inter.txt",
+      "mode": "0644"
+    },
+    {
+      "path": "reported-cameras.json",
+      "mode": "0644"
+    },
+    {
+      "path": "action-policy.js",
+      "mode": "0644"
+    },
+    {
+      "path": "database-store.js",
+      "mode": "0644"
+    },
+    {
+      "path": "enforcement-relations.json",
+      "mode": "0644"
+    },
+    {
+      "path": "warning-audio.js",
+      "mode": "0644"
+    },
+    {
+      "path": "official-camera-data.js",
+      "mode": "0644"
+    },
+    {
+      "path": "gibdd-kaluga.json",
+      "mode": "0644"
+    },
+    {
+      "path": "official-camera-quality.json",
+      "mode": "0644"
+    },
+    {
+      "path": "database-version.json",
+      "mode": "0644"
+    },
+    {
+      "path": "speed-limits.js",
+      "mode": "0644"
+    },
+    {
+      "path": "speed-limit-data.json",
+      "mode": "0644"
+    }
+  ],
+  "units": [
+    {
+      "name": "marku-kaluga-cameras.service"
+    },
+    {
+      "name": "marku-kaluga-cameras.socket"
+    }
+  ],
+  "enable": [
+    {
+      "unit": "marku-kaluga-cameras.service",
+      "target": "multi-user.target"
+    },
+    {
+      "unit": "marku-kaluga-cameras.socket",
+      "target": "sockets.target"
+    }
+  ],
+  "recmgr": [
+    "marku-kaluga-cameras"
+  ],
+  "restart": [
+    "marku-kaluga-cameras.service"
+  ],
+  "check": [
+    "check.js"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "build": "node ../../tools/build.js",
+  "requires": {
+    "waze-on-cluster": "0.9.0",
+    "marku-kaluga-cameras": "0.7.0",
+    "mgu-deploy": "0.7.11"
+  },
+  "uninstallable": true,
+  "mguHmi": [
+    "ID7"
+  ]
+}
