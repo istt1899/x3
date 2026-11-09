@@ -18,7 +18,7 @@ import tarfile
 
 MEDIA = Path(__file__).resolve().parents[1]
 CORE = MEDIA / "core"
-VERSION = "0.1.7"
+VERSION = "0.1.8"
 YOUTUBE_VERSION = "0.3.16"
 SERVICES = {
     "vk": {"id": "vk", "appId": "marku_vk_video", "title": "VK Видео", "accent": "#0077FF",
