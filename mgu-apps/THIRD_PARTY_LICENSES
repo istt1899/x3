@@ -1,0 +1,7 @@
+This project includes or adapts:
+
+- MGU App Kit from istt1899/x3 media/core: GPL-3.0-or-later; BMW SDK is not included.
+- Read-only TASU discovery adapter adapted from istt1899/x3 Bimmer Code and cauliflowermossgrape/idrive7-apps diagnostics/signals patterns: MIT/GPL notices remain in source.
+- Trip computer core adapted from cauliflowermossgrape/idrive7-apps apps/live_data/trips.js: MIT, Copyright (c) 2026 cauliflowermossgrape.
+- ClusterRender client from robertnisipeanu/idrive-apps via istt1899/x3 Waze Strelka: MPL-2.0, Copyright (C) 2026 Robert Nisipeanu.
+- Home Assistant is a third-party platform; this package is independent and not endorsed by Home Assistant, BMW AG, GitHub or Telegram.

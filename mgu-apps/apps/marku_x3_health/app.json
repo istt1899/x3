@@ -1,0 +1,73 @@
+{
+  "id": "marku_x3_health",
+  "title": "Здоровье X3",
+  "description": "Персональный read-only снимок CBS, 12 В и отвечающих блоков с историей",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "vendor": "custom",
+  "loggingId": "MX3H",
+  "iconGlyph": "HX",
+  "signals": {
+    "de.bmw.infotainment.KombiInterface_2": {
+      "cbsDataServiceList": "rs",
+      "cbsDataSBA": "rs"
+    },
+    "de.bmw.infotainment.vehicle.CDS": {
+      "statusBattery2": "rs"
+    },
+    "com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu": {
+      "_instances": "SystemFunctionsInternalTasuInst1",
+      "_methods": ["sendTasuRequest"],
+      "_broadcasts": ["sendTasuResponse"]
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "menu",
+      "title": "Здоровье X3",
+      "settings": true,
+      "items": [
+        ["text", "healthStatus", "Проверка ещё не запускалась"],
+        ["text", "healthBattery", "12 В: нет данных"],
+        ["text", "healthService", "CBS: нет данных"],
+        ["text", "healthCoverage", "Покрытие: CBS, 12 В, ECU discovery"],
+        ["button", "healthScan", "Проверить сейчас"],
+        ["button", "healthSave", "Сохранить снимок"],
+        ["button", "healthHistory", "История"],
+        ["button", "healthReport", "Показать отчёт"]
+      ]
+    },
+    {
+      "name": "HISTORY",
+      "kind": "menu",
+      "title": "История здоровья",
+      "items": [
+        ["text3", "healthH1", ""],
+        ["text3", "healthH2", ""],
+        ["text3", "healthH3", ""],
+        ["text3", "healthH4", ""],
+        ["text3", "healthH5", ""],
+        ["button", "healthBack", "Назад"]
+      ]
+    },
+    {
+      "name": "REPORT",
+      "kind": "menu",
+      "title": "Отчёт здоровья",
+      "items": [
+        ["text3", "healthR1", ""],
+        ["text3", "healthR2", ""],
+        ["text3", "healthR3", ""],
+        ["text3", "healthR4", ""],
+        ["text3", "healthR5", ""],
+        ["button", "healthReportBack", "Назад"]
+      ]
+    }
+  ],
+  "settings": [
+    {"key": "historyLimit", "label": "Снимков в истории", "type": "choice", "default": "10",
+     "options": [["5", "5"], ["10", "10"], ["20", "20"]]},
+    {"key": "autoBaseline", "label": "Первый снимок как базовая линия", "type": "bool", "default": true}
+  ]
+}

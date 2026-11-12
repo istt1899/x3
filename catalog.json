@@ -494,6 +494,134 @@
           "description": "在儀表板上顯示 CarPlay 或 Android Auto 地圖：root 輔助程式會在各自支援的情況下套用可還原的 carplay 與 aapd 修補，而開機即執行的擷取程式會解碼地圖的 H.264，並在串流傳入時透過儀表板繪製器繪製"
         }
       }
+    },
+    {
+      "id": "marku_x3_health",
+      "kind": "app",
+      "version": "0.1.0",
+      "title": "Здоровье X3",
+      "description": "CBS, 12 В, read-only обнаружение ECU и локальная история",
+      "requires": {
+        "mgu-deploy": "0.7.11"
+      },
+      "uninstallable": true,
+      "mguHmi": [
+        "ID7"
+      ],
+      "artifact": {
+        "name": "marku_x3_health@0.1.0.tgz",
+        "size": 1277409,
+        "sha256": "009249f716352d0e3cd99552cd96762a6a5b24bf2c91b08c1e589a7b1e72db6f",
+        "url": "https://github.com/istt1899/x3/releases/download/marku_x3_health@0.1.0/marku_x3_health@0.1.0.tgz"
+      }
+    },
+    {
+      "id": "marku_x3_warm",
+      "kind": "app",
+      "version": "0.1.0",
+      "title": "Тёплый старт",
+      "description": "Прогрев масла/ОЖ и рекомендация климата без записи в блоки",
+      "requires": {
+        "mgu-deploy": "0.7.11"
+      },
+      "uninstallable": true,
+      "mguHmi": [
+        "ID7"
+      ],
+      "artifact": {
+        "name": "marku_x3_warm@0.1.0.tgz",
+        "size": 1272973,
+        "sha256": "42c2e447021981545bbb95dac0e70d72e2623b02c409fb36a3f8068b0d7441aa",
+        "url": "https://github.com/istt1899/x3/releases/download/marku_x3_warm@0.1.0/marku_x3_warm@0.1.0.tgz"
+      }
+    },
+    {
+      "id": "marku_daily_hud",
+      "kind": "app",
+      "version": "0.1.0",
+      "title": "Только важное",
+      "description": "Один слой отклонений через cluster-render; по умолчанию выключен",
+      "requires": {
+        "cluster-render": "0.4.0",
+        "mgu-deploy": "0.7.11"
+      },
+      "uninstallable": true,
+      "mguHmi": [
+        "ID7"
+      ],
+      "artifact": {
+        "name": "marku_daily_hud@0.1.0.tgz",
+        "size": 1276618,
+        "sha256": "cb24bc76b3c123d83bebdeb2c6c5b780b53ac9739672d1910d575392247980a7",
+        "url": "https://github.com/istt1899/x3/releases/download/marku_daily_hud@0.1.0/marku_daily_hud@0.1.0.tgz"
+      }
+    },
+    {
+      "id": "marku_x3_home",
+      "kind": "app",
+      "version": "0.1.0",
+      "title": "X3 ↔ Дом",
+      "description": "Allowlist-сцены Home Assistant и ручная телеметрия через локальный bridge",
+      "requires": {
+        "marku-home-bridge": "0.1.0",
+        "mgu-deploy": "0.7.11"
+      },
+      "uninstallable": true,
+      "mguHmi": [
+        "ID7"
+      ],
+      "artifact": {
+        "name": "marku_x3_home@0.1.0.tgz",
+        "size": 1272457,
+        "sha256": "83bde38d57d37cd99775fbfd92df98a97ba091d9431c8af908e109dcd65d2ac8",
+        "url": "https://github.com/istt1899/x3/releases/download/marku_x3_home@0.1.0/marku_x3_home@0.1.0.tgz"
+      }
+    },
+    {
+      "id": "marku-home-bridge",
+      "kind": "tool",
+      "version": "0.1.0",
+      "title": "X3 Home bridge",
+      "description": "Локальный bridge с pairing и запретом произвольных команд Home Assistant",
+      "requires": {
+        "jap-node22": "22.23.4",
+        "mgu-deploy": "0.7.11",
+        "mgu-uplink": "0.7.3"
+      },
+      "uninstallable": true,
+      "mguHmi": [
+        "ID7"
+      ],
+      "artifact": {
+        "name": "marku-home-bridge@0.1.0.tgz",
+        "size": 17858,
+        "sha256": "4c7cd6ac623ba374b29bda9aa78a2f205263324b9880b39f5b3621830948f508",
+        "url": "https://github.com/istt1899/x3/releases/download/marku-home-bridge@0.1.0/marku-home-bridge@0.1.0.tgz"
+      },
+      "internet": true,
+      "uids": [
+        5000
+      ]
+    },
+    {
+      "id": "marku_x3_trips",
+      "kind": "app",
+      "version": "0.1.0",
+      "title": "Поездки и расходы",
+      "description": "Локальные поездки, категории, топливо и CSV без геолокации",
+      "requires": {
+        "mgu-deploy": "0.7.11"
+      },
+      "uninstallable": true,
+      "mguHmi": [
+        "ID7"
+      ],
+      "artifact": {
+        "name": "marku_x3_trips@0.1.0.tgz",
+        "size": 1273647,
+        "sha256": "4c5125a3abe7ef8a01fe8f000b7365d414dd47bbee50e89a872d6ab32b3bbff9",
+        "url": "https://github.com/istt1899/x3/releases/download/marku_x3_trips@0.1.0/marku_x3_trips@0.1.0.tgz"
+      }
     }
   ]
 }

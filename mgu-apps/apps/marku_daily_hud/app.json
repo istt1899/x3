@@ -1,0 +1,46 @@
+{
+  "id": "marku_daily_hud",
+  "title": "Только важное",
+  "description": "Один слой отклонений 12 В, шин и CBS через cluster-render; по умолчанию выключен",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "vendor": "custom",
+  "loggingId": "MX3D",
+  "iconGlyph": "!",
+  "signals": {
+    "de.bmw.infotainment.vehicle.CDS": {
+      "statusBattery2": "rs"
+    },
+    "de.bmw.infotainment.vehicle.TPMS": {
+      "statusTyrePressure": "rs",
+      "statusTargetTyrePressure": "rs"
+    },
+    "de.bmw.infotainment.KombiInterface_2": {
+      "cbsDataServiceList": "rs"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "menu",
+      "title": "Только важное",
+      "settings": true,
+      "items": [
+        ["text", "hudStatus", "Слой выключен"],
+        ["text", "hudService", "cluster-render: проверяется"],
+        ["text", "hudAlert", "Отклонений нет"],
+        ["text3", "hudReason", "В норме приложение ничего не рисует"],
+        ["button", "hudToggle", "Включить слой"],
+        ["button", "hudCheck", "Проверить состояние"],
+        ["text", "hudSafety", "HUD включается только вручную после проверки на автомобиле"]
+      ]
+    }
+  ],
+  "settings": [
+    {"key": "enabled", "label": "Показывать отклонения", "type": "bool", "default": false},
+    {"key": "target", "label": "Куда выводить", "type": "choice", "default": "panel",
+     "options": [["panel", "Приборная панель"], ["hud", "HUD · только после проверки"]]},
+    {"key": "batteryThreshold", "label": "Порог 12 В", "type": "number", "unit": "%", "default": 60,
+     "steps": [50, 55, 60, 65, 70]}
+  ]
+}

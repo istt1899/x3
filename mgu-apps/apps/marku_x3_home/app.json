@@ -1,0 +1,51 @@
+{
+  "id": "marku_x3_home",
+  "title": "X3 ↔ Дом",
+  "description": "Разрешённые сцены Home Assistant и ручная телеметрия через локальный bridge",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "vendor": "custom",
+  "loggingId": "MX3O",
+  "iconGlyph": "XD",
+  "signals": {
+    "de.bmw.infotainment.vehicle.CDS": {
+      "statusEngineStatus": "rs",
+      "statusBattery2": "rs"
+    },
+    "de.bmw.infotainment.KombiInterface_2": {
+      "cbsDataServiceList": "rs"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "menu",
+      "title": "X3 ↔ Дом",
+      "settings": true,
+      "items": [
+        ["text", "homeStatus", "Bridge: проверяется"],
+        ["text", "homeNetwork", "Сеть: проверяется"],
+        ["button", "homeArrive", "Возвращаюсь"],
+        ["button", "homeLeave", "Выезжаю"],
+        ["button", "homeSnapshot", "Снимок автомобиля"],
+        ["text3", "homePreview", ""],
+        ["text3", "homeLog1", ""],
+        ["text3", "homeLog2", ""],
+        ["text", "homeSafety", "Произвольные команды Home Assistant отключены"]
+      ]
+    },
+    {
+      "name": "CONFIRM",
+      "kind": "menu",
+      "title": "Подтверждение",
+      "items": [
+        ["text3", "homeConfirmText", ""],
+        ["button", "homeConfirmYes", "Подтвердить"],
+        ["button", "homeConfirmNo", "Отмена"]
+      ]
+    }
+  ],
+  "settings": [
+    {"key": "journal", "label": "Локальный журнал действий", "type": "bool", "default": true}
+  ]
+}

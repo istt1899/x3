@@ -1,0 +1,45 @@
+{
+  "id": "marku_x3_trips",
+  "title": "Поездки и расходы",
+  "description": "Локальный журнал поездок, категории, топливо и CSV без облака и геолокации",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "vendor": "custom",
+  "loggingId": "MX3T",
+  "iconGlyph": "TR",
+  "signals": {
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "statusCarSpeed2": "rs"
+    },
+    "de.bmw.infotainment.vehicle.CDS": {
+      "statusEngineStatus": "rs"
+    },
+    "de.bmw.infotainment.KombiIF": {
+      "statusRangeTankStatus": "rs"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "menu",
+      "title": "Поездки и расходы",
+      "settings": true,
+      "items": [
+        ["text", "tripsCurrent", "Поездок ещё не было"],
+        ["text", "tripsFuel", "Топливо: нет данных"],
+        ["text", "tripsCost", "Стоимость: нет данных"],
+        ["text3", "tripsTotals", ""],
+        ["button", "tripsFinish", "Завершить поездку"],
+        ["button", "tripsCategory", "Категория"],
+        ["button", "tripsExport", "Сохранить CSV"],
+        ["text", "tripsPrivacy", "Локально; без облака, маршрутов и геолокации"]
+      ]
+    }
+  ],
+  "settings": [
+    {"key": "period", "label": "Итоги за период", "type": "choice", "default": "week",
+     "options": [["today", "Сегодня"], ["week", "7 дней"], ["month", "30 дней"], ["all", "Все записи"]]},
+    {"key": "price", "label": "Цена топлива", "type": "number", "unit": "₽/л", "default": 66,
+     "steps": [50, 55, 60, 66, 70, 75, 80, 90, 100]}
+  ]
+}

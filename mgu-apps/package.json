@@ -1,0 +1,13 @@
+{
+  "name": "bmw-x3-mgu-five-apps",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "description": "Five read-first MGU applications for BMW X3 G01: health, warm-up, daily HUD, home bridge and trip reports",
+  "scripts": {
+    "build": "node tools/build.js",
+    "catalog:github": "node tools/catalog.js",
+    "publish:check": "node tools/publish-github.js --check",
+    "test": "node tests/run.js"
+  }
+}

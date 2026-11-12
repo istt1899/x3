@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=marku-home-bridge: allowlisted Home Assistant bridge for X3 Home
+RequiresMountsFor=/var/opt
+After=local-fs.target network-online.target
+
+[Service]
+User=root
+ExecStartPre=-/bin/sh -c 'mkdir -p /var/opt/marku-home-bridge/state && chmod 0700 /var/opt/marku-home-bridge /var/opt/marku-home-bridge/state'
+ExecStart=/var/opt/jap-node22/current/bin/node /var/opt/marku-home-bridge/current/home_bridge.js
+RuntimeDirectory=marku-home-bridge
+RuntimeDirectoryMode=0755
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=5
+LimitCORE=1
+
+[Install]
+WantedBy=multi-user.target

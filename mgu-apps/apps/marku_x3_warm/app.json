@@ -1,0 +1,55 @@
+{
+  "id": "marku_x3_warm",
+  "title": "Тёплый старт",
+  "description": "Прогрев масла и ОЖ, наружная температура и объяснимая рекомендация климата без записи",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "vendor": "custom",
+  "loggingId": "MX3W",
+  "iconGlyph": "TS",
+  "signals": {
+    "de.bmw.infotainment.vehicle.CDS": {
+      "statusEngineTemperature": "rs",
+      "statusEngineStatus": "rs"
+    },
+    "de.bmw.infrastructure.EnvironmentalInformation": {
+      "ExteriorTemperature": "s"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "menu",
+      "title": "Тёплый старт",
+      "settings": true,
+      "items": [
+        ["text", "warmEngine", "Двигатель: нет данных"],
+        ["text", "warmOil", "Масло: нет данных"],
+        ["text", "warmCoolant", "ОЖ: нет данных"],
+        ["text", "warmEstimate", "До рабочего диапазона: расчёт недоступен"],
+        ["text3", "warmAdvice", "Рекомендация появится при наружной температуре"],
+        ["button", "warmRefresh", "Обновить оценку"],
+        ["button", "warmHistory", "История прогревов"],
+        ["text", "warmSafety", "Запись в климатический блок не выполняется"]
+      ]
+    },
+    {
+      "name": "HISTORY",
+      "kind": "menu",
+      "title": "История прогревов",
+      "items": [
+        ["text3", "warmH1", ""],
+        ["text3", "warmH2", ""],
+        ["text3", "warmH3", ""],
+        ["text3", "warmH4", ""],
+        ["text3", "warmH5", ""],
+        ["button", "warmBack", "Назад"]
+      ]
+    }
+  ],
+  "settings": [
+    {"key": "threshold", "label": "Порог рекомендации", "type": "number", "unit": "°C", "default": 5,
+     "steps": [-10, -5, 0, 5, 10, 15]},
+    {"key": "history", "label": "История прогревов", "type": "bool", "default": true}
+  ]
+}

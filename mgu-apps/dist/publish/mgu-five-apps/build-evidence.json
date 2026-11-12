@@ -1,0 +1,103 @@
+{
+  "schema": 1,
+  "version": "0.1.0",
+  "mode": "App Kit source-only npm packages",
+  "sdkIncluded": false,
+  "vehicleRuntimeTested": false,
+  "writeCapable": false,
+  "apps": {
+    "marku_x3_health": {
+      "version": "0.1.0",
+      "artifact": "marku_x3_health@0.1.0.tgz",
+      "sha256": "009249f716352d0e3cd99552cd96762a6a5b24bf2c91b08c1e589a7b1e72db6f",
+      "sourceFiles": {
+        "app.json": "c408c1a54812086c9626109f1efc521522f8f20509f03b58cb4303e092d82b2a",
+        "diagnostics.js": "5201ca1b3d4cc2e785460a5845b5ab1a19c7af22db0760b2290a6a9337b417f7",
+        "main.js": "806f32cf2cb32519e96076aea357a56ceae0658cd3031114790139dd49d76828",
+        "model.js": "b039c94fce245dbe76a353fb9306ebb768cc21fd99bd9429ba3353a4c1610cc5",
+        "someip_signals.js": "793250f0a5e7e37b40f63d85d464ab78ad9af3c947ffb239d12b5e10cfad08e9",
+        "store.js": "167c6cc78f07b65879866cf5d0e45ce9db7032113a722f8a0ed5f5f9ab34128f"
+      }
+    },
+    "marku_x3_warm": {
+      "version": "0.1.0",
+      "artifact": "marku_x3_warm@0.1.0.tgz",
+      "sha256": "42c2e447021981545bbb95dac0e70d72e2623b02c409fb36a3f8068b0d7441aa",
+      "sourceFiles": {
+        "app.json": "4425a660c5f74cb2d1742cafbc62a48d319d972e64e9168747f08414dd11d4c8",
+        "main.js": "5ed2eeba041fa0297aa5478562a43e57932f0eb242ab3997cbc1e84c7a230a8f",
+        "model.js": "1706d87eee1e93f882b518693109126962cd2976c0682e07e8e74ac8ed180abf",
+        "store.js": "55f7cb1b187aa3411d052b15c97e4e59721d6ba3a0d69e7ce70adde2b3e0d804"
+      }
+    },
+    "marku_daily_hud": {
+      "version": "0.1.0",
+      "artifact": "marku_daily_hud@0.1.0.tgz",
+      "sha256": "cb24bc76b3c123d83bebdeb2c6c5b780b53ac9739672d1910d575392247980a7",
+      "sourceFiles": {
+        "app.json": "cdab4d3a97ead926ee00b96c0c3f7f1899f77acd5a6adce3e28817af0703dc24",
+        "cluster_render_client.js": "db185217966ab5d74e6074e8e42bd2d9baeafe85afcbe61c56664d2a2bf7188b",
+        "main.js": "c1b7e0fbd2b3c748e775846913456f3a3f467c75bb717f74d84970c76e85c7bd",
+        "model.js": "e680cabf4e9ace8bdc193f33851ac6d1e2b93f6d6f0fd0b24195eebd9364634f",
+        "render.js": "b2d7d4a305303546586855b8e945b9fad9b70fb28b7a113aca246832003275df"
+      }
+    },
+    "marku_x3_home": {
+      "version": "0.1.0",
+      "artifact": "marku_x3_home@0.1.0.tgz",
+      "sha256": "83bde38d57d37cd99775fbfd92df98a97ba091d9431c8af908e109dcd65d2ac8",
+      "sourceFiles": {
+        "app.json": "e2b811525c44314b501626c2f53bf911d575c7d755d9dad318e4babf3c7da610",
+        "home_client.js": "0f10788d1b7ba4ab4ec3b3c685d9ac30fd8c9b19d4bde3714829bfd4cd53f476",
+        "main.js": "2ee3cb8b2de74b142000e3b4e40a337d4806ebd8a221b489745a6a63378e230d"
+      }
+    },
+    "marku_x3_trips": {
+      "version": "0.1.0",
+      "artifact": "marku_x3_trips@0.1.0.tgz",
+      "sha256": "4c5125a3abe7ef8a01fe8f000b7365d414dd47bbee50e89a872d6ab32b3bbff9",
+      "sourceFiles": {
+        "app.json": "a58f3cae9649930b9c4789d8206b8c2e049f83e28dbda777d687cdad86228a85",
+        "main.js": "f91f5ff7de8df5bea504165675115f7e21906181da909f44766c74b01d379ec1",
+        "model.js": "916b32ae899ced6806bc7ccad7ddcfda6662652ef53039f0878d2d3fe11f8e45",
+        "store.js": "5766da2a91f57d63d3a715661533ef76e1681ed8f93314d728da09c1408e9e6e"
+      }
+    }
+  },
+  "kit": {
+    "runtime/canvas.js": "a1647cf52bcb874c11abf6c25638d67fe33db485271b74c37db8c1cda7a38273",
+    "runtime/credits.js": "6074066bc6ae85794db9b844322264ad8aa73b89c850f6b03a3ee57c57d95084",
+    "runtime/display.js": "c619172e4358c88a6e99d599ce96ff6dcfba678637240c008e4fc07bb9048828",
+    "runtime/fonts/bold.json": "314c39b854eac90150a60b024b7eaebad04dcac182e4d8ef5da0b6316f8fb50c",
+    "runtime/fonts/cjk.json": "c2eb9fad6fa946810f1d5993ed1654fd44b76366d20a4b4cb2fcad7e365ae37f",
+    "runtime/fonts/cyrillic.json": "a1a43db745f3f30c1af0825c73eeb0377fa0b8ea0788fac645612d402e150618",
+    "runtime/fonts/gear.json": "5d10ff9e51f0742904bc3e557118b4fd291684152541b4b14bd344414692d790",
+    "runtime/fonts/label.json": "b782989508d440270aec9852fea1d9bd67d36a3c394b4404d3d2012b989a70ce",
+    "runtime/fonts/light.json": "c1a1e9e60062a86759ea9898afaccb993605dd89ee265dd625a9f39867f73569",
+    "runtime/fonts/num.json": "ed3482df56998de38bd6a6d541bf4a401256548a91f1219cfa035f38609425a0",
+    "runtime/fonts/OFL-NotoSansSC.txt": "babcfe66c8a098b2fa279bc724a3a342f8124f77ce18941fbcc1bbb39823cded",
+    "runtime/fonts/UFL-Ubuntu.txt": "2f0015108d68627bd788d313f529c21ff4da2c2c42a5e1f3883acc83480f9002",
+    "runtime/fonts.js": "2dab7d5709ffbe5ee8f6a14ff0c5da5b0efe1d95c33c5bc64ba20031971b4f9f",
+    "runtime/gauges.js": "3eb52e936767eae6b881e8a4342e74a09dfb1d5414a31f3bd6a9106dc0556af0",
+    "runtime/hmi-text.js": "74d96fd26ec53f4dc55fd36e079901ed03994794c8b31ae37e93e095092814e0",
+    "runtime/i18n.js": "daf40d71e774d722af5c1cb1007b5bc6cf496aeeadf35a110bc3b0fca1091fdb",
+    "runtime/life.js": "ebcf99fcf3b840455923831cb93ec4620281d3e4eba15f83e0a97f9975afc7c6",
+    "runtime/locale.json": "c37863ed4336c34a3868d150767644841256ee3ad6fc3dad6e223bcb5913f7e7",
+    "runtime/mgu.js": "495c4d588f618acc6f5efe58873737eaf981224915015914c70bacdce3a39ae1",
+    "runtime/parked.js": "16fd9794480b2862812bdb45ee6240487e82d2ad1e4a070e5abfee3ead643553",
+    "runtime/qr.js": "849a74fe7d82ba9fa07deb784454c4ced81a789f4083656196e3ab09b7962453",
+    "runtime/record.js": "691529b0f7f6db198af1b72b079f28802d24b0160549ddca6ea58803f43728be",
+    "runtime/renderd.js": "952a598fa2aa51450e008845ac7a6c6c58d706b2fe6c9117236d1097664ed392",
+    "runtime/sheet.js": "a35a4f01779d7910e0fc76661e839229214eb16d7b82d69fca8f6652ab137fec",
+    "runtime/signals.js": "92e3e397aef9cd44fcef989c3802af7980b7f3340028dba3fd4a1741bc940e23",
+    "runtime/themes.js": "c24c641a0e82c4b9bc1ba91ebc2916044de9e160e40d0cf888943fc12d80fa58"
+  },
+  "builderSha256": "3567e78c810a28079eb0ea7800906f30a9ec5a55b42bec52fbb3c0d8e46e71dd",
+  "bridge": {
+    "id": "marku-home-bridge",
+    "version": "0.1.0",
+    "artifact": "marku-home-bridge@0.1.0.tgz",
+    "sha256": "4c7cd6ac623ba374b29bda9aa78a2f205263324b9880b39f5b3621830948f508",
+    "writeCapable": "home-assistant-allowlist-only"
+  }
+}
