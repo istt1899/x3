@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="color-scheme" content="dark">
+<title>Автоворота · BMW MGU — геозона 20 м</title>
+<style>
+:root{--bg:#070b10;--panel:#0f161e;--panel2:#141e28;--line:#263442;--text:#eef4f7;--muted:#9caab7;--accent:#66d9c5;--blue:#79b8ff;--amber:#ffbf69;--red:#ff8585;--green:#8de49c;--radius:18px;--shadow:0 18px 50px #0008}
+*{box-sizing:border-box}html{background:var(--bg)}body{margin:0;background:radial-gradient(ellipse at 50% -10%,#17313d 0,transparent 42%),var(--bg);color:var(--text);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Arial,sans-serif}button,input,select{font:inherit}button,input,select,summary{min-height:44px}button{border:1px solid var(--line);border-radius:12px;padding:11px 16px;background:#18232e;color:var(--text);cursor:pointer;font-weight:650;transition:background .15s,border-color .15s,transform .1s}button:hover{background:#223140;border-color:#506579}button:active{transform:translateY(1px)}button:disabled{opacity:.55;cursor:default}button.primary{background:var(--accent);border-color:var(--accent);color:#06251f}button.primary:hover{background:#8ae6d5}button.danger{border-color:#805252;color:#ffb0b0}button.linklike{background:transparent;border-color:transparent;color:var(--accent);padding-left:4px;padding-right:4px}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #f4c95d;outline-offset:3px}input,select{border:1px solid #3b4d5e;border-radius:10px;background:#0b1219;color:var(--text);padding:10px 12px;max-width:100%}input[type=range]{padding:0;width:100%}input[type=checkbox]{width:22px;height:22px;min-height:22px;accent-color:var(--accent)}label{cursor:pointer}a{color:var(--accent)}.wrap{width:min(1180px,100%);margin:auto;padding:0 20px}.hero{padding:30px 0 14px}.eyebrow{color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.hero h1{font-size:clamp(28px,4.4vw,46px);line-height:1.05;letter-spacing:-.04em;margin:10px 0 10px}.hero p{color:var(--muted);max-width:820px;margin:0}.tag{display:inline-flex;align-items:center;min-height:28px;padding:3px 10px;border-radius:99px;border:1px solid #3c4c5a;color:var(--muted);font-size:12px;font-weight:700;white-space:nowrap}.tag.good{border-color:#367456;color:var(--green)}.tag.warn{border-color:#86693b;color:var(--amber)}.tag.info{border-color:#3b668a;color:var(--blue)}.tag.bad{border-color:#7c3b3b;color:var(--red)}.layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);gap:20px;align-items:start;padding:14px 0 40px}.card{border:1px solid var(--line);border-radius:var(--radius);background:#101923;padding:18px;min-width:0}.card h2{font-size:20px;margin:0 0 4px;letter-spacing:-.02em}.card h3{font-size:16px;margin:18px 0 8px}.card .sub{color:var(--muted);font-size:13px;margin:0 0 14px}.status-banner{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:#0d141b;font-size:15px;font-weight:700;margin-bottom:14px}.status-banner .dot{width:12px;height:12px;border-radius:50%;background:var(--muted);flex:none}.status-banner.armed .dot{background:var(--green);box-shadow:0 0 12px #8de49c88}.status-banner.approach .dot{background:var(--amber);box-shadow:0 0 12px #ffbf6988}.status-banner.sending .dot{background:var(--blue);box-shadow:0 0 12px #79b8ff88;animation:pulse 1s infinite}.status-banner.cooldown .dot{background:var(--red)}.status-banner.nogps .dot{background:var(--red);animation:pulse 1.4s infinite}@keyframes pulse{50%{opacity:.35}}.distance-big{font-size:clamp(54px,9vw,96px);font-weight:800;letter-spacing:-.05em;line-height:1;margin:6px 0 2px}.distance-big small{font-size:.35em;color:var(--muted);font-weight:600;letter-spacing:0}.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}.metric{border:1px solid #2b3945;border-radius:14px;background:#121c25;padding:12px;min-width:0}.metric .label{display:block;color:var(--muted);font-size:12px}.metric strong{display:block;font-size:22px;line-height:1.2;margin-top:4px;letter-spacing:-.02em}.metric small{color:#aab8c4;font-size:11px}.metric.alert{border-color:#875c50;background:#2b1b19}.metric.good{border-color:#32604d;background:#10241d}.big-actions{display:grid;gap:10px;margin-top:14px}.big-actions .primary{font-size:19px;padding:16px;border-radius:16px}.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid #2b3945;border-radius:14px;background:#121c25;margin-top:12px}.toggle-row .txt strong{display:block}.toggle-row .txt small{color:var(--muted)}#auto-toggle[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#06251f}.radar-wrap{display:grid;place-items:center;padding:6px 0 2px}.radar{background:#0a1118;border:1px solid #223140;border-radius:16px;max-width:100%}.log{max-height:230px;overflow:auto;font:12.5px/1.5 ui-monospace,Consolas,monospace;background:#070d13;border:1px solid #223140;border-radius:12px;padding:10px 12px}.log div{padding:2px 0;border-bottom:1px solid #16222c}.log div:last-child{border-bottom:0}.log .t{color:#6d7f8c;margin-right:7px}.log .ok{color:var(--green)}.log .err{color:var(--red)}.log .warn{color:var(--amber)}.field{display:grid;gap:6px;margin:10px 0}.field span{font-size:12px;color:var(--muted)}.field input,.field select{width:100%}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}.callout{border-left:3px solid var(--blue);padding:11px 14px;background:#79b8ff0c;border-radius:0 12px 12px 0;margin:12px 0;font-size:13.5px;color:#c9d6df}.callout.warn{border-color:var(--amber);background:#ffbf690c;color:#e9d7b8}.callout.error{border-color:var(--red);background:#ff85850c}.callout.good{border-color:var(--green);background:#8de49c0c}.row{display:flex;align-items:center;justify-content:space-between;gap:12px}.row.wrap{flex-wrap:wrap}.row.start{align-items:start}.btnrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.btnrow button{flex:1 1 120px}.sim-dir{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.sim-dir button{min-height:52px}.sim-dir button[aria-pressed=true]{border-color:var(--accent);color:var(--accent);background:#66d9c512}.details{margin-top:16px}.details summary{cursor:pointer;color:var(--accent);font-weight:650;padding:8px 0}.muted{color:var(--muted)}.kbd{font:12px ui-monospace,Consolas,monospace;background:#0b1219;border:1px solid #2b3945;border-radius:6px;padding:1px 6px}.provenance{margin:0;padding:6px 16px;display:flex;flex-wrap:wrap;gap:4px 14px;font:12px/1.4 -apple-system,Segoe UI,Roboto,Inter,sans-serif;color:#8b98a5;background:#0d1117;border-bottom:1px solid #1f2a36}.provenance b{color:#e6edf3;font-weight:600}.footer{padding:26px 20px 44px;color:var(--muted);border-top:1px solid var(--line);font-size:13px}.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);max-width:calc(100% - 30px);padding:12px 18px;border:1px solid #4c687b;border-radius:13px;background:#152331;z-index:40;box-shadow:var(--shadow);transition:opacity .3s}.toast:empty{display:none}pre{white-space:pre-wrap;word-break:break-all;background:#0b1219;border:1px solid #223140;border-radius:10px;padding:10px 12px;font:12.5px/1.5 ui-monospace,Consolas,monospace;overflow:auto}
+@media(max-width:960px){.layout{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.wrap{padding:0 14px}.metrics{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}.sim-dir{grid-template-columns:repeat(2,1fr)}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media print{body{background:#fff;color:#111}.card,.metric,.status-banner,.log,.callout{background:#fff;color:#111;border-color:#999}.card .sub,.metric .label,.metric small,.hero p,.muted{color:#333}.provenance{display:none}}
+</style>
+<meta name="provenance" content="{&quot;built_at&quot;: &quot;13.11.2026 МСК&quot;, &quot;source&quot;: &quot;kimi&quot;, &quot;session_code&quot;: &quot;mgu-auto-gate-20261113&quot;, &quot;client&quot;: &quot;BMW X3 G01&quot;, &quot;object&quot;: &quot;Автоворота MGU&quot;, &quot;doc_kind&quot;: &quot;приложение&quot;, &quot;status&quot;: &quot;готово&quot;, &quot;edition&quot;: &quot;1&quot;, &quot;repo&quot;: &quot;x3&quot;, &quot;command_source&quot;: &quot;MARKINFO:MI-4A967B68B3D3B09F1B8C&quot;}"></head>
+<body>
+<div class="provenance" role="note" aria-label="Происхождение файла"><span>Клиент: <b>BMW X3 G01</b></span><span>Объект: <b>Автоворота MGU</b></span><span>Тип: <b>приложение</b></span><span>Статус: <b>готово, редакция 1</b></span><span>Собрано: <b>13.11.2026</b></span><span>Источник: <b>Kimi</b></span><span>Команда ворот: <b>MARKINFO:MI-4A967B68B3D3B09F1B8C</b></span><span>Репозиторий: <b>x3</b></span></div>
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow">BMW X3 G01 · MGU / iDrive 7 · автономный HTML · офлайн</div>
+  <h1>Автоворота</h1>
+  <p>Подъезжаете к воротам с любой стороны — на 20 метрах до них приложение само отправляет команду открытия. Команда идёт по вашему проверенному механизму (Яндекс IoT, инструкция в архиве MarkInfo). Ничего лишнего: одна страница, без сети, без внешних библиотек.</p>
+</header>
+
+<div class="layout">
+  <div>
+    <section class="card" aria-label="Экран автоворот">
+      <div class="status-banner nogps" id="status-banner" aria-live="polite"><span class="dot" id="status-dot"></span><span id="status-text">Нет данных GPS — включите источник координат в настройках</span></div>
+      <div class="row wrap" style="justify-content:flex-start;gap:18px">
+        <div>
+          <div class="distance-big"><span id="dist-value">—</span> <small id="dist-unit">м</small></div>
+          <div class="muted" id="dist-note">до ворот · 54.506731, 36.292166</div>
+        </div>
+        <div class="radar-wrap"><svg class="radar" id="radar" width="230" height="230" viewBox="0 0 230 230" role="img" aria-label="Радар: ворота в центре, автомобиль относительно них"></svg></div>
+      </div>
+      <div class="metrics">
+        <div class="metric" id="m-speed"><span class="label">Скорость</span><strong id="v-speed">—</strong><small>км/ч</small></div>
+        <div class="metric" id="m-acc"><span class="label">Точность GPS</span><strong id="v-acc">—</strong><small>метров · порог <span id="v-accth">30</span> м</small></div>
+        <div class="metric" id="m-state"><span class="label">Режим</span><strong id="v-auto" style="font-size:17px">Авто OFF</strong><small id="v-src">источник: —</small></div>
+      </div>
+      <div class="toggle-row">
+        <div class="txt"><strong>Автоматическое открытие</strong><small>срабатывает один раз при въезде в зону 20 м, с любого направления</small></div>
+        <button id="auto-toggle" aria-pressed="false">Выключено</button>
+      </div>
+      <div class="big-actions">
+        <button class="primary" id="open-now">Открыть ворота сейчас</button>
+      </div>
+      <div class="callout warn" id="inside-note" hidden>Вы уже внутри зоны ворот. Автооткрытие не сработает, пока вы не выедете за её пределы и не подъедете снова — это защита от случайных повторов.</div>
+      <div class="callout" id="cors-note" hidden>Браузер может блокировать ответ Яндекса (CORS). Если команда уходит, а ворота не открываются, переключите в настройках режим на «Свой webhook» (например через OpenClaw) — внешний ответ там не нужен.</div>
+    </section>
+
+    <section class="card" style="margin-top:16px" aria-label="Журнал">
+      <div class="row"><h2>Журнал</h2><button class="linklike" id="log-clear">Очистить</button></div>
+      <div class="log" id="log" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <div>
+    <section class="card" aria-label="Настройки геозоны">
+      <h2>Геозона</h2>
+      <div class="grid2">
+        <div class="field"><span>Широта ворот</span><input id="cfg-lat" inputmode="decimal" value="54.506731"></div>
+        <div class="field"><span>Долгота ворот</span><input id="cfg-lon" inputmode="decimal" value="36.292166"></div>
+      </div>
+      <div class="btnrow"><button id="use-current" type="button" title="Встать у ворот и взять текущую позицию GPS">Взять текущую позицию</button></div>
+      <div class="field"><span>Радиус срабатывания: <output id="cfg-radius-v">20</output> м</span><input id="cfg-radius" type="range" min="10" max="80" step="5" value="20"></div>
+      <div class="field"><span>Внешний радиус постановки на охрану: <output id="cfg-outer-v">150</output> м</span><input id="cfg-outer" type="range" min="60" max="500" step="10" value="150"></div>
+      <div class="field"><span>Пауза после открытия: <output id="cfg-cool-v">120</output> с</span><input id="cfg-cool" type="range" min="30" max="600" step="30" value="120"></div>
+      <div class="field"><span>Макс. погрешность GPS: <output id="cfg-accth-v">30</output> м</span><input id="cfg-accth" type="range" min="10" max="80" step="5" value="30"></div>
+      <p class="muted" style="font-size:12.5px;margin:8px 0 0">Срабатывание с любого направления: по расстоянию, курс не нужен. Перевооружение — только после выезда из зоны и паузы.</p>
+    </section>
+
+    <section class="card" style="margin-top:16px" aria-label="Настройки команды">
+      <h2>Команда воротам</h2>
+      <div class="field"><span>Режим отправки</span><select id="cfg-mode"><option value="yandex">Яндекс IoT API (проверенный механизм)</option><option value="webhook">Свой webhook (OpenClaw / прокси)</option></select></div>
+      <div id="mode-yandex">
+        <div class="field"><span>OAuth-токен Яндекса (Bearer) — виден только вам, хранится в этом браузере</span><input id="cfg-token" type="password" autocomplete="off" placeholder="y0_AgAAAA…"></div>
+        <div class="btnrow"><button id="token-toggle" type="button">Показать токен</button></div>
+        <div class="field"><span>ID устройства ворот</span><input id="cfg-device" value="1192f08e-f665-45ec-a677-9823d766d717"></div>
+      </div>
+      <div id="mode-webhook" hidden>
+        <div class="field"><span>URL webhook</span><input id="cfg-hookurl" type="url" placeholder="https://…/gate"></div>
+        <div class="field"><span>Доп. заголовок (Authorization и т.п.), формат Key: Value · скрыт</span><input id="cfg-hookheader" type="password" autocomplete="off" placeholder="Authorization: Bearer …"></div>
+      </div>
+      <div class="callout warn">Токен даёт управление вашим умным домом. Он отправляется только выбранному API ворот и хранится в профиле этого браузера (localStorage): его может прочитать любая страница, открытая в этом же браузере. Не открывайте чужие страницы в профиле MGU с введённым токеном; при компрометации отзовите токен в Яндексе. Ответ Яндекса браузер может не показать (CORS) — если статуса нет, а ворота открылись, всё в порядке; для гарантированного подтверждения используйте «Свой webhook».</div>
+    </section>
+
+    <section class="card" style="margin-top:16px" aria-label="Источник координат">
+      <h2>Источник координат</h2>
+      <div class="field"><span>Откуда брать позицию</span><select id="cfg-src"><option value="browser">GPS браузера MGU</option><option value="local">Локальный GPS-демон на MGU (URL)</option><option value="sim">Симуляция (проверка без машины)</option></select></div>
+      <div class="field" id="local-url-wrap" hidden><span>URL демона, отвечает JSON {"lat":…,"lon":…,"speed":…,"acc":…}</span><input id="cfg-localurl" type="url" placeholder="http://127.0.0.1:8570/gps"></div>
+      <p class="muted" style="font-size:12.5px;margin:8px 0 0">Если браузер MGU не отдаёт GPS, запустите на ГУ локальный демон, читающий штатный SOME/IP-канал позиционирования (тот же мост, что использует «Стрелка»), и укажите его URL здесь.</p>
+    </section>
+
+    <section class="card" style="margin-top:16px" aria-label="Интеграция со Стрелкой">
+      <h2>Стрелка · уведомление при подъезде</h2>
+      <p class="sub">При приближении к воротам «Стрелка» покажет карточку «Ворота — 20 м». Уведомление работает независимо от автооткрытия.</p>
+      <label class="row" style="font-size:14px"><span>Показывать уведомление в «Стрелке» при подъезде к воротам</span><input id="cfg-strelka" type="checkbox"></label>
+      <div class="field"><span>URL приёма алертов «Стрелки» (её локальный HTTP-приёмник)</span><input id="cfg-strelkaurl" type="url" placeholder="http://127.0.0.1:8300/gate-alert"></div>
+      <div class="btnrow"><button id="strelka-test">Тест уведомления</button></div>
+      <p class="muted" style="font-size:12.5px;margin:8px 0 0">Приёмник ждёт POST с JSON <span class="kbd">{event:"gate_approach"|"gate_trigger"|"test", dist, auto}</span>. Добавьте в «Стрелку» обработчик этого адреса — тогда её карточка будет всплывать, как по камерам. Автооткрытие у ворот включается и выключается верхним переключателем «Автоматическое открытие».</p>
+    </section>
+
+    <section class="card" style="margin-top:16px" aria-label="Симуляция подъезда">
+      <h2>Симуляция подъезда</h2>
+      <p class="sub">Проверьте всю цепочку за столом: виртуальная машина поедет к воротам, приложение сработает как вживую.</p>
+      <div class="field"><span>Сторона подъезда</span><div class="sim-dir" id="sim-dir">
+        <button data-b="0" aria-pressed="false">С&nbsp;севера</button><button data-b="45" aria-pressed="false">СВ</button>
+        <button data-b="90" aria-pressed="true">С&nbsp;востока</button><button data-b="135" aria-pressed="false">ЮВ</button>
+        <button data-b="180" aria-pressed="false">С&nbsp;юга</button><button data-b="225" aria-pressed="false">ЮЗ</button>
+        <button data-b="270" aria-pressed="false">С&nbsp;запада</button><button data-b="315" aria-pressed="false">СЗ</button>
+      </div></div>
+      <div class="field"><span>Скорость: <output id="sim-speed-v">25</output> км/ч · старт за 350 м</span><input id="sim-speed" type="range" min="5" max="60" step="5" value="25"></div>
+      <div class="btnrow"><button class="primary" id="sim-start">Начать подъезд</button><button id="sim-stop" disabled>Стоп</button></div>
+      <label class="row" style="margin-top:10px;font-size:13.5px"><span>Режим «сухого прогона»: не отправлять реальную команду во время симуляции</span><input id="sim-dry" type="checkbox" checked></label>
+    </section>
+
+    <section class="card" style="margin-top:16px" aria-label="Справка">
+      <h2>Если что-то пошло не так</h2>
+      <details class="details"><summary>Коды ответа и действия</summary>
+        <ul style="margin:8px 0;padding-left:20px;color:#c3cfda;font-size:13.5px">
+          <li><b>401</b> — проверьте токен и один пробел после <span class="kbd">Bearer</span>.</li>
+          <li><b>403</b> — проверьте право <span class="kbd">iot:control</span> у токена.</li>
+          <li><b>ERROR / DEVICE_UNREACHABLE</b> — Яндекс не подтвердил действие. Сохраните ответ, автоматические повторы не добавляйте.</li>
+          <li><b>Тайм-аут</b> — сначала посмотрите на ворота: команда могла дойти. Повторяйте только вручную.</li>
+          <li><b>CORS-блокировка в браузере</b> — ответ Яндекса недоступен странице. Используйте режим «Свой webhook».</li>
+        </ul>
+      </details>
+      <details class="details"><summary>Как это работает</summary>
+        <p class="muted" style="font-size:13.5px">Пока вы дальше внешнего радиуса, приложение на охране. При пересечении его приложение переходит в режим ожидания. При первом попадании в круг 20 м (точность GPS не хуже порога) отправляется одна команда открытия и начинается пауза: повтор возможен только после выезда из зоны и окончания паузы. Парковка внутри зоны при запуске приложения автокоманды не вызывает.</p>
+      </details>
+    </section>
+  </div>
+</div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<footer class="footer"><div class="wrap">
+  <div>Автоворота · редакция 1 · 13.11.2026 · один файл, офлайн, без внешних ресурсов. Командный контракт ворот — по архивной инструкции <b>MARKINFO:MI-4A967B68B3D3B09F1B8C</b> (Яндекс IoT API, устройство РосДомофон). Публикация: репозиторий x3.</div>
+</div></footer>
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id)};
+var LS_CFG="mguGate.cfg.v1",LS_TOK="mguGate.token.v1";
+var R=6371000,D2R=Math.PI/180;
+function hav(a,b,c,d){var la=(c-a)*D2R,lo=(d-b)*D2R;var h=Math.sin(la/2)*Math.sin(la/2)+Math.cos(a*D2R)*Math.cos(c*D2R)*Math.sin(lo/2)*Math.sin(lo/2);return 2*R*Math.asin(Math.sqrt(h))}
+function destPt(lat,lon,brg,dist){var d=dist/R,th=brg*D2R;var p1=lat*D2R,l1=lon*D2R;var p2=Math.asin(Math.sin(p1)*Math.cos(d)+Math.cos(p1)*Math.sin(d)*Math.cos(th));var l2=l1+Math.atan2(Math.sin(th)*Math.sin(d)*Math.cos(p1),Math.cos(d)-Math.sin(p1)*Math.sin(p2));return{lat:p2/D2R,lon:l2/D2R}}
+function brg(a,b,c,d){var y=Math.sin((d-b)*D2R)*Math.cos(c*D2R);var x=Math.cos(a*D2R)*Math.sin(c*D2R)-Math.sin(a*D2R)*Math.cos(c*D2R)*Math.cos((d-b)*D2R);return(Math.atan2(y,x)/D2R+360)%360}
+function now(){var d=new Date();function p(n){return(n<10?"0":"")+n}return p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds())}
+function esc(s){return String(s).replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})}
+
+var cfg=loadCfg();
+try{var qsrc=new URLSearchParams(location.search).get("src");if(qsrc==="browser"||qsrc==="local"||qsrc==="sim")cfg.src=qsrc}catch(e){}
+function loadCfg(){var d={lat:54.506731,lon:36.292166,radius:20,outer:150,cool:120,accth:30,mode:"yandex",device:"1192f08e-f665-45ec-a677-9823d766d717",hookurl:"",hookheader:"",src:"browser",localurl:"",strelka:false,strelkaUrl:"",simB:90,simSpeed:25};try{var s=JSON.parse(localStorage.getItem(LS_CFG)||"{}");for(var k in d)if(s[k]!==undefined)d[k]=s[k]}catch(e){}return d}
+function saveCfg(){try{localStorage.setItem(LS_CFG,JSON.stringify(cfg))}catch(e){}}
+
+var state={phase:"nogps",armed:false,canFire:false,insideTicks:0,coolUntil:0,lastSend:0,sendCount:0,pos:null,prevDist:null,simTimer:null,simDist:0,watchId:null,pollTimer:null,wakeLock:null};
+var logEl=$("log");
+function log(msg,cls){var d=document.createElement("div");d.innerHTML='<span class="t">'+now()+'</span><span class="'+(cls||"")+'">'+msg+"</span>";logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;while(logEl.children.length>200)logEl.removeChild(logEl.firstChild)}
+function toast(msg){var t=$("toast");t.textContent=msg;t.style.opacity="1";clearTimeout(t._h);t._h=setTimeout(function(){t.style.opacity="0"},2600)}
+
+function beep(freq,dur,when){try{var C=window.AudioContext||window.webkitAudioContext;if(!C)return;var ctx=beep._c||(beep._c=new C());if(ctx.state==="suspended"){ctx.resume().catch(function(){})}var o=ctx.createOscillator(),g=ctx.createGain();o.type="sine";o.frequency.value=freq;g.gain.setValueAtTime(0.001,ctx.currentTime+(when||0));g.gain.exponentialRampToValueAtTime(0.22,ctx.currentTime+(when||0)+0.02);g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+(when||0)+dur);o.connect(g);g.connect(ctx.destination);o.start(ctx.currentTime+(when||0));o.stop(ctx.currentTime+(when||0)+dur+0.05)}catch(e){}}
+function okSound(){beep(880,0.18,0);beep(1320,0.22,0.16)}
+function errSound(){beep(240,0.3,0);beep(180,0.35,0.22)}
+function buzz(){try{if(navigator.vibrate)navigator.vibrate([120,60,120])}catch(e){}}
+
+function setBanner(phase,text){state.phase=phase;var b=$("status-banner");b.className="status-banner "+phase;$("status-text").textContent=text}
+
+function fmtDist(d){if(d==null)return["—",""];if(d<1000)return[String(Math.round(d)),"м"];return[(d/1000).toFixed(2),"км"]}
+
+function render(){var p=state.pos;var dv=fmtDist(p?p.dist:null);$("dist-value").textContent=dv[0];$("dist-unit").textContent=dv[1];
+$("v-speed").textContent=p&&p.speed!=null?String(Math.round(p.speed*3.6)):"—";
+$("v-acc").textContent=p&&p.acc!=null?"±"+Math.round(p.acc):"—";
+$("m-acc").className="metric"+(p&&p.acc!=null&&p.acc>cfg.accth?" alert":"");
+$("v-accth").textContent=cfg.accth;
+$("v-auto").textContent=$("auto-toggle").getAttribute("aria-pressed")==="true"?"Включено":"Выключено";
+$("v-src").textContent="источник: "+({browser:"GPS браузера",local:"локальный демон",sim:"симуляция"})[cfg.src];
+$("inside-note").hidden=!(p&&p.dist<=cfg.radius&&!state.canFire);
+drawRadar()}
+
+function drawRadar(){var s=$("radar"),W=230,cx=W/2,cy=W/2;var pad=16;var scale=(W/2-pad)/(cfg.outer*1.15);var h="";
+h+='<circle cx="'+cx+'" cy="'+cy+'" r="'+Math.round(cfg.outer*scale)+'" fill="none" stroke="#2b3945" stroke-dasharray="5 5"/>';
+h+='<circle cx="'+cx+'" cy="'+cy+'" r="'+Math.round(cfg.radius*scale)+'" fill="none" stroke="#66d9c5" stroke-width="1.6"/>';
+h+='<circle cx="'+cx+'" cy="'+cy+'" r="5" fill="#66d9c5"/><text x="'+(cx+9)+'" y="'+(cy-7)+'" fill="#9caab7" font-size="10">ворота</text>';
+h+='<text x="'+cx+'" y="'+(cy-cfg.radius*scale-5)+'" fill="#66d9c5" font-size="10" text-anchor="middle">'+cfg.radius+' м</text>';
+h+='<text x="'+cx+'" y="'+(cy-cfg.outer*scale-5)+'" fill="#5b6b78" font-size="10" text-anchor="middle">охрана '+cfg.outer+' м</text>';
+var p=state.pos;if(p){var a=(brg(cfg.lat,cfg.lon,p.lat,p.lon)-90)*D2R;var r=Math.min(p.dist,cfg.outer*1.15)*scale;var x=cx+Math.cos(a)*r,y=cy+Math.sin(a)*r;
+h+='<line x1="'+cx+'" y1="'+cy+'" x2="'+x.toFixed(1)+'" y2="'+y.toFixed(1)+'" stroke="#3b5871" stroke-dasharray="3 3"/>';
+h+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="7" fill="#79b8ff" stroke="#0a1118" stroke-width="2"/>';}
+s.innerHTML=h}
+
+function onPosition(lat,lon,speed,acc,src){var d=hav(lat,lon,cfg.lat,cfg.lon);state.pos={lat:lat,lon:lon,speed:speed,acc:acc,dist:d,ts:Date.now()};
+var auto=$("auto-toggle").getAttribute("aria-pressed")==="true";
+var cool=Date.now()<state.coolUntil;
+if(acc==null||acc>cfg.accth){setBanner(state.armed?"approach":"nogps","Позиция есть, но точность ±"+Math.round(acc==null?999:acc)+" м хуже порога "+cfg.accth+" м — автокоманда заблокирована");render();return}
+if(d>cfg.radius)state.canFire=true;
+if(state.prevDist!=null&&!cool){if(state.prevDist>cfg.outer&&d<=cfg.outer)strelkaAlert("approach",d);if(state.prevDist>cfg.radius&&d<=cfg.radius)strelkaAlert("trigger",d)}
+state.prevDist=d;
+if(cool){var left=Math.ceil((state.coolUntil-Date.now())/1000);setBanner("cooldown","Пауза после открытия · повтор после выезда из зоны (осталось "+left+" с)");render();return}
+state.armed=d<=cfg.outer;
+state.insideTicks=d<=cfg.radius?state.insideTicks+1:0;
+if(d<=cfg.radius){
+  if(auto&&state.canFire&&state.insideTicks>=2){render();autoOpen();return}
+  setBanner("approach","Вы в зоне ворот ("+Math.round(d)+" м) · "+(auto?"автооткрытие сработает при подтверждении фиксом":"включите «Автоматическое открытие»"));render();return}
+setBanner(state.armed?"approach":"armed",state.armed?"На охране · вне зоны ворот":"Вне зоны · охрана активна на "+cfg.outer+" м");render()}
+
+function tickCooldown(){if(state.phase==="cooldown"&&!(Date.now()<state.coolUntil)){var p=state.pos;if(p&&p.dist>cfg.radius){state.coolUntil=0;log("Пауза окончена, приложение снова на охране","ok")}}render()}
+
+function strelkaAlert(kind,dist){if(!cfg.strelka||!cfg.strelkaUrl){if(kind==="test"){log("Стрелка: уведомления выключены или не задан URL","warn");toast("Включите уведомление и укажите URL Стрелки")}return}
+var auto=$("auto-toggle").getAttribute("aria-pressed")==="true";
+var payload=JSON.stringify({event:kind,dist:dist==null?null:Math.round(dist),auto:auto,lat:state.pos?state.pos.lat:null,lon:state.pos?state.pos.lon:null,ts:new Date().toISOString()});
+var ctl=("AbortController" in window)?new AbortController():null;var to=setTimeout(function(){if(ctl)ctl.abort()},5000);
+fetch(cfg.strelkaUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:payload,signal:ctl?ctl.signal:undefined}).then(function(r){clearTimeout(to);log("Стрелка: алерт «"+kind+"» отправлен, ответ "+r.status,"ok")}).catch(function(e){clearTimeout(to);log("Стрелка: алерт «"+kind+"» не доставлен — "+(e&&e.name==="AbortError"?"тайм-аут":(e&&e.message)||e),"err")})}
+
+function autoOpen(){if(Date.now()<state.coolUntil)return;var dry=cfg.src==="sim"&&$("sim-dry").checked;
+var bad=null;
+if(cfg.mode==="yandex"&&!dry&&!$("cfg-token").value&&!localStorage.getItem(LS_TOK))bad="нет токена Яндекса — введите его в настройках";
+if(cfg.mode==="webhook"&&!dry&&!cfg.hookurl)bad="не задан URL webhook";
+state.coolUntil=Date.now()+cfg.cool*1000;state.canFire=false;
+if(bad){setBanner("cooldown","Не открыто: "+bad);log("Автооткрытие невозможно: "+bad,"err");errSound();render();return}
+log("Геозона: вход в круг "+cfg.radius+" м — отправляю команду открытия","warn");setBanner("sending","Открываю ворота…");render();sendOpen("auto")}
+
+function sendOpen(reason){var mode=cfg.mode;var dry=(cfg.src==="sim"&&$("sim-dry").checked);
+var body,url,headers={};
+if(mode==="yandex"){if(!dry&&!$("cfg-token").value&&!localStorage.getItem(LS_TOK)){log("Нет токена Яндекса — введите его в настройках","err");errSound();toast("Нет токена — см. настройки");return}
+url="https://api.iot.yandex.net/v1.0/devices/actions";headers["Authorization"]="Bearer "+($("cfg-token").value||localStorage.getItem(LS_TOK)||"");headers["Content-Type"]="application/json";
+body=JSON.stringify({devices:[{id:cfg.device,actions:[{type:"devices.capabilities.on_off",state:{instance:"on",value:true}}]}]})}
+else{url=cfg.hookurl;if(!url&&!dry){log("Не задан URL webhook","err");errSound();return}
+if(cfg.hookheader){var i=cfg.hookheader.indexOf(":");if(i>0)headers[cfg.hookheader.slice(0,i).trim()]=cfg.hookheader.slice(i+1).trim()}
+headers["Content-Type"]="application/json";body=JSON.stringify({event:"gate_open",source:"mgu-gate",reason:reason,lat:state.pos?state.pos.lat:null,lon:state.pos?state.pos.lon:null,ts:new Date().toISOString()})}
+if(dry){log("СУХОЙ ПРОГОН: команда не отправлялась. "+url+" · "+body.slice(0,90)+"…","warn");okSound();buzz();toast("Симуляция: команда записана в журнал, не отправлена");state.lastSend=Date.now();state.sendCount++;render();return}
+var ctl=("AbortController" in window)?new AbortController():null;var to=setTimeout(function(){if(ctl)ctl.abort()},15000);
+log("Отправка: POST "+url);
+fetch(url,{method:"POST",headers:headers,body:body,signal:ctl?ctl.signal:undefined}).then(function(r){clearTimeout(to);return r.text().then(function(t){return{st:r.status,txt:t}})}).then(function(res){state.lastSend=Date.now();state.sendCount++;
+var done=/DONE/.test(res.txt),failed=/ERROR|DEVICE_UNREACHABLE/i.test(res.txt);
+log("Ответ "+res.st+": "+(res.txt||"(пусто)").slice(0,160),failed?"err":done?"ok":"");
+if(failed){errSound();log("Сервис ответил ошибкой — сохраните ответ, автоповторов не будет","err")}
+else if(done){okSound();buzz();toast("Команда принята сервисом · проверьте ворота глазами");log("Сервис подтвердил DONE. Фактическое движение ворот — проверить глазами.")}
+else if(res.st>=200&&res.st<300){okSound();buzz();toast("Команда ушла · подтверждение не распознано, проверьте ворота");log("HTTP "+res.st+" без DONE в ответе — проверьте ворота глазами","warn")}
+else{errSound();if(res.st===401)log("401: проверьте токен и пробел после Bearer","err");if(res.st===403)log("403: проверьте право iot:control","err")}
+}).catch(function(e){clearTimeout(to);errSound();var msg=e&&e.name==="AbortError"?"Тайм-аут 15 с — сначала посмотрите на ворота, команда могла дойти":"Сетевая ошибка: "+(e&&e.message||e);
+log(msg,"err");if(e&&/CORS|NetworkError|Failed to fetch/i.test(String(e))){$("cors-note").hidden=false;log("Похоже на CORS-блокировку браузера — переключите режим на «Свой webhook»","err")}})}
+
+/* --- sources --- */
+function stopSources(){if(state.watchId!=null&&navigator.geolocation){navigator.geolocation.clearWatch(state.watchId)}state.watchId=null;clearInterval(state.pollTimer);state.pollTimer=null;clearInterval(state.simTimer);state.simTimer=null}
+function startSources(){stopSources();state.canFire=false;state.insideTicks=0;state.prevDist=null;
+if(cfg.src==="browser"){if(!navigator.geolocation){setBanner("nogps","Этот браузер не даёт GPS — выберите локальный демон или симуляцию");log("navigator.geolocation недоступен","err");render();return}
+setBanner("nogps","Получаю GPS… первый фикс может занять до 15 с");
+state.watchId=navigator.geolocation.watchPosition(function(p){var c=p.coords;onPosition(c.latitude,c.longitude,c.speed,c.accuracy,"browser")},function(e){setBanner("nogps","GPS: "+e.message);log("Ошибка геолокации: "+e.code+" "+e.message,"err")},{enableHighAccuracy:true,maximumAge:2000,timeout:15000});
+log("Источник: GPS браузера, точный режим")}
+else if(cfg.src==="local"){if(!cfg.localurl){setBanner("nogps","Укажите URL локального демона");render();return}
+var poll=function(){var ctl=("AbortController" in window)?new AbortController():null;var to=setTimeout(function(){if(ctl)ctl.abort()},5000);fetch(cfg.localurl,{cache:"no-store",signal:ctl?ctl.signal:undefined}).then(function(r){clearTimeout(to);return r.json()}).then(function(j){if(j&&isFinite(j.lat)&&isFinite(j.lon))onPosition(+j.lat,+j.lon,j.speed!=null?+j.speed:null,j.acc!=null?+j.acc:null,"local")}).catch(function(e){clearTimeout(to);setBanner("nogps","Демон не отвечает: "+(e&&e.name==="AbortError"?"тайм-аут":e.message))})};poll();state.pollTimer=setInterval(poll,2000);log("Источник: локальный демон "+cfg.localurl)}
+else{setBanner("armed","Симуляция готова · нажмите «Начать подъезд»");log("Источник: симуляция. Нажмите «Начать подъезд»")}
+render()}
+
+function startSim(){var b=cfg.simB,v=cfg.simSpeed/3.6;state.simDist=350;var step=v*0.5;
+state.simTimer=setInterval(function(){state.simDist-=step;if(state.simDist<=0){state.simDist=0;clearInterval(state.simTimer);state.simTimer=null;$("sim-start").disabled=false;$("sim-stop").disabled=true;log("Симуляция: машина у ворот","warn")}
+var pt=destPt(cfg.lat,cfg.lon,b+180,state.simDist);onPosition(pt.lat,pt.lon,v,5,"sim")},500);
+$("sim-start").disabled=true;$("sim-stop").disabled=false;log("Симуляция: подъезд с азимута "+b+"°, "+cfg.simSpeed+" км/ч","warn")}
+
+/* --- wiring --- */
+function bindRange(id,key,out){var el=$(id);el.value=cfg[key];$(out).textContent=cfg[key];el.addEventListener("input",function(){cfg[key]=+el.value;$(out).textContent=el.value;saveCfg();render()})}
+bindRange("cfg-radius","radius","cfg-radius-v");bindRange("cfg-outer","outer","cfg-outer-v");bindRange("cfg-cool","cool","cfg-cool-v");bindRange("cfg-accth","accth","cfg-accth-v");
+$("cfg-lat").value=cfg.lat;$("cfg-lon").value=cfg.lon;
+["cfg-lat","cfg-lon"].forEach(function(id){$(id).addEventListener("change",function(){var v=parseFloat($(id).value.replace(",","."));if(isFinite(v)){cfg[id==="cfg-lat"?"lat":"lon"]=v;saveCfg();log("Координаты ворот: "+cfg.lat.toFixed(6)+", "+cfg.lon.toFixed(6))}else{$(id).value=cfg[id==="cfg-lat"?"lat":"lon"]}})});
+$("cfg-mode").value=cfg.mode;$("cfg-mode").addEventListener("change",function(){cfg.mode=this.value;saveCfg();syncMode()});
+function syncMode(){$("mode-yandex").hidden=cfg.mode!=="yandex";$("mode-webhook").hidden=cfg.mode!=="webhook"}
+$("cfg-device").value=cfg.device;$("cfg-device").addEventListener("change",function(){cfg.device=this.value.trim();saveCfg()});
+$("cfg-hookurl").value=cfg.hookurl;$("cfg-hookurl").addEventListener("change",function(){var v=this.value.trim();if(v){try{var u=new URL(v);if(u.protocol!=="http:"&&u.protocol!=="https:"){throw new Error("scheme")}}catch(e){log("Webhook URL не принят — нужен http:// или https://","err");this.value=cfg.hookurl;return}}cfg.hookurl=v;saveCfg()});
+$("cfg-hookheader").value=cfg.hookheader;$("cfg-hookheader").addEventListener("change",function(){cfg.hookheader=this.value;saveCfg()});
+var tok=$("cfg-token");tok.value=localStorage.getItem(LS_TOK)||"";tok.addEventListener("change",function(){try{localStorage.setItem(LS_TOK,tok.value.trim())}catch(e){}log(tok.value?"Токен сохранён в этом браузере":"Токен очищен")});
+$("token-toggle").addEventListener("click",function(){var show=tok.type==="password";tok.type=show?"text":"password";this.textContent=show?"Скрыть токен":"Показать токен"});
+$("cfg-src").value=cfg.src;$("cfg-src").addEventListener("change",function(){cfg.src=this.value;saveCfg();syncSrc();startSources()});
+$("cfg-localurl").value=cfg.localurl;$("cfg-localurl").addEventListener("change",function(){cfg.localurl=this.value.trim();saveCfg();if(cfg.src==="local")startSources()});
+function syncSrc(){$("local-url-wrap").hidden=cfg.src!=="local"}
+$("auto-toggle").setAttribute("aria-pressed","false");$("auto-toggle").textContent="Выключено";
+$("auto-toggle").addEventListener("click",function(){var on=this.getAttribute("aria-pressed")!=="true";
+if(on&&!localStorage.getItem("mguGate.autoConfirmed")){if(window.confirm&&window.confirm("Ворота будут открываться автоматически при подъезде на 20 м. Первый живой тест проведите на стоянке вручную. Включить автооткрытие?")){try{localStorage.setItem("mguGate.autoConfirmed","1")}catch(e){}}else{log("Автооткрытие не включено — нужно подтверждение","warn");return}}
+this.setAttribute("aria-pressed",String(on));this.textContent=on?"Включено":"Выключено";log("Автооткрытие: "+(on?"включено":"выключено"));render()});
+$("open-now").addEventListener("click",function(){if(Date.now()-state.lastSend<10000){log("Ручная команда: подождите "+Math.ceil((10000-(Date.now()-state.lastSend))/1000)+" с после предыдущей","warn");return}log("Ручная команда открытия");sendOpen("manual")});
+$("log-clear").addEventListener("click",function(){logEl.innerHTML=""});
+var dirBtns=document.querySelectorAll("#sim-dir button");dirBtns.forEach(function(b){b.setAttribute("aria-pressed",String(+b.dataset.b===cfg.simB));b.addEventListener("click",function(){cfg.simB=+b.dataset.b;saveCfg();dirBtns.forEach(function(x){x.setAttribute("aria-pressed",String(x===b))})})});
+$("sim-speed").value=cfg.simSpeed;$("sim-speed-v").textContent=cfg.simSpeed;$("sim-speed").addEventListener("input",function(){cfg.simSpeed=+this.value;$("sim-speed-v").textContent=this.value;saveCfg()});
+$("sim-start").addEventListener("click",function(){if(cfg.src!=="sim"){cfg.src="sim";$("cfg-src").value="sim";saveCfg();syncSrc();startSources()}startSim()});
+$("cfg-strelka").checked=cfg.strelka;$("cfg-strelka").addEventListener("change",function(){cfg.strelka=this.checked;saveCfg();log("Уведомления «Стрелки»: "+(this.checked?"включены":"выключены"));if(this.checked)strelkaAlert("test")});
+$("cfg-strelkaurl").value=cfg.strelkaUrl;$("cfg-strelkaurl").addEventListener("change",function(){cfg.strelkaurl=this.value.trim();saveCfg()});
+$("sim-stop").addEventListener("click",function(){clearInterval(state.simTimer);state.simTimer=null;this.disabled=true;$("sim-start").disabled=false;log("Симуляция остановлена")});
+$("strelka-test").addEventListener("click",function(){strelkaAlert("test",state.pos?state.pos.dist:null)});
+$("use-current").addEventListener("click",function(){if(!state.pos){log("Текущей позиции нет — дождитесь фикса GPS","warn");return}cfg.lat=+state.pos.lat.toFixed(6);cfg.lon=+state.pos.lon.toFixed(6);$("cfg-lat").value=cfg.lat;$("cfg-lon").value=cfg.lon;saveCfg();log("Координаты ворот взяты из текущей позиции: "+cfg.lat.toFixed(6)+", "+cfg.lon.toFixed(6),"ok");render()});
+
+setInterval(function(){tickCooldown();var p=state.pos;if(p&&cfg.src!=="sim"&&Date.now()-p.ts>10000){setBanner("nogps","Нет свежих координат "+Math.round((Date.now()-p.ts)/1000)+" с — проверьте источник GPS");render()}},1000);
+document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible"){try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(function(w){state.wakeLock=w}).catch(function(){})}catch(e){}}});
+try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(function(w){state.wakeLock=w}).catch(function(){})}catch(e){}
+
+syncMode();syncSrc();render();startSources();
+log("Автоворота готовы. Ворота: "+cfg.lat.toFixed(6)+", "+cfg.lon.toFixed(6)+". Зона: "+cfg.radius+" м, охрана: "+cfg.outer+" м, пауза: "+cfg.cool+" с.");
+})();
+</script>
+</body>
+</html>
