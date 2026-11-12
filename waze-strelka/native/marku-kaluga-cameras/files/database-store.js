@@ -20,7 +20,8 @@ function compare(a, b) {
 function text(s, max) { return typeof s === 'string' && s.length <= max && !/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(s); }
 function position(p) { return object(p) && number(p.lat) && number(p.lon) && p.lat >= 53 && p.lat <= 56 && p.lon >= 33 && p.lon <= 38; }
 function officialSource(s) { return typeof s === 'string' && /^https:\/\/xn--80aebkobnwfcnsfk1e0h\.xn--p1ai\/upload\/site40\/report\/publication\/file\/[A-Za-z0-9_-]+\.xlsx$/.test(s); }
-function sourceUrl(s) { return typeof s === 'string' && (/^https:\/\/(?:www\.)?openstreetmap\.org\/(?:node|way|relation)\/\d+$/.test(s) || officialSource(s)); }
+function communitySource(s) { return typeof s === 'string' && /^https:\/\/openspeedcam\.net\/\?point=[a-f0-9]{24}$/.test(s); }
+function sourceUrl(s) { return typeof s === 'string' && (/^https:\/\/(?:www\.)?openstreetmap\.org\/(?:node|way|relation)\/\d+$/.test(s) || officialSource(s) || communitySource(s)); }
 function inspect(o, depth, budget) {
   if (++budget.count > 350000 || depth > 24) fail('DATA_COMPLEXITY', 'Database is too complex');
   if (typeof o === 'string' && !text(o, 4096)) fail('DATA_TEXT', 'Invalid database text');
@@ -33,7 +34,7 @@ function inspect(o, depth, budget) {
 }
 function clone(o) { return JSON.parse(JSON.stringify(o)); }
 function record(r, ids) {
-  if (!object(r) || !text(r.id, 128) || !/^(?:osm:(?:node|way|relation):\d+|reported:[a-z0-9][a-z0-9:-]{0,90}|gibdd:ru-klu:[a-f0-9]{16})$/.test(r.id) || ids[r.id]) fail('DATA_ID');
+  if (!object(r) || !text(r.id, 128) || !/^(?:osm:(?:node|way|relation):\d+|reported:[a-z0-9][a-z0-9:-]{0,90}|gibdd:ru-klu:[a-f0-9]{16}|osc:[a-f0-9]{24})$/.test(r.id) || ids[r.id]) fail('DATA_ID');
   ids[r.id] = true;
   if (TYPES.indexOf(r.type) < 0 || !position(r.position)) fail('DATA_POSITION');
   if (!Array.isArray(r.controls) || r.controls.length > CONTROLS.length || r.controls.some(function (c, i) { return CONTROLS.indexOf(c) < 0 || r.controls.indexOf(c) !== i; })) fail('DATA_CONTROLS');
@@ -55,6 +56,11 @@ function record(r, ids) {
         r.controls.some(function (control) { return !r.controlEvidence.some(function (e) { return e.control === control; }); })) fail('DATA_OFFICIAL_EVIDENCE');
   }
   if (r.provenance === 'Госавтоинспекция' && r.id.indexOf('gibdd:') !== 0) fail('DATA_OFFICIAL_CLAIM');
+  if (r.id.indexOf('osc:') === 0) {
+    if (r.provenance !== 'OpenSpeedcam' || r.positionKind !== 'community-point' || !communitySource(r.sourceUrl) ||
+        !communitySource(r.positionSourceUrl)) fail('DATA_COMMUNITY_CLAIM');
+  }
+  if (r.provenance === 'OpenSpeedcam' && r.id.indexOf('osc:') !== 0) fail('DATA_COMMUNITY_CLAIM');
   if (r.enforcementRelations !== undefined) {
     if (!Array.isArray(r.enforcementRelations) || r.enforcementRelations.length > 32) fail('DATA_RELATIONS');
     r.enforcementRelations.forEach(validateRelation);

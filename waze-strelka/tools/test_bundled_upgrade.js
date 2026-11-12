@@ -14,10 +14,10 @@ function create(d,initial,options){var s=api.createStore(Object.assign({dataDir:
 function network(next){var calls=[];return{calls:calls,transport:function(url){calls.push(url);var bytes=Buffer.from(JSON.stringify(next));if(url===api.SOURCE_URL)return Promise.resolve(Buffer.from(JSON.stringify({schema:1,region:'RU-KLU',version:next.version,generatedAt:next.generatedAt,artifact:{url:'https://raw.githubusercontent.com/istt1899/bmw-kaluga-cameras/'+new Array(41).join('a')+'/data/camera-database-'+next.version+'.json',size:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex')}})));return Promise.resolve(bytes);}};}
 function fault(fn,action){var original=fs.renameSync;fs.renameSync=function(from,to){if(fn(from,to)){var e=new Error('Injected filesystem failure');e.code='EIO';throw e;}return original.apply(fs,arguments);};try{return action();}finally{fs.renameSync=original;}}
 async function main(){
- assert.strictEqual(old.records.length,156);assert.strictEqual(fresh.records.length,308);
+ assert.strictEqual(old.records.length,156);assert.strictEqual(fresh.records.length,486);
  var d=dir('upgrade'),f=files(d),consumerCalls=0;save(f.active,old);
  var s=create(d,fresh,{onChange:function(){consumerCalls++;}});
- assert.strictEqual(s.current().version,fresh.version);assert.strictEqual(s.current().records.length,308);assert.strictEqual(s.status().phase,'bundled-upgraded');
+ assert.strictEqual(s.current().version,fresh.version);assert.strictEqual(s.current().records.length,486);assert.strictEqual(s.status().phase,'bundled-upgraded');
  assert.strictEqual(consumerCalls,0,'Constructor returns its chosen database; it does not call a half-initialized consumer');
  assert.deepStrictEqual(read(f.previous),old);assert.deepStrictEqual(read(f.active),fresh);assert.strictEqual(s.status().canRollback,true);
  await s.rollback();assert.strictEqual(s.current().version,old.version);assert.strictEqual(s.status().rollbackPin.state,'valid');
@@ -27,7 +27,7 @@ async function main(){
  var pinBeforeOutage=fs.readFileSync(f.pin);var failedCheck=await s.check();assert.strictEqual(failedCheck.phase,'error');assert.strictEqual(s.current().version,old.version);assert(fs.readFileSync(f.pin).equals(pinBeforeOutage));outage=false;
  var status=await s.check();assert.strictEqual(status.phase,'updated');assert.strictEqual(s.current().version,fresh.version);assert.strictEqual(s.status().rollbackPin.state,'none');assert(!fs.existsSync(f.pin));s.close();
  s=create(d,fresh);assert.strictEqual(s.current().version,fresh.version);assert.strictEqual(s.status().phase,'idle');s.close();
- console.log('PASS real 156→308 offline bundled migration with backup; explicit rollback survives restart; successful latest check clears source-bound pin');
+ console.log('PASS real 156→486 offline bundled migration with backup; explicit rollback survives restart; successful latest check clears source-bound pin');
 
  d=dir('future-bundle');f=files(d);save(f.active,old);s=create(d,fresh);await s.rollback();s.close();
  var future=copy(fresh);future.version='2026.11.8.1';future.generatedAt='2026-11-08T00:00:00.000Z';

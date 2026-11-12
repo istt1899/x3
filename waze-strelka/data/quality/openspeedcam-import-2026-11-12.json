@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "kind": "openspeedcam-import-review",
+  "region": "RU-KLU",
+  "reviewedAt": "2026-11-12T12:00:00.000Z",
+  "snapshotRetrievedAt": "2026-11-12T10:32:08.485Z",
+  "rawSha256": "b352229628f00921a807d3fab8a5db7ba6b13a5c02fffeb215d615535b14e076",
+  "apiEndpoint": "https://openspeedcam.net/api/points/",
+  "bounds": {
+    "x1": 33.5,
+    "y1": 53.3,
+    "x2": 37.2,
+    "y2": 55.4
+  },
+  "fetchedPoints": 5434,
+  "regionPoints": 3491,
+  "importedKinds": {
+    "stationary_porst_dps": 19,
+    "static_cam": 446,
+    "dummy": 52,
+    "speed_cam": 4,
+    "video_control": 21,
+    "control_cam_red": 107
+  },
+  "excludedByReason": {
+    "other-region": 1943,
+    "non-enforcement-poi": 1909,
+    "mobile-or-typical-location": 933
+  },
+  "exclusionPolicy": {
+    "mobile-or-typical-location": "mobile_ambush and rec_policeman are transient positions; a fixed database must not claim them (24h freshness rule of the source policy)",
+    "non-enforcement-poi": "hazard and signpost POIs (bad_road, dang_*, begin_village, crosswalk, speed_limit, ...) are not enforcement devices and have no record kind in the bundle schema",
+    "other-region": "points attributed to neighbouring regions stay out of the RU-KLU bundle",
+    "outside-region-bounds": "positions outside the validator bounds cannot enter the runtime database"
+  },
+  "accepted": 178,
+  "acceptedByKind": {
+    "stationary_porst_dps": 13,
+    "static_cam": 117,
+    "dummy": 27,
+    "video_control": 8,
+    "control_cam_red": 13
+  },
+  "dedupe": {
+    "nearExistingRecord": 385,
+    "nearExistingThresholdM": 60,
+    "nearCommunityPoint": 86,
+    "nearCommunityThresholdM": 15,
+    "note": "A community point within 60 m of an existing OSM/GIBDD/owner record is skipped: the existing record keeps its road-zone guidance and provenance. Spot check 2026-11-12: skipped points sit 20-35 m from known devices, i.e. the same physical camera."
+  },
+  "controlMapping": {
+    "static_cam/speed_cam": "speed + flags(rows->lane, pedestrians->pedestrian, markings->signs_marking, overtaking->road_position); chord/autodoria add average",
+    "control_cam_red": "redlight; stopLine/stopCrossroad->stopline; bSpeed->speed with numeric limit; same flag mapping",
+    "video_control": "camera; only flag-derived controls, no speed claim without bSpeed",
+    "dummy": "camera with empty controls, description notes the dummy",
+    "stationary_porst_dps": "camera with empty controls, description notes the DPS post"
+  },
+  "limits": "numeric limitKmh is copied only for records with a speed control and an integer 5..180 value; otherwise null",
+  "direction": "dirType 1 keeps the controlled-travel bearing as rawDirection with directionKnown=true; dirType 2 (both directions) and unknown stay directionKnown=false; no road-zone geometry is inferred for community points, guidance falls back to proximity mode",
+  "rightsBasis": "OpenSpeedcam states the database is freely editable and all points are available for correction, update and download; attribution and per-point links retained",
+  "completenessCheck": "bounds response (5434 points) equals the sum of four quadrant responses (5434 unique ids) — no server-side truncation at this zoom level"
+}

@@ -1,7 +1,7 @@
 {
   "id": "marku-kaluga-cameras",
   "kind": "tool",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "title": "Waze Strelka camera service",
   "description": "Local Kaluga OSM camera snapshot, strict GPS diagnostics and optional verified-road camera alerts",
   "optional": true,
@@ -151,6 +151,14 @@
     },
     {
       "path": "speed-limit-data.json",
+      "mode": "0644"
+    },
+    {
+      "path": "openspeedcam-data.js",
+      "mode": "0644"
+    },
+    {
+      "path": "openspeedcam-kaluga.json",
       "mode": "0644"
     }
   ],

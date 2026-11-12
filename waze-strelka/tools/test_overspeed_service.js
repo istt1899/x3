@@ -20,7 +20,7 @@ async function start(dir,withAudio){
 }
 async function main(){
  var dir=path.join(root,'configured');fs.mkdirSync(dir);var run=await start(dir,true),app=run.app;
- assert.deepStrictEqual(app.state().overspeedPreferences,defaults);assert.strictEqual(app.state().database.coverage.sourceRecords,308);assert.strictEqual(app.state().database.coverage.numericRoadZones,18);
+ assert.deepStrictEqual(app.state().overspeedPreferences,defaults);assert.strictEqual(app.state().database.coverage.sourceRecords,486);assert.strictEqual(app.state().database.coverage.numericRoadZones,18);
  await run.command({cmd:'alert-preferences',warningDistanceM:900,cameraTypes:{belt:false}});await run.command({cmd:'hud-opacity',percent:55});
  var originalLayouts=JSON.stringify(app.state().cardLayout);
  var reply=await run.command({cmd:'overspeed-preferences',soundEnabled:true,soundOffsetKmh:20});assert.strictEqual(reply.commandResult.phase,'finished');

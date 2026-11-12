@@ -24,3 +24,11 @@ Five additional devices from the same regional source PBF. Original tags,
 member roles and source dates retained in enforcement-relations.json.
 Symbolic speed limits and unknown capture side are not converted to numbers
 or front/rear claims. © OpenStreetMap contributors, ODbL 1.0.
+
+OpenSpeedcam community point layer (snapshot 2026-11-12): static enforcement
+points of the Kaluga region from the freely editable open database
+OpenSpeedcam (https://openspeedcam.net/). The project states that all points
+are available for correction, update and download. Points are imported with
+attribution and a per-point source link; mobile ambushes, typical police
+locations and hazard POIs are excluded at import. Community positions are
+never merged into OSM or official records.

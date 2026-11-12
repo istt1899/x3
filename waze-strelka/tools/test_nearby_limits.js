@@ -22,7 +22,7 @@ ids.concat([official.id]).forEach(function(id,index){
 });
 var t=Date.UTC(2026,10,7,13),g=guidance.createGuidance(bundle);
 var alert=g.evaluate({lat:official.position.lat,lon:official.position.lon-70/(111320*Math.cos(official.position.lat*Math.PI/180)),timeMs:t,speedKmh:19,headingDeg:90,accuracyM:10},t,true);
-assert(alert&&alert.confidence==='nearby');assert.strictEqual(card.presentation(alert).limit,60,'Full 308-record database at the photographed west approach must retain the source limit');
+assert(alert&&alert.confidence==='nearby');assert.strictEqual(card.presentation(alert).limit,60,'Full 486-record database at the photographed west approach must retain the source limit');
 assert.strictEqual(card.presentation(alert).limitScope,'reference');
 var unrelated=JSON.parse(JSON.stringify(bundle.records));unrelated.forEach(function(r){delete r.officialSiteContext;});
 assert.strictEqual(info.createDescriber(unrelated)(official).limitReference,null,'Proximity alone never transfers a limit');

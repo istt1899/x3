@@ -19,7 +19,7 @@ function run(extra,saved){
 }
 var broken=path.join(root,'broken.json'),missing=path.join(root,'missing.json');fs.writeFileSync(broken,'{broken');
 async function main(){
- var ok=run();assert.strictEqual(ok.state.database.count,308);assert.strictEqual(ok.state.database.version,latest.version);assert.strictEqual(ok.state.sourceAssembly.state,'complete');
+ var ok=run();assert.strictEqual(ok.state.database.count,486);assert.strictEqual(ok.state.database.version,latest.version);assert.strictEqual(ok.state.sourceAssembly.state,'complete');
  [ {officialCatalog:broken},{officialCatalog:missing},{officialQuality:broken},{officialQuality:missing},{speedLimitData:broken},{speedLimitData:missing} ].forEach(function(options){
   var r=run(options);assert.strictEqual(r.state.database.count,156);assert.strictEqual(r.state.database.version,old.version);
   assert.strictEqual(r.state.database.generatedAt,old.generatedAt);assert.strictEqual(r.state.sourceAssembly.state,'legacy-fallback');
@@ -27,18 +27,18 @@ async function main(){
   assert.strictEqual(r.state.sourceAssembly.wantedVersion,latest.version);assert.strictEqual(r.state.sourceAssembly.activeVersion,old.version);
   assert.strictEqual(r.state.capabilities.update,true);
  });
- var retained=run({officialCatalog:broken},latest);assert.strictEqual(retained.state.database.version,latest.version);assert.strictEqual(retained.state.database.count,308);
+ var retained=run({officialCatalog:broken},latest);assert.strictEqual(retained.state.database.version,latest.version);assert.strictEqual(retained.state.database.count,486);
  assert.strictEqual(retained.state.sourceAssembly.state,'legacy-fallback');assert.strictEqual(retained.state.sourceAssembly.activeVersion,latest.version);
- assert.strictEqual(JSON.parse(fs.readFileSync(path.join(retained.dir,'camera-database-active.json'),'utf8')).records.length,308);
+ assert.strictEqual(JSON.parse(fs.readFileSync(path.join(retained.dir,'camera-database-active.json'),'utf8')).records.length,486);
  var legacy=run({officialCatalog:broken},old);assert.strictEqual(legacy.state.database.version,old.version);assert.strictEqual(legacy.state.database.count,156);
  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(legacy.dir,'camera-database-active.json'),'utf8')).version,old.version);
  var liveStore,bytes=Buffer.from(JSON.stringify(latest)),crypto=require('crypto');
  var recovery=run({officialQuality:missing,storeFactory:function(options){liveStore=store.createStore(Object.assign({},options,{_test:{explicit:true,transport:function(url){
   return Promise.resolve(url===store.SOURCE_URL?Buffer.from(JSON.stringify({schema:1,region:'RU-KLU',version:latest.version,generatedAt:latest.generatedAt,artifact:{url:'https://raw.githubusercontent.com/istt1899/bmw-kaluga-cameras/'+new Array(41).join('a')+'/data/camera-database-'+latest.version+'.json',size:bytes.length,sha256:crypto.createHash('sha256').update(bytes).digest('hex')}})):bytes);
  }}}));return liveStore;}},old);
- await liveStore.check();assert.strictEqual(recovery.state.database.count,308);assert.strictEqual(recovery.state.database.version,latest.version);
+ await liveStore.check();assert.strictEqual(recovery.state.database.count,486);assert.strictEqual(recovery.state.database.version,latest.version);
  assert.strictEqual(recovery.state.sourceAssembly.state,'legacy-fallback','Packaged source failure remains visible after active data recovers');
- console.log('PASS source bootstrap is transactional: corrupt/missing optional files retain correct old version; complete stored bundle survives; explicit update recovers 156 to 308 without hiding packaged fault');
+ console.log('PASS source bootstrap is transactional: corrupt/missing optional files retain correct old version; complete stored bundle survives; explicit update recovers 156 to 486 without hiding packaged fault');
 }
 function cleanup(d){fs.readdirSync(d).forEach(function(n){var p=path.join(d,n);if(fs.lstatSync(p).isDirectory())cleanup(p);else fs.unlinkSync(p);});fs.rmdirSync(d);}
 main().then(function(){apps.forEach(function(a){a.close();});assert.strictEqual(path.dirname(root),os.tmpdir());assert(/^strelka-source-bootstrap-/.test(path.basename(root)));cleanup(root);},function(e){apps.forEach(function(a){a.close();});console.error(e.stack);process.exitCode=1;});

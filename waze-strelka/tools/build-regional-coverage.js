@@ -3,13 +3,13 @@
 var fs=require('fs'),path=require('path'),crypto=require('crypto');
 var info=require('../native/marku-kaluga-cameras/files/camera-info');
 var coverage=require('../native/marku-kaluga-cameras/files/database-coverage');
-var INPUTS={database:'data/camera-database-2026.11.7.2.json',osm:'data/references/osm-camera-source-2026-11-07.json',official:'data/references/gibdd-kaluga-2026-10-01.json',quality:'native/marku-kaluga-cameras/files/official-camera-quality.json',limits:'native/marku-kaluga-cameras/files/speed-limit-data.json'};
+var INPUTS={database:'data/camera-database-2026.11.12.1.json',osm:'data/references/osm-camera-source-2026-11-07.json',official:'data/references/gibdd-kaluga-2026-10-01.json',quality:'native/marku-kaluga-cameras/files/official-camera-quality.json',limits:'native/marku-kaluga-cameras/files/speed-limit-data.json'};
 function copy(v){return JSON.parse(JSON.stringify(v));}
 function index(rows){var result=Object.create(null);rows.forEach(function(r){if(result[r.id])throw Error('DUPLICATE_SOURCE_ID');result[r.id]=r;});return result;}
 function build(root){
  var data={},inputs={};Object.keys(INPUTS).forEach(function(key){var bytes=fs.readFileSync(path.join(root,INPUTS[key]));data[key]=JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/,''));inputs[key]={path:INPUTS[key],sha256:crypto.createHash('sha256').update(bytes).digest('hex'),bytes:bytes.length};});
  var db=data.database,osm=index(data.osm.records),official=index(data.official.records),audits=index(data.limits.audit),zones=index(db.zones),describe=info.createDescriber(db.records);
- if(db.version!=='2026.11.7.2'||data.official.sourceSha256!=='a62b2858aecdbeb63e43445b556c9db9d6c628e674c9e96fb5a5a01074d16089'||data.osm.inputSha256!=='e91bb43834e2130bd1c1f13b7e51a827f2ac69e4e49a215f98a82ed7d29d59bb')throw Error('SOURCE_CHECK_REQUIRES_NEW_AUDIT');
+ if(db.version!=='2026.11.12.1'||data.official.sourceSha256!=='a62b2858aecdbeb63e43445b556c9db9d6c628e674c9e96fb5a5a01074d16089'||data.osm.inputSha256!=='e91bb43834e2130bd1c1f13b7e51a827f2ac69e4e49a215f98a82ed7d29d59bb')throw Error('SOURCE_CHECK_REQUIRES_NEW_AUDIT');
  var records=db.records.map(function(record){
   var detail=describe(record),source=osm[record.id]||official[record.id],zone=zones[record.id];
   var direct=Number.isFinite(detail.cameraLimitKmh)&&detail.cameraLimitKmh>0;
@@ -32,18 +32,18 @@ function build(root){
    cameraFacing:detail.cameraFacing,captureSide:{state:detail.captureDirectionVerified?'known':'unknown',value:detail.captureDirection||null,sourceUrl:detail.captureDirectionSource||null,
     unknownReason:detail.captureDirectionVerified?null:'NO_VERIFIED_CAPTURE_SIDE_EVIDENCE'}};
  }).sort(function(a,b){return a.id<b.id?-1:a.id>b.id?1:0;});
- return {schema:1,region:'RU-KLU',databaseVersion:db.version,checkedAt:'2026-11-08T07:57:02Z',
+ return {schema:1,region:'RU-KLU',databaseVersion:db.version,checkedAt:'2026-11-12T12:00:00Z',
   checkMeaning:'HTTPS source retrieval and reproducible source-object audit, not field verification of each camera',
   complete:false,physicalDeviceCount:null,countUnit:'source records, not deduplicated physical cameras',inputs:inputs,
   sourceChecks:[{source:'gibdd-official',sourceUrl:data.official.sourceUrl,publishedAt:data.official.publishedAt,sourceLastModified:data.official.sourceLastModified,
-   retrievedAt:'2026-11-08T07:57:02Z',bytes:42347,sha256:'a62b2858aecdbeb63e43445b556c9db9d6c628e674c9e96fb5a5a01074d16089',result:'unchanged-bytes'},
-  {source:'OpenStreetMap',sourceUrl:data.osm.sourceUrl,sourceTimestamp:data.osm.sourceTimestamp,retrievedAt:'2026-11-08T07:57:02Z',bytes:46323171,
+   retrievedAt:'2026-11-12T12:00:00Z',bytes:42347,sha256:'a62b2858aecdbeb63e43445b556c9db9d6c628e674c9e96fb5a5a01074d16089',result:'unchanged-bytes'},
+  {source:'OpenStreetMap',sourceUrl:data.osm.sourceUrl,sourceTimestamp:data.osm.sourceTimestamp,retrievedAt:'2026-11-12T12:00:00Z',bytes:46323171,
    sha256:'e91bb43834e2130bd1c1f13b7e51a827f2ac69e4e49a215f98a82ed7d29d59bb',result:'unchanged-bytes'}],
   summary:coverage.summarize(db.records,db.zones),records:records,
   reviewQueue:{officialUnparseableCoordinates:copy(data.official.audit.rejected),officialGeographicExclusions:data.quality.excluded.map(function(e){return{decision:copy(e),sourceRecord:copy(official[e.id])};}),
    officialMobileRoutes:{count:data.official.audit.mobileRoutes,countUnit:'source route rows, not cameras',importAsFixedCamera:false,sourceUrl:data.official.sourceUrl,records:copy(data.official.audit.mobileRouteRecords)},
    osmReviewCandidates:copy(data.osm.reviewCandidates),osmExcludedOutsideBoundary:copy(data.osm.excluded),osmInactiveRecords:copy(data.osm.inactiveRecords)},
-  unresolved:['Coverage of all operating physical cameras is not established','105 source records have no direct or reference limit','Camera-facing tags do not establish enforced travel direction or front/rear capture','Source snapshot dates are not dates of on-road verification']};
+  unresolved:['Coverage of all operating physical cameras is not established','161 source records have no direct or reference limit','Camera-facing tags do not establish enforced travel direction or front/rear capture','Source snapshot dates are not dates of on-road verification']};
 }
 function serialize(report){return JSON.stringify(report,null,2)+'\n';}
 if(require.main===module){

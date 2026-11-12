@@ -62,7 +62,7 @@ function assertOfficialContext(description, expectedId) {
     if(description.roadConfirmed===true)assert.strictEqual(card.mode,'Рубеж','Compact card identifies location-scoped controls');
 }
 
-assert.strictEqual(bundle.records.length, 308, 'Source positions are not a deduplicated count of physical cameras');
+assert.strictEqual(bundle.records.length, 486, 'Source positions are not a deduplicated count of physical cameras');
 assert.strictEqual(bundle.officialCount, 152);
 assert.deepStrictEqual(bundle.zones, originalZones, 'Official location observations must not invent or modify road corridors');
 assert.strictEqual(bundle.zones.length, 19);
@@ -192,4 +192,4 @@ bundle.records.filter(function (r) { return r.providerId === 'gibdd-official'; }
 });
 assert(!bundle.records.some(function (r) { return /mobile|parking-route/.test(r.id); }), 'Mobile routes are not fixed warnings');
 assert.strictEqual(JSON.stringify(bundle), bundleBytes, 'Guidance/description/rendering must leave source records and road geometry unchanged');
-console.log('PASS synthetic official-data guidance: 308 source positions, 152 accepted official observations, 3 legal Plehanova approaches, preserved OSM controls/corridors, location-scoped 5-type descriptions (+2 compact-card overflow), honest Popova/new-point nearby notices, 3 quality exclusions and 184 mobile-route exclusions; not an on-car validation');
+console.log('PASS synthetic official-data guidance: 486 source positions, 152 accepted official observations, 3 legal Plehanova approaches, preserved OSM controls/corridors, location-scoped 5-type descriptions (+2 compact-card overflow), honest Popova/new-point nearby notices, 3 quality exclusions and 184 mobile-route exclusions; not an on-car validation');

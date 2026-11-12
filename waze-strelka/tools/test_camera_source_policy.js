@@ -11,7 +11,7 @@ function assess(facts, extra, sourceRegistry) {
     return policy.assessObservation(Object.assign({ id: 'synthetic:policy-test', facts }, extra || {}), sourceRegistry || registry, { nowMs });
 }
 function explicit(value, sourceId) { return { value, basis: 'explicit', evidence: [evidence(sourceId || 'osm')] }; }
-assert.strictEqual(policy.validateRegistry(registry).sources.length, 13);
+assert.strictEqual(policy.validateRegistry(registry).sources.length, 14);
 assert.throws(() => policy.validateRegistry(Object.assign({}, registry, { schema: 2 })), /SOURCE_REGISTRY_INVALID/);
 const duplicate = clone(registry); duplicate.sources.push(clone(duplicate.sources[0])); assert.throws(() => policy.validateRegistry(duplicate), /SOURCE_ENTRY_INVALID/);
 const badUrl = clone(registry); badUrl.sources[0].urls[0] = 'https://secret@example.com/'; assert.throws(() => policy.validateRegistry(badUrl), /SOURCE_ENTRY_INVALID/);

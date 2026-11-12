@@ -1,13 +1,13 @@
 'use strict';
 var assert=require('assert'),path=require('path'),fs=require('fs'),os=require('os'),cp=require('child_process'),crypto=require('crypto');
 var builder=require('./build-regional-coverage'),coverage=require('../native/marku-kaluga-cameras/files/database-coverage');
-var root=path.resolve(__dirname,'..'),file=path.join(root,'data/camera-database-2026.11.7.2.json');
+var root=path.resolve(__dirname,'..'),file=path.join(root,'data/camera-database-2026.11.12.1.json');
 function hash(){return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');}
-var before=hash(),report=builder.build(root),saved=JSON.parse(fs.readFileSync(path.join(root,'data/quality/regional-coverage-2026-11-08.json'),'utf8'));
-assert.deepStrictEqual(report,saved);assert.strictEqual(builder.serialize(report),fs.readFileSync(path.join(root,'data/quality/regional-coverage-2026-11-08.json'),'utf8'));
-assert.deepStrictEqual(report.summary,{complete:false,sourceRecords:308,directLimit:106,referenceLimit:97,unknownLimit:105,roadZones:19,numericRoadZones:18,recordsWithoutRoadZone:289,facingKnown:20,captureSideKnown:0});
-assert.strictEqual(report.records.length,308);assert.strictEqual(new Set(report.records.map(function(r){return r.id;})).size,308);
-['direct','reference','unknown'].forEach(function(state,i){assert.strictEqual(report.records.filter(function(r){return r.limit.state===state;}).length,[106,97,105][i]);});
+var before=hash(),report=builder.build(root),saved=JSON.parse(fs.readFileSync(path.join(root,'data/quality/regional-coverage-2026-11-12.json'),'utf8'));
+assert.deepStrictEqual(report,saved);assert.strictEqual(builder.serialize(report),fs.readFileSync(path.join(root,'data/quality/regional-coverage-2026-11-12.json'),'utf8'));
+assert.deepStrictEqual(report.summary,{complete:false,sourceRecords:486,directLimit:228,referenceLimit:97,unknownLimit:161,roadZones:19,numericRoadZones:18,recordsWithoutRoadZone:467,facingKnown:20,captureSideKnown:0});
+assert.strictEqual(report.records.length,486);assert.strictEqual(new Set(report.records.map(function(r){return r.id;})).size,486);
+['direct','reference','unknown'].forEach(function(state,i){assert.strictEqual(report.records.filter(function(r){return r.limit.state===state;}).length,[228,97,161][i]);});
 report.records.forEach(function(r){assert.strictEqual(r.road.runtimeConfirmed,false);if(r.road.state==='no-zone'){assert.strictEqual(r.road.evidence,null);assert.strictEqual(r.road.limitKmh,null);}if(r.limit.state==='unknown')assert(r.limit.unknownReason);});
 assert.strictEqual(report.reviewQueue.officialUnparseableCoordinates.length,2);assert.strictEqual(report.reviewQueue.officialGeographicExclusions.length,3);assert.strictEqual(report.reviewQueue.officialMobileRoutes.records.length,184);assert.strictEqual(report.reviewQueue.osmReviewCandidates.length,55);assert.strictEqual(report.reviewQueue.osmExcludedOutsideBoundary.length,5);
 report.reviewQueue.officialUnparseableCoordinates.forEach(function(r){assert(!r.position);assert(r.coordinatesRaw);});
