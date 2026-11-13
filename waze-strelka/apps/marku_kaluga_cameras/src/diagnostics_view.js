@@ -1,7 +1,7 @@
 'use strict';
 const cameraView = require('./view_model.js');
 const KEYS = ['stamp','versions','service','health','nmeaPair','nmeaRmc','nmeaGga','nmeaGst','nmeaRmcGga','nmeaGgaGst',
-    'position','fixUtc','age','accuracy','motion','gnss','bridge','counts','reject','gpsStatus','gpsStatusMore','rejectReason',
+    'position','fixUtc','age','accuracy','motion','gnss','bridge','counts','reject','navigation','gpsStatus','gpsStatusMore','rejectReason',
     'nearest','type','description','descriptionMore','limit','mode','reason','way','samples','alert','outputs','map','hud','test','dimmer','database','error','errorMore'];
 const REASONS = { WAITING_GPS:'Ожидание GPS', GPS_INVALID:'Нет свежей точной позиции', DISABLED:'Предупреждения выключены', GPS_REPLAY:'UTC пришёл в обратном порядке',
     WAITING_MOTION:'Ожидание движения', WAITING_APPROACH:'Нужны две позиции подъезда', NO_ROAD_ZONE:'Для объекта нет дорожной зоны',
@@ -17,7 +17,7 @@ const clean = v => v === null || v === undefined || v === '' ? '—' : String(v)
 const n = (v, digits) => Number.isFinite(v) ? v.toFixed(digits === undefined ? 1 : digits) : '—';
 const utc = v => Number.isFinite(v) ? new Date(v).toISOString() : '—';
 function values(state, version, frozen) {
-    const s = state || {}, f = s.gpsFix || {}, input = s.gpsInput || {}, timing = input.nmeaTiming || {}, kinds = input.sentences || {}, b = s.gpsBridge || {};
+    const s = state || {}, f = s.gpsFix || {}, input = s.gpsInput || {}, timing = input.nmeaTiming || {}, kinds = input.sentences || {}, b = s.gpsBridge || {}, nav = s.gpsNavigation || {};
     const g = s.guidance || {}, a = s.alert, c = a || s.nearest || {}, r = s.rendererDetails || {}, o = s.outputs || {};
     const now = s.observedAtMs, error = clean(s.controlError || s.error), on = x => x ? 'вкл' : 'выкл';
     const layer = key => r[key] ? clean(r[key].state) + (r[key].target ? ' / '+clean(r[key].target) : '') +
@@ -42,6 +42,7 @@ function values(state, version, frozen) {
         bridge:'GPS-интерфейс: ' + clean(b.state) + (b.errorCode ? ' • '+clean(b.errorCode) : ''),
         counts:'RMC ' + clean(kinds.RMC) + ' • GGA ' + clean(kinds.GGA) + ' • GST ' + clean(kinds.GST),
         reject:'Ошибки checksum ' + clean(input.checksumErrors) + ' • пакетов ' + clean(input.badPackets),
+        navigation:'Навигация BMW: ' + clean(nav.state) + ' • принято ' + clean(nav.accepted) + ' • отклонено ' + clean(nav.rejected) + ' • ' + clean(nav.reason),
         gpsStatus:'GPS: ' + clean(s.gps).slice(0,60), gpsStatusMore:clean(s.gps).length>60?'GPS далее: '+clean(s.gps).slice(60,120):'GPS далее: —',
         rejectReason:'Отброшен GPS: '+clean(input.rejectReason),
         nearest:'Объект: ' + clean(c.id) + ' • ' + n(c.distanceM === undefined ? c.distance : c.distanceM,0) + ' м',
@@ -194,7 +195,7 @@ function reportPage(report, live, version, pageIndex, blockIndex, localResult, c
             'GGA UTC '+clean(timing.ggaTime)+' • возраст '+n(timing.lastGgaAgeMs,0)+' мс',
             'GST UTC '+clean(timing.gstTime)+' • возраст '+n(timing.lastGstAgeMs,0)+' мс',
             existing.nmeaRmcGga,existing.nmeaGgaGst,existing.nmeaPair,existing.counts,existing.reject,
-            existing.bridge,'GPS: '+clean(s.gps),existing.rejectReason,
+            existing.bridge,existing.navigation,'GPS: '+clean(s.gps),existing.rejectReason,
             'Точная скорость GPS: '+clean(f.speedKmh)+' км/ч',
             'Ручной сброс GPS: '+JSON.stringify(s.gpsReset||null),
             'После сброса история не используется; ожидаются новые пригодные координаты']),

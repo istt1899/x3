@@ -19,15 +19,81 @@ function streetOf(value) {
     const name=speech.orthography.trim();
     return name && name.length<=96 && Buffer.byteLength(name,'utf8')<=240 && !/[\x00-\x1f\x7f]/.test(name)?name:null;
 }
+function numberAt(value, names) {
+    if (!value || typeof value !== 'object') return null;
+    for (const name of names) {
+        const candidate = value[name];
+        if (typeof candidate === 'number' && isFinite(candidate)) return candidate;
+    }
+    return null;
+}
+function firstObject(value, names) {
+    if (!value || typeof value !== 'object') return null;
+    for (const name of names) {
+        const candidate = value[name];
+        if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) return candidate;
+    }
+    return null;
+}
+function explicitSpeedOf(value) {
+    if (!value || typeof value !== 'object') return null;
+    const direct = numberAt(value, ['speedKmh', 'speedKph', 'speedKmH']);
+    if (direct !== null) return direct >= 0 ? direct : null;
+    const speed = numberAt(value, ['speed', 'vehicleSpeed', 'motionSpeed']);
+    if (speed === null || speed < 0) return null;
+    const unit = value.speedUnit || value.speedUnits || value.velocityUnit || value.vehicleSpeedUnit;
+    if (typeof unit !== 'string') return null;
+    const normalized = unit.toLowerCase().replace(/[\s_]/g, '');
+    if (['km/h', 'kmh', 'kph', 'kilometresperhour', 'kilometersperhour'].indexOf(normalized) >= 0) return speed;
+    if (['m/s', 'mps', 'metrespersecond', 'meterspersecond'].indexOf(normalized) >= 0) return speed * 3.6;
+    return null;
+}
+function explicitTimeOf(value) {
+    if (!value || typeof value !== 'object') return null;
+    const millis = numberAt(value, ['timeMs', 'timestampMs', 'utcMs', 'positionTimeMs']);
+    if (millis !== null) return millis;
+    const text = value.timestamp || value.time || value.utc;
+    if (typeof text !== 'string') return null;
+    const parsed = Date.parse(text);
+    return isFinite(parsed) ? parsed : null;
+}
+function navigationFixOf(value, now) {
+    const unavailable = reason => ({ state: 'unavailable', reason, observedAtMs: now, fix: null });
+    const partial = reason => ({ state: 'partial', reason, observedAtMs: now, fix: null });
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return unavailable('BMW не передала объект текущей позиции навигации');
+    if (value.status !== 'ON_ROAD' && value.status !== 1) return unavailable('Штатная навигация не подтвердила состояние ON_ROAD');
+    const position = firstObject(value, ['position', 'geoPosition', 'location', 'currentPosition', 'coordinate']);
+    const roots = [value, position].filter(Boolean);
+    const latitude = roots.reduce((found, item) => found !== null ? found : numberAt(item, ['latitude', 'lat']), null);
+    const longitude = roots.reduce((found, item) => found !== null ? found : numberAt(item, ['longitude', 'lon', 'lng']), null);
+    if (latitude === null || longitude === null || Math.abs(latitude) > 90 || Math.abs(longitude) > 180)
+        return unavailable('В ответе навигации нет явных координат в градусах');
+    const accuracy = roots.reduce((found, item) => found !== null ? found : numberAt(item,
+        ['horizontalAccuracyM', 'accuracyM', 'positionAccuracyM', 'uncertaintyM', 'horizontalUncertaintyM']), null);
+    if (accuracy === null || accuracy <= 0) return partial('Навигация BMW дала позицию без явной точности в метрах; предупреждения не разрешены');
+    if (accuracy > 15) return partial('Точность навигации BMW хуже 15 м; предупреждения не разрешены');
+    const heading = roots.reduce((found, item) => found !== null ? found : numberAt(item,
+        ['headingDeg', 'headingDegrees', 'heading', 'courseDeg', 'course', 'bearingDeg', 'bearing']), null);
+    if (heading !== null && (heading < 0 || heading >= 360)) return partial('Курс навигации BMW вне диапазона 0–360°');
+    const speed = roots.reduce((found, item) => found !== null ? found : explicitSpeedOf(item), null);
+    const timeMs = explicitTimeOf(value);
+    return {
+        state: 'ready', reason: null, observedAtMs: now,
+        fix: { lat: latitude, lon: longitude, accuracyM: accuracy,
+            speedKmh: speed, headingDeg: heading,
+            timeMs: timeMs === null ? now : timeMs, timeOrigin: timeMs === null ? 'receipt' : 'source' }
+    };
+}
 class BmwNavigationBridge extends EventEmitter {
     constructor(options){
         super();const o=options||{};this.builders=o.builders;this.control=o.control;
-        this.now=o.now||Date.now;this.timeoutMs=o.timeoutMs||8000;this.pollMs=o.pollMs||10000;
+        this.now=o.now||Date.now;this.timeoutMs=o.timeoutMs||8000;this.pollMs=o.pollMs||1000;
         this.retryMs=o.retryMs||10000;this.retryMaxMs=Math.max(this.retryMs,o.retryMaxMs||60000);
         this.running=false;this.generation=0;this.proxy=null;this.timer=null;this.pollPending=false;this.pollGeneration=0;this.subscribed=false;
         this.channels={nav:{active:null,attempts:new Set(),retry:null,failures:0},audio:{active:null,attempts:new Set(),retry:null,failures:0}};
         this.maxAttempts=3;this.pendingGetter=null;
         this.street={name:null,source:'BMW',state:'unavailable',reason:'Название улицы BMW ещё не получено',observedAtMs:null};
+        this.navigation={state:'unavailable',reason:'Позиция навигации BMW ещё не получена',observedAtMs:null,fix:null};
         this.audio={available:false,state:'unverified',reason:'Безопасный звуковой канал BMW не подтверждён'};
         this.lastLinkUp=false;this.controlChanged=()=>{const up=this.control&&this.control.link==='up';if(up&&!this.lastLinkUp)this.lastPublished='';this.lastLinkUp=up;this.publish();};
         if(this.control && this.control.on)this.control.on('change',this.controlChanged);
@@ -35,13 +101,13 @@ class BmwNavigationBridge extends EventEmitter {
     }
     publish(){
         if(!this.running||!this.control||this.control.link!=='up')return;
-        const msg={cmd:'vehicle-context',street:this.street,audio:this.audio};
+        const msg={cmd:'vehicle-context',street:this.street,audio:this.audio,navigation:this.navigation};
         const signature=JSON.stringify(msg);if(signature===this.lastPublished)return;
         const sock=this.control.sock,pending=sock&&(typeof sock.writableLength==='number'?sock.writableLength:sock.bufferSize);
         if(typeof pending==='number'&&pending>16384)return;
         try{if(this.control.send(msg))this.lastPublished=signature;}catch(ignored){}
     }
-    status(){return {street:Object.assign({},this.street),audio:Object.assign({},this.audio)};}
+    status(){return {street:Object.assign({},this.street),navigation:Object.assign({},this.navigation,{fix:this.navigation.fix&&Object.assign({},this.navigation.fix)}),audio:Object.assign({},this.audio)};}
     build(iface,instance,active){
         if(!this.builders)return Promise.reject(new Error('BUILDER_UNAVAILABLE'));
         if(typeof this.builders.buildAndInitTypedProxy==='function')return this.builders.buildAndInitTypedProxy(iface,instance,{timeoutMs:this.timeoutMs});
@@ -52,8 +118,10 @@ class BmwNavigationBridge extends EventEmitter {
     current(generation){return this.running&&generation===this.generation;}
     active(kind,attempt){return this.current(attempt.generation)&&this.channels[kind].active===attempt;}
     unavailable(kind,reason){
-        if(kind==='nav')this.street={name:null,source:'BMW',state:'unavailable',reason,observedAtMs:null};
-        else this.audio={available:false,state:'unavailable',reason};
+        if(kind==='nav'){
+            this.street={name:null,source:'BMW',state:'unavailable',reason,observedAtMs:null};
+            this.navigation={state:'unavailable',reason,observedAtMs:null,fix:null};
+        }else this.audio={available:false,state:'unavailable',reason};
         this.publish();
     }
     schedule(kind,generation){
@@ -112,6 +180,7 @@ class BmwNavigationBridge extends EventEmitter {
     start(){
         if(this.running)return;this.running=true;this.subscribed=false;this.pollPending=false;const generation=++this.generation;
         this.street={name:null,source:'BMW',state:'unavailable',reason:'Название улицы BMW ещё не получено',observedAtMs:null};
+        this.navigation={state:'unavailable',reason:'Позиция навигации BMW ещё не получена',observedAtMs:null,fix:null};
         this.audio={available:false,state:'unverified',reason:'Безопасный звуковой канал BMW не подтверждён'};
         this.lastPublished='';this.publish();
         this.connect('nav',generation);this.connect('audio',generation);
@@ -122,27 +191,33 @@ class BmwNavigationBridge extends EventEmitter {
         this.pollPending=true;const request=++this.pollGeneration;let expired=false;
         const pending={};this.pendingGetter=pending;
         this.pollDeadline=setTimeout(()=>{expired=true;if(this.current(generation)&&this.pollGeneration===request){
-            this.street={name:null,source:'BMW',state:'unavailable',reason:'Чтение улицы BMW задержано; ожидаются живые уведомления',observedAtMs:null};this.publish();
+            this.street={name:null,source:'BMW',state:'unavailable',reason:'Чтение улицы BMW задержано; ожидаются живые уведомления',observedAtMs:null};
+            this.navigation={state:'unavailable',reason:'Чтение позиции навигации BMW задержано; ожидаются живые уведомления',observedAtMs:null,fix:null};this.publish();
         }},this.timeoutMs);
         // Keep one outstanding SDK getter. A timeout is visible but does not
         // create an unbounded queue of uncancellable native requests. Live
-        // subscribed updates can still deliver the street while it is pending.
+        // subscribed updates can still deliver the street and the fallback
+        // navigation position while the getter is pending.
         Promise.resolve().then(()=>this.current(generation)&&this.pollGeneration===request?proxy.currentLocation.getValue():null).then(value=>{if(!expired&&this.current(generation)&&this.pollGeneration===request)this.receive(value,generation);},()=>{
-            if(this.current(generation)&&this.pollGeneration===request){this.street={name:null,source:'BMW',state:'unavailable',reason:'Не удалось прочитать текущую улицу BMW',observedAtMs:null};this.publish();}
+            if(this.current(generation)&&this.pollGeneration===request){
+                this.street={name:null,source:'BMW',state:'unavailable',reason:'Не удалось прочитать текущую улицу BMW',observedAtMs:null};
+                this.navigation={state:'unavailable',reason:'Не удалось прочитать позицию навигации BMW',observedAtMs:null,fix:null};this.publish();}
         }).then(()=>{if(this.pendingGetter===pending)this.pendingGetter=null;if(this.current(generation)&&this.pollGeneration===request){clearTimeout(this.pollDeadline);this.pollPending=false;}});
     }
     receive(value,generation){
         if(!this.current(generation))return;
-        const name=streetOf(value);
+        const name=streetOf(value), navigation=navigationFixOf(value,this.now());
         this.street={name,source:'BMW',state:name?'ready':'unavailable',reason:name?null:'BMW не передала подтверждённое название текущей улицы',observedAtMs:this.now()};
+        this.navigation=navigation;
         this.publish();this.emit('change');
     }
     stop(){
         if(!this.running)return;this.running=false;this.generation++;
         Object.keys(this.channels).forEach(kind=>{const channel=this.channels[kind];clearTimeout(channel.retry);channel.retry=null;channel.attempts.forEach(attempt=>clearTimeout(attempt.deadline));channel.active=null;});
         clearTimeout(this.pollDeadline);clearInterval(this.timer);this.timer=null;this.proxy=null;this.pollPending=false;this.subscribed=false;this.pollGeneration++;
+        this.navigation={state:'unavailable',reason:'Чтение позиции навигации BMW остановлено',observedAtMs:null,fix:null};
         // Pending uncancellable getters/registrations retain their bounded
         // slots across start/stop. Late callbacks cannot publish cached data.
     }
 }
-module.exports={BmwNavigationBridge,streetOf,NAV,GONG};
+module.exports={BmwNavigationBridge,streetOf,navigationFixOf,NAV,GONG};

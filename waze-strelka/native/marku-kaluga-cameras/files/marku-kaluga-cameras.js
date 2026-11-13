@@ -74,7 +74,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.8.2', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.8.3', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -87,6 +87,7 @@ function start(options) {
     rendererDetails: {}, displayTest: { active: false, pinned: false, target: null, calibration: false, untilMs: 0 },
     gps: 'Ожидание моста GPS BMW', gpsFix: null, gpsMotion: { state:'unknown', conflict:false, roadMismatch:false, sources:[] }, clock: clockSnapshot(Date.now(), null),
     gpsBridge: { state: 'stopped', errorCode: null, ageMs: null },
+    gpsNavigation: { source: 'bmw-navigation', state: 'unavailable', updates: 0, accepted: 0, rejected: 0, lastUpdateAgeMs: null, reason: 'Позиция навигации BMW ещё не получена' },
     gpsInput: { source: 'bmw-nmea', packets: 0, badPackets: 0, checksumErrors: 0, sentences: { RMC: 0, GGA: 0, GST: 0 }, lastPacketAgeMs: null, fixUtcAgeMs: null },
     database: { state: 'error', source: 'OpenStreetMap', count: 0, error: null },
     sourceAssembly: { state: 'loading', wantedVersion: databaseVersion.version, selectedVersion: null, activeVersion: null, errorCode: null, reason: null },
@@ -263,11 +264,13 @@ function start(options) {
     state.clock = clockSnapshot(now, null);
     if (typeof gps.diagnostics === 'function') {
       var gpsDiagnostics = gps.diagnostics(now); state.gpsBridge = gpsDiagnostics.gpsBridge; state.gpsInput = gpsDiagnostics.gpsInput;
+      if (gpsDiagnostics.gpsNavigation) state.gpsNavigation = gpsDiagnostics.gpsNavigation;
       state.clock = clockSnapshot(now, gpsDiagnostics.clock);
     }
     state.gps = typeof gps.description === 'function' ? gps.description(fix, now) : !fix ? 'Нет свежих подтверждённых координат UTC (максимум 3 с)' :
       !valid ? 'Координаты есть; точность, скорость или курс не подтверждены' : 'Свежие координаты, скорость, курс и точность получены';
-    var gpsLabel = function(source) { return source === 'bmw-nmea' ? 'BMW' : source === 'gpsd' ? 'GPSD' : 'NMEA'; };
+    var gpsLabel = function(source) { return source === 'bmw-nmea' ? 'BMW' : source === 'gpsd' ? 'GPSD' :
+      source === 'bmw-navigation' ? 'Навигация BMW' : 'NMEA'; };
     if (motion.sources.length > 1 || motion.roadMismatch) {
       var sourceSpeeds = motion.sources.map(function(item) { return gpsLabel(item.source) + ' ' +
         (item.speedKmh === null ? '?' : item.speedKmh.toFixed(1)); }).join(', ');
@@ -402,7 +405,7 @@ function start(options) {
         function(error){if(!closed){if(state.commandResult && state.commandResult.id===audioRequestId)commandResult(msg.cmd,'error',error.message,audioRequestId);tick();}});return;
     }
     if (msg.cmd === 'vehicle-context') {
-      var street=msg.street, audioProbe=msg.audio, observed=street && street.observedAtMs, nowContext=Date.now();
+      var street=msg.street, audioProbe=msg.audio, navigation=msg.navigation, observed=street && street.observedAtMs, nowContext=Date.now();
       if(street && street.source==='BMW' && ['ready','unavailable','stale'].indexOf(street.state)>=0) {
         var name=street.name;
         if(name!==null && (typeof name!=='string'||name.length>96||Buffer.byteLength(name,'utf8')>240||/[\x00-\x1f\x7f]/.test(name)))throw new Error('STREET_PAYLOAD_INVALID');
@@ -410,6 +413,11 @@ function start(options) {
         var freshName=street.state==='ready' && typeof name==='string' && name.length>0 && Number.isFinite(observed) && nowContext-observed<=15000 && observed<=nowContext+500;
         state.street={name:freshName?name:null,source:'BMW',state:freshName?'ready':'unavailable',observedAtMs:freshName?observed:null,
           reason:freshName?null:'BMW не передала свежее название текущей улицы'};
+      }
+      if(navigation && navigation.source==='bmw-navigation' && ['ready','partial','unavailable'].indexOf(navigation.state)>=0) {
+        if(typeof gps.inputNavigation !== 'function' || typeof gps.clearNavigation !== 'function') throw new Error('GPS_NAVIGATION_UNAVAILABLE');
+        if(navigation.state==='ready' && navigation.fix) gps.inputNavigation(navigation.fix);
+        else gps.clearNavigation(navigation.reason || navigation.state);
       }
       if(audioProbe && ['detected','unavailable','unverified'].indexOf(audioProbe.state)>=0 && state.audio)state.audio.probeState=audioProbe.state;
       tick();return;

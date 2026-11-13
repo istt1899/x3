@@ -1,10 +1,19 @@
 'use strict';
 const assert=require('assert'),EventEmitter=require('events');
-const {BmwNavigationBridge,streetOf,NAV,GONG}=require('../apps/marku_kaluga_cameras/src/bmw_navigation_bridge');
+const {BmwNavigationBridge,streetOf,navigationFixOf,NAV,GONG}=require('../apps/marku_kaluga_cameras/src/bmw_navigation_bridge');
 const valid={status:'ON_ROAD',textDescription:{textDescriptorList:{STREET:{orthography:'Тульское шоссе'}}}};
+const now=1700000000000;
+const navigationValid={status:'ON_ROAD',position:{latitude:54.85,longitude:36.17},speedKmh:60,headingDeg:90,horizontalAccuracyM:8,timeMs:now};
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(check){const deadline=Date.now()+1500;while(!check()){if(Date.now()>deadline)throw new Error('navigation bridge test timeout');await sleep(3);}}
 assert.strictEqual(streetOf(valid),'Тульское шоссе');
+assert.strictEqual(navigationFixOf(navigationValid,now).state,'ready');
+assert.strictEqual(navigationFixOf(navigationValid,now).fix.lat,54.85);
+assert.strictEqual(navigationFixOf(Object.assign({},navigationValid,{speed:20,speedUnit:'m/s',speedKmh:undefined}),now).fix.speedKmh,72);
+assert.strictEqual(navigationFixOf(Object.assign({},navigationValid,{horizontalAccuracyM:undefined}),now).state,'partial');
+assert.strictEqual(navigationFixOf(Object.assign({},navigationValid,{horizontalAccuracyM:16}),now).state,'partial');
+assert.strictEqual(navigationFixOf(Object.assign({},navigationValid,{speed:20,speedUnit:'unknown',speedKmh:undefined}),now).fix.speedKmh,null);
+assert.strictEqual(navigationFixOf(Object.assign({},navigationValid,{status:'OFF_ROAD'}),now).state,'unavailable');
 assert.strictEqual(streetOf(Object.assign({},valid,{status:'OFF_ROAD'})),null);
 assert.strictEqual(streetOf({status:1,textDescription:{textDescriptorList:{14:{orthography:'улица Болдина'}}}}),'улица Болдина');
 assert.strictEqual(streetOf({status:1,textDescription:{textDescriptorList:{LOCATION_NAME:{orthography:'Not a street'}}}}),null);
@@ -18,6 +27,8 @@ async function main(){
  await new Promise(r=>setTimeout(r,20));
  assert(calls.some(c=>c[0]===NAV&&c[1]==='Main_Instance'));
  assert(calls.some(c=>c[0]===GONG));assert(sent.some(s=>s.street.name==='Тульское шоссе'));
+ callback(Object.assign({},navigationValid,{timeMs:Date.now()}));
+ assert(sent.some(s=>s.navigation.state==='ready'&&s.navigation.fix.lat===54.85&&s.navigation.fix.accuracyM===8));
  assert(sent.every(s=>s.cmd==='vehicle-context'&&s.audio.available===false),'read-only discovery never pretends to have played a sound');
  const before=sent.length;control.link='down';control.emit('change');control.link='up';control.emit('change');assert(sent.length>before,'reconnect must republish context');
  bridge.stop();const after=sent.length;callback(valid);assert.strictEqual(sent.length,after,'late native notifications after shutdown are inert');
