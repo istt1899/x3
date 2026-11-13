@@ -146,13 +146,13 @@
     {
       "id": "marku_kaluga_cameras",
       "kind": "app",
-      "version": "0.8.3",
+      "version": "0.8.4",
       "title": "Waze Стрелка",
       "description": "Waze on Cluster с настройками карты, HUD, CarPlay, Android Auto и дополнительным разделом камер",
       "build": "unit",
       "requires": {
-        "waze-on-cluster": "0.9.0",
-        "marku-kaluga-cameras": "0.8.3",
+        "waze-on-cluster": "0.9.14",
+        "marku-kaluga-cameras": "0.8.4",
         "mgu-deploy": "0.7.11"
       },
       "uninstallable": true,
@@ -160,10 +160,10 @@
         "ID7"
       ],
       "artifact": {
-        "name": "marku_kaluga_cameras@0.8.3.tgz",
-        "size": 137601,
-        "sha256": "b0604fbf5f80b221e5dc90a0fca4c086cec578912c375b38663d3661e895f51f",
-        "url": "https://raw.githubusercontent.com/istt1899/x3/6859085014ecdcb0fa072244c0734908010d9e5e/marku_kaluga_cameras%400.8.3.tgz"
+        "name": "marku_kaluga_cameras@0.8.4.tgz",
+        "size": 144659,
+        "sha256": "370124474034c3d1719fb49341a9492a090f282e8c1f85b0c489bcd8065da460",
+        "url": "https://raw.githubusercontent.com/istt1899/x3/6726699d89c8bbd4cf9dc4a0537907ac030cdcdb/marku_kaluga_cameras%400.8.4.tgz"
       },
       "icon": "https://raw.githubusercontent.com/istt1899/x3/16e7d750a9e6545b9e62178ffb83cfc62a548423/marku_kaluga_cameras.png",
       "iconSha256": "6afaa3655ab866b5f969685340d26b8774f1f72c32e30de275623119999b0dfd"
@@ -171,7 +171,7 @@
     {
       "id": "marku-kaluga-cameras",
       "kind": "tool",
-      "version": "0.8.3",
+      "version": "0.8.4",
       "title": "Waze Strelka camera service",
       "description": "Local Kaluga OSM camera snapshot, strict GPS diagnostics and optional verified-road camera alerts",
       "optional": true,
@@ -187,10 +187,10 @@
         5000
       ],
       "artifact": {
-        "name": "marku-kaluga-cameras@0.8.3.tgz",
-        "size": 652149,
-        "sha256": "e7448a0e027dd19119a1c6b10deecc2bdcc3245bd87b805a0272c09fb229627c",
-        "url": "https://raw.githubusercontent.com/istt1899/x3/6859085014ecdcb0fa072244c0734908010d9e5e/marku-kaluga-cameras%400.8.3.tgz"
+        "name": "marku-kaluga-cameras@0.8.4.tgz",
+        "size": 652602,
+        "sha256": "9221df3250e404ad8e5171285e44968996a64de2ed52f525dce1c95ee52c18cc",
+        "url": "https://raw.githubusercontent.com/istt1899/x3/6726699d89c8bbd4cf9dc4a0537907ac030cdcdb/marku-kaluga-cameras%400.8.4.tgz"
       }
     },
     {
@@ -198,12 +198,12 @@
       "kind": "tool",
       "title": "Cluster renderer",
       "description": "Draws every app's layers on the instrument cluster and the HUD, sharing the display slots and one upload budget",
-      "version": "0.4.0",
+      "version": "0.5.9",
       "artifact": {
-        "name": "cluster-render@0.4.0.tgz",
-        "size": 7406328,
-        "sha256": "653a471e6dc69325f20e33dc9d641541b95fcde0f5a4421e7e5906cb763be575",
-        "url": "https://github.com/robertnisipeanu/idrive-apps/releases/download/cluster-render%400.4.0/cluster-render%400.4.0.tgz"
+        "name": "cluster-render@0.5.9.tgz",
+        "size": 9365218,
+        "sha256": "7b8665c769dfa6e9a98b1882ddfc9f85d41583e21bfbbe96183ca94ad4273401",
+        "url": "https://github.com/robertnisipeanu/idrive-apps/releases/download/cluster-render%400.5.9/cluster-render%400.5.9.tgz"
       },
       "requires": {
         "mgu-deploy": "0.4.0"
@@ -348,17 +348,17 @@
       "id": "waze-on-cluster",
       "kind": "tool",
       "title": "Waze on cluster",
-      "description": "Shows the CarPlay or Android Auto map on the instrument cluster: a root helper applies the reversible carplay and aapd patches where each is supported, and the capture, running from boot, decodes the map's H.264 and draws it through the cluster renderer whenever the stream flows",
-      "version": "0.9.0",
+      "description": "Runs the Waze on cluster map in the background. It is installed with the Waze on cluster app, which you use to control it.",
+      "version": "0.9.14",
       "artifact": {
-        "name": "waze-on-cluster@0.9.0.tgz",
-        "size": 2183446,
-        "sha256": "8403fffc1c842cd228602c19ebd3481eb55b5f85ecf919b3534e3a213b325c4c",
-        "url": "https://github.com/robertnisipeanu/idrive-apps/releases/download/waze-on-cluster%400.9.0/waze-on-cluster%400.9.0.tgz"
+        "name": "waze-on-cluster@0.9.14.tgz",
+        "size": 2383309,
+        "sha256": "05118ea14c2c2d4b7217d9652c9bff2a5e57f8b8bbd69c24c9bd87d599c460d8",
+        "url": "https://github.com/robertnisipeanu/idrive-apps/releases/download/waze-on-cluster%400.9.14/waze-on-cluster%400.9.14.tgz"
       },
       "requires": {
-        "mgu-deploy": "0.7.11",
-        "cluster-render": "0.4.0"
+        "mgu-deploy": "0.7.17",
+        "cluster-render": "0.5.3"
       },
       "mguHmi": [
         "ID7"
@@ -367,131 +367,131 @@
       "texts": {
         "ar": {
           "title": "Waze على لوحة العدادات",
-          "description": "يعرض خريطة CarPlay أو Android Auto على لوحة العدادات: يطبّق مساعد بصلاحيات root تصحيحَي carplay وaapd القابلين للتراجع حيثما كان كل منهما مدعومًا، ويفك الالتقاط، الذي يعمل منذ الإقلاع، ترميز H.264 للخريطة ويرسمها عبر عارض لوحة العدادات كلما تدفق البث"
+          "description": "يشغّل خريطة Waze على لوحة العدادات في الخلفية. يُثبَّت مع تطبيق Waze على لوحة العدادات، ومنه تتحكم به."
         },
         "cs": {
           "title": "Waze na přístrojovém štítu",
-          "description": "Zobrazuje mapu CarPlay nebo Android Auto na přístrojovém štítu: pomocník s právy root použije vratné opravy carplay a aapd tam, kde je každá podporována, a záznam běžící od spuštění dekóduje obraz H.264 mapy a kreslí jej přes renderer přístrojového štítu, kdykoli je datový proud aktivní"
+          "description": "Na pozadí spouští mapu aplikace Waze na přístrojovém štítu. Instaluje se s aplikací Waze na přístrojovém štítu, ve které ho ovládáte."
         },
         "da": {
           "title": "Waze i instrumentpanelet",
-          "description": "Viser CarPlay- eller Android Auto-kortet på instrumentpanelet: en root-hjælper anvender de reversible carplay- og aapd-patches, hvor hver af dem understøttes, og optagelsen, der kører fra opstart, afkoder kortets H.264-video og tegner det via instrumentpanel-rendereren, når streamen kører"
+          "description": "Kører kortet til Waze i instrumentpanelet i baggrunden. Det installeres sammen med appen Waze i instrumentpanelet, som du styrer det fra."
         },
         "de": {
           "title": "Waze im Kombiinstrument",
-          "description": "Zeigt die CarPlay- oder Android-Auto-Karte im Kombiinstrument: Ein Root-Helfer wendet die umkehrbaren carplay- und aapd-Patches an, wo sie jeweils unterstützt werden, und die ab dem Start laufende Erfassung dekodiert das H.264-Video der Karte und zeichnet es über den Kombi-Renderer, sobald der Stream fließt"
+          "description": "Betreibt die Karte von Waze im Kombiinstrument im Hintergrund. Wird mit der App Waze im Kombiinstrument installiert, über die Sie es steuern."
         },
         "el": {
           "title": "Waze στα όργανα",
-          "description": "Εμφανίζει τον χάρτη του CarPlay ή του Android Auto στον πίνακα οργάνων: ένα βοηθητικό πρόγραμμα με δικαιώματα root εφαρμόζει τις αναστρέψιμες διορθώσεις carplay και aapd όπου υποστηρίζεται η καθεμία, και η καταγραφή, ενεργή από την εκκίνηση, αποκωδικοποιεί το H.264 του χάρτη και τον σχεδιάζει μέσω της μηχανής απόδοσης πίνακα οργάνων όποτε υπάρχει ροή"
+          "description": "Εκτελεί στο παρασκήνιο τον χάρτη του Waze στα όργανα. Εγκαθίσταται μαζί με την εφαρμογή Waze στα όργανα, από την οποία το ελέγχετε."
         },
         "es-US": {
           "title": "Waze en el tablero",
-          "description": "Muestra el mapa de CarPlay o Android Auto en el tablero de instrumentos: un asistente con permisos root aplica los parches reversibles de carplay y aapd donde cada uno es compatible, y la captura, activa desde el arranque, decodifica el H.264 del mapa y lo dibuja mediante el renderizador del tablero siempre que llegue la señal"
+          "description": "Ejecuta en segundo plano el mapa de Waze en el tablero. Se instala con la aplicación Waze en el tablero, desde la que lo controlas."
         },
         "es": {
           "title": "Waze en el cuadro",
-          "description": "Muestra el mapa de CarPlay o Android Auto en el cuadro de instrumentos: un asistente con permisos root aplica los parches reversibles de carplay y aapd donde cada uno es compatible, y la captura, activa desde el arranque, decodifica el H.264 del mapa y lo dibuja mediante el renderizador del cuadro siempre que llegue la señal"
+          "description": "Ejecuta en segundo plano el mapa de Waze en el cuadro. Se instala con la app Waze en el cuadro, desde la que lo controlas."
         },
         "fi": {
           "title": "Waze mittaristossa",
-          "description": "Näyttää CarPlay- tai Android Auto -kartan mittaristossa: root-apuohjelma asentaa palautettavat carplay- ja aapd-korjaukset, missä kumpikin on tuettu, ja käynnistyksestä asti toimiva kaappaus purkaa kartan H.264-videon ja piirtää sen mittariston piirtäjän kautta aina, kun videovirtaa vastaanotetaan"
+          "description": "Ajaa Waze mittaristossa -kartan taustalla. Asentuu Waze mittaristossa -sovelluksen mukana, ja sitä ohjataan sovelluksesta."
         },
         "fr-CA": {
           "title": "Waze au combiné",
-          "description": "Affiche la carte CarPlay ou Android Auto sur le combiné d'instruments : un assistant root applique les correctifs réversibles carplay et aapd là où chacun est pris en charge, et la capture, active dès le démarrage, décode le flux H.264 de la carte et l'affiche via le rendu du combiné dès que le flux arrive"
+          "description": "Fait fonctionner en arrière-plan la carte de Waze au combiné. Installé avec l'application Waze au combiné, depuis laquelle vous le contrôlez."
         },
         "fr": {
           "title": "Waze au combiné",
-          "description": "Affiche la carte CarPlay ou Android Auto sur le combiné d'instruments : un assistant root applique les correctifs réversibles carplay et aapd là où chacun est pris en charge, et la capture, active dès le démarrage, décode le flux H.264 de la carte et l'affiche via le rendu du combiné dès que le flux arrive"
+          "description": "Fait fonctionner en arrière-plan la carte de Waze au combiné. Installé avec l'app Waze au combiné, depuis laquelle vous le contrôlez."
         },
         "he": {
           "title": "Waze בלוח המחוונים",
-          "description": "מציג את מפת CarPlay או Android Auto בלוח המחוונים: רכיב עזר עם הרשאות root מחיל את תיקוני carplay ו-aapd הניתנים לביטול בכל מקום שבו כל אחד מהם נתמך, והלכידה, הפועלת מרגע האתחול, מפענחת את ה-H.264 של המפה ומציירת אותה דרך מנוע התצוגה של לוח המחוונים בכל פעם שהזרם פעיל"
+          "description": "מפעיל ברקע את המפה של Waze בלוח המחוונים. מותקן יחד עם האפליקציה Waze בלוח המחוונים, שממנה שולטים בו."
         },
         "hu": {
           "title": "Waze a műszerfalon",
-          "description": "A CarPlay vagy Android Auto térképét a műszerfalon jeleníti meg: egy root segédprogram alkalmazza a visszavonható carplay és aapd javítást ott, ahol támogatott, a rögzítés pedig a rendszerindítástól fut, dekódolja a térkép H.264 adatfolyamát, és a műszerfal-megjelenítőn keresztül rajzolja ki, amíg az adatfolyam érkezik"
+          "description": "A háttérben futtatja a Waze a műszerfalon térképét. A Waze a műszerfalon alkalmazással együtt települ, abból vezérelhető."
         },
         "id": {
           "title": "Waze di panel instrumen",
-          "description": "Menampilkan peta CarPlay atau Android Auto di panel instrumen: helper root menerapkan patch carplay dan aapd yang dapat dibatalkan di tempat masing-masing didukung, dan perekaman, yang berjalan sejak boot, mendekode H.264 peta lalu menggambarnya melalui perender panel instrumen selama stream mengalir"
+          "description": "Menjalankan peta Waze di panel instrumen di latar belakang. Terpasang bersama aplikasi Waze di panel instrumen, tempat Anda mengendalikannya."
         },
         "it": {
           "title": "Waze sul quadro",
-          "description": "Mostra la mappa di CarPlay o Android Auto sul quadro strumenti: un helper root applica le patch reversibili carplay e aapd dove ciascuna è supportata, e l'acquisizione, attiva dall'avvio, decodifica il flusso H.264 della mappa e lo disegna tramite il renderer del quadro quando il flusso è attivo"
+          "description": "Esegue in background la mappa di Waze sul quadro. Si installa con l'app Waze sul quadro, da cui lo controlli."
         },
         "ja": {
           "title": "Waze メーター表示",
-          "description": "CarPlayまたはAndroid Autoの地図をメーターに表示します。rootヘルパーが元に戻せるcarplayとaapdのパッチをそれぞれ対応する環境で適用し、起動時から動作するキャプチャが地図のH.264をデコードして、ストリームが流れている間はメーターレンダラーで描画します"
+          "description": "Waze メーター表示の地図をバックグラウンドで動かします。Waze メーター表示アプリと一緒にインストールされ、アプリから操作します。"
         },
         "ko": {
           "title": "Waze 계기판 표시",
-          "description": "CarPlay 또는 Android Auto 지도를 계기판에 표시합니다. root 도우미가 되돌릴 수 있는 carplay 및 aapd 패치를 각각 지원되는 곳에 적용하고, 부팅 시부터 실행되는 캡처가 지도의 H.264를 디코딩하여 스트림이 들어올 때마다 계기판 렌더러로 그립니다"
+          "description": "Waze 계기판 표시의 지도를 백그라운드에서 실행합니다. Waze 계기판 표시 앱과 함께 설치되며, 앱에서 제어합니다."
         },
         "nb": {
           "title": "Waze i instrumentpanelet",
-          "description": "Viser CarPlay- eller Android Auto-kartet i instrumentpanelet: en root-hjelper bruker de reversible carplay- og aapd-patchene der hver av dem støttes, og opptaket, som kjører fra oppstart, dekoder kartets H.264-video og tegner det via instrumentpanel-rendereren så lenge strømmen går"
+          "description": "Kjører kartet til Waze i instrumentpanelet i bakgrunnen. Installeres sammen med appen Waze i instrumentpanelet, som du styrer det fra."
         },
         "nl": {
           "title": "Waze in instrumentpaneel",
-          "description": "Toont de CarPlay- of Android Auto-kaart op het instrumentpaneel: een roothelper past de omkeerbare carplay- en aapd-patches toe waar elk wordt ondersteund, en de opname, die vanaf het opstarten draait, decodeert de H.264-video van de kaart en tekent die via de instrumentpaneel-renderer zodra de stream loopt"
+          "description": "Laat de kaart van Waze in instrumentpaneel op de achtergrond draaien. Wordt geïnstalleerd met de app Waze in instrumentpaneel, waarmee je het bedient."
         },
         "pl": {
           "title": "Waze na zegarach",
-          "description": "Wyświetla mapę CarPlay lub Android Auto na zestawie wskaźników: pomocnik z uprawnieniami root stosuje odwracalne poprawki carplay i aapd tam, gdzie każda jest obsługiwana, a rejestracja działająca od uruchomienia dekoduje obraz H.264 mapy i rysuje go przez renderer zestawu wskaźników, gdy tylko płynie strumień"
+          "description": "Obsługuje w tle mapę aplikacji Waze na zegarach. Instaluje się razem z aplikacją Waze na zegarach, z której nim sterujesz."
         },
         "pt-BR": {
           "title": "Waze no painel",
-          "description": "Mostra o mapa do CarPlay ou do Android Auto no painel de instrumentos: um auxiliar com permissões root aplica os patches reversíveis de carplay e aapd onde cada um é compatível, e a captura, ativa desde a inicialização, decodifica o H.264 do mapa e o desenha pelo renderizador do painel sempre que o fluxo chega"
+          "description": "Executa em segundo plano o mapa do Waze no painel. É instalado com o app Waze no painel, de onde você o controla."
         },
         "pt": {
           "title": "Waze no quadrante",
-          "description": "Mostra o mapa do CarPlay ou do Android Auto no quadrante de instrumentos: um auxiliar com permissões root aplica as correções reversíveis de carplay e aapd onde cada uma é suportada, e a captura, ativa desde o arranque, descodifica o H.264 do mapa e desenha-o através do renderizador do quadrante sempre que o fluxo chega"
+          "description": "Executa em segundo plano o mapa do Waze no quadrante. É instalado com a app Waze no quadrante, a partir da qual o controla."
         },
         "ro": {
           "title": "Waze pe bord",
-          "description": "Afișează harta CarPlay sau Android Auto pe bordul digital: un asistent root aplică patch-urile reversibile carplay și aapd acolo unde fiecare este acceptat, iar captura, pornită de la boot, decodează fluxul H.264 al hărții și îl desenează prin randarea bordului cât timp fluxul rulează"
+          "description": "Rulează în fundal harta Waze pe bord. Se instalează odată cu aplicația Waze pe bord, din care îl controlați."
         },
         "ru": {
           "title": "Waze на приборах",
-          "description": "Показывает карту CarPlay или Android Auto на приборной панели: вспомогательная служба с правами root применяет обратимые патчи carplay и aapd там, где каждый поддерживается, а захват, работающий с момента загрузки, декодирует H.264 карты и выводит её через рендерер приборной панели, пока поступает поток"
+          "description": "Работает в фоне и выводит карту Waze на приборах. Устанавливается вместе с приложением Waze на приборах, через которое им и управляют."
         },
         "sk": {
           "title": "Waze na prístrojovke",
-          "description": "Zobrazuje mapu CarPlay alebo Android Auto na prístrojovej doske: pomocník s právami root použije vratné opravy carplay a aapd tam, kde sú podporované, a zaznamenávanie spustené od štartu dekóduje H.264 mapy a vykresľuje ju cez vykresľovanie prístrojovej dosky, kým prichádza videostream"
+          "description": "Na pozadí spúšťa mapu aplikácie Waze na prístrojovke. Inštaluje sa s aplikáciou Waze na prístrojovke, v ktorej ho ovládate."
         },
         "sl": {
           "title": "Waze na armaturi",
-          "description": "Prikaže zemljevid CarPlay ali Android Auto na armaturni plošči: pomočnik s pravicami root uveljavi povratna popravka carplay in aapd, kjer je posamezni podprt, zajem, ki teče od zagona, pa dekodira H.264 zemljevida in ga izriše prek izrisa na armaturi, kadar tok teče"
+          "description": "V ozadju poganja zemljevid Waze na armaturi. Namesti se skupaj z aplikacijo Waze na armaturi, v kateri ga upravljate."
         },
         "sv": {
           "title": "Waze i kombiinstrumentet",
-          "description": "Visar CarPlay- eller Android Auto-kartan i kombiinstrumentet: en root-hjälpare tillämpar de reversibla carplay- och aapd-patcharna där var och en stöds, och inspelningen, som körs från start, avkodar kartans H.264-video och ritar den via kombiinstrumentets renderare så länge strömmen flödar"
+          "description": "Kör kartan för Waze i kombiinstrumentet i bakgrunden. Installeras med appen Waze i kombiinstrumentet, som du styr den från."
         },
         "th": {
           "title": "Waze บนหน้าปัด",
-          "description": "แสดงแผนที่ CarPlay หรือ Android Auto บนหน้าปัด: ตัวช่วยสิทธิ์ root จะใช้แพตช์ carplay และ aapd ที่ย้อนกลับได้ในที่ที่แต่ละตัวรองรับ และการจับภาพซึ่งทำงานตั้งแต่บูตจะถอดรหัส H.264 ของแผนที่และวาดผ่านตัวเรนเดอร์หน้าปัดทุกครั้งที่มีสตรีมเข้ามา"
+          "description": "ทำงานเบื้องหลังเพื่อแสดงแผนที่ของ Waze บนหน้าปัด ติดตั้งมาพร้อมแอป Waze บนหน้าปัด ซึ่งใช้ควบคุมการทำงาน"
         },
         "tr": {
           "title": "Waze göstergede",
-          "description": "CarPlay veya Android Auto haritasını gösterge panelinde gösterir: bir root yardımcısı geri alınabilir carplay ve aapd yamalarını desteklendikleri yerde uygular; açılıştan itibaren çalışan kayıt, haritanın H.264 akışını çözer ve akış geldikçe gösterge oluşturucu üzerinden çizer"
+          "description": "Waze göstergede haritasını arka planda çalıştırır. Waze göstergede uygulamasıyla birlikte kurulur ve o uygulamadan kontrol edilir."
         },
         "uk": {
           "title": "Waze на приладах",
-          "description": "Показує карту CarPlay або Android Auto на панелі приладів: допоміжна служба з правами root застосовує оборотні патчі carplay і aapd там, де кожен підтримується, а захоплення, що працює від запуску системи, декодує H.264 карти й виводить її через рендерер панелі приладів, поки надходить потік"
+          "description": "Працює у фоні й виводить карту Waze на приладах. Встановлюється разом із застосунком Waze на приладах, через який ним і керують."
         },
         "vi": {
           "title": "Waze trên bảng đồng hồ",
-          "description": "Hiển thị bản đồ CarPlay hoặc Android Auto trên bảng đồng hồ: một trình trợ giúp root áp dụng các bản vá carplay và aapd có thể hoàn tác ở nơi mỗi bản vá được hỗ trợ, còn tiến trình thu hình chạy từ lúc khởi động sẽ giải mã H.264 của bản đồ và vẽ nó qua trình hiển thị bảng đồng hồ mỗi khi có luồng dữ liệu"
+          "description": "Chạy bản đồ của Waze trên bảng đồng hồ ở chế độ nền. Được cài cùng ứng dụng Waze trên bảng đồng hồ, nơi bạn điều khiển nó."
         },
         "zh-CN": {
           "title": "Waze 仪表盘显示",
-          "description": "在仪表盘上显示 CarPlay 或 Android Auto 地图：root 辅助程序在各自支持的情况下应用可还原的 carplay 和 aapd 补丁，开机即运行的采集程序解码地图的 H.264，并在有视频流时通过仪表盘渲染器绘制"
+          "description": "在后台运行 Waze 仪表盘显示的地图。随 Waze 仪表盘显示应用一起安装，在应用中进行控制。"
         },
         "zh-TW": {
           "title": "Waze 儀表板顯示",
-          "description": "在儀表板上顯示 CarPlay 或 Android Auto 地圖：root 輔助程式會在各自支援的情況下套用可還原的 carplay 與 aapd 修補，而開機即執行的擷取程式會解碼地圖的 H.264，並在串流傳入時透過儀表板繪製器繪製"
+          "description": "在背景執行 Waze 儀表板顯示的地圖。隨 Waze 儀表板顯示 App 一起安裝，並在 App 中控制。"
         }
       }
     },
