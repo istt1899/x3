@@ -107,11 +107,19 @@ async function main() {
     }
     console.log('PASS x3 Releases catalog via unmodified Updater reader/fetch:', catalog.components.length,
         'components, SHA-256', catalogRequest.sha256, 'upstream', updater.version, updater.commit);
+    // ожидаемые версии — из собранного каталога (источник истины); --version остаётся
+    // значением по умолчанию для приложений, если собранный каталог недоступен
+    const builtFile = path.join(__dirname, '..', 'dist', 'publish', 'mgu-five-apps', 'catalog.github.json');
+    const builtVersions = {};
+    if (fs.existsSync(builtFile)) {
+        for (const c of JSON.parse(fs.readFileSync(builtFile, 'utf8')).components) builtVersions[c.id] = c.version;
+    }
     for (const id of ['marku_x3_health', 'marku_x3_warm', 'marku_daily_hud', 'marku_x3_home', 'marku-home-bridge', 'marku_x3_trips']) {
         const entry = catalog.components.find(item => item.id === id);
+        const expected = builtVersions[id] || version;
         assert(entry, id + ' absent from published catalog');
-        assert.strictEqual(entry.version, version, id + ' published version');
-        assert.strictEqual(entry.artifact.name, id + '@' + version + '.tgz');
+        assert.strictEqual(entry.version, expected, id + ' published version');
+        assert.strictEqual(entry.artifact.name, id + '@' + expected + '.tgz');
         assert(/^[0-9a-f]{64}$/.test(entry.artifact.sha256), id + ' catalog SHA-256 missing');
         assert(Number.isInteger(entry.artifact.size) && entry.artifact.size > 0, id + ' catalog size missing');
         const bytes = await reader.artifact(entry);

@@ -1,8 +1,8 @@
 {
   "id": "marku_x3_warm",
   "title": "Тёплый старт",
-  "description": "Прогрев масла и ОЖ, наружная температура и объяснимая рекомендация климата без записи",
-  "version": "0.1.0",
+  "description": "Приборы прогрева масла и ОЖ, кольцо готовности и объяснимая рекомендация климата без записи в блоки",
+  "version": "0.2.0",
   "license": "GPL-3.0-or-later",
   "vendor": "custom",
   "loggingId": "MX3W",
@@ -19,37 +19,23 @@
   "screens": [
     {
       "name": "MAIN",
-      "kind": "menu",
+      "kind": "canvas",
       "title": "Тёплый старт",
-      "settings": true,
-      "items": [
-        ["text", "warmEngine", "Двигатель: нет данных"],
-        ["text", "warmOil", "Масло: нет данных"],
-        ["text", "warmCoolant", "ОЖ: нет данных"],
-        ["text", "warmEstimate", "До рабочего диапазона: расчёт недоступен"],
-        ["text3", "warmAdvice", "Рекомендация появится при наружной температуре"],
-        ["button", "warmRefresh", "Обновить оценку"],
-        ["button", "warmHistory", "История прогревов"],
-        ["text", "warmSafety", "Запись в климатический блок не выполняется"]
-      ]
-    },
-    {
-      "name": "HISTORY",
-      "kind": "menu",
-      "title": "История прогревов",
-      "items": [
-        ["text3", "warmH1", ""],
-        ["text3", "warmH2", ""],
-        ["text3", "warmH3", ""],
-        ["text3", "warmH4", ""],
-        ["text3", "warmH5", ""],
-        ["button", "warmBack", "Назад"]
+      "buttons": [
+        ["BTN_REFRESH", "Обновить"],
+        ["BTN_SETTINGS", "Настройки"]
       ]
     }
   ],
   "settings": [
     {"key": "threshold", "label": "Порог рекомендации", "type": "number", "unit": "°C", "default": 5,
      "steps": [-10, -5, 0, 5, 10, 15]},
-    {"key": "history", "label": "История прогревов", "type": "bool", "default": true}
+    {"key": "history", "label": "История прогревов", "type": "bool", "default": true},
+    {"key": "theme", "label": "Цветовая тема", "type": "choice", "default": "m_tricolour",
+     "options": [["m_red", "M Red"], ["m_tricolour", "M Tricolour"], ["ice", "Ice White"], ["amber", "Night Amber"]]},
+    {"key": "layout", "label": "Раскладка экрана", "type": "choice", "default": "full",
+     "options": [["full", "Во весь экран"], ["standard", "Стандартная"]]},
+    {"key": "renderer", "label": "Рендерер", "type": "choice", "default": "auto",
+     "options": [["auto", "GPU 60 fps (по умолчанию)"], ["software", "Программный"]]}
   ]
 }

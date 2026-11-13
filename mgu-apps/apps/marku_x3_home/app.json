@@ -1,8 +1,8 @@
 {
   "id": "marku_x3_home",
   "title": "X3 ↔ Дом",
-  "description": "Разрешённые сцены Home Assistant и ручная телеметрия через локальный bridge",
-  "version": "0.1.0",
+  "description": "Разрешённые сцены Home Assistant большими кнопками и ручная телеметрия через локальный bridge",
+  "version": "0.2.0",
   "license": "GPL-3.0-or-later",
   "vendor": "custom",
   "loggingId": "MX3O",
@@ -19,33 +19,23 @@
   "screens": [
     {
       "name": "MAIN",
-      "kind": "menu",
+      "kind": "canvas",
       "title": "X3 ↔ Дом",
-      "settings": true,
-      "items": [
-        ["text", "homeStatus", "Bridge: проверяется"],
-        ["text", "homeNetwork", "Сеть: проверяется"],
-        ["button", "homeArrive", "Возвращаюсь"],
-        ["button", "homeLeave", "Выезжаю"],
-        ["button", "homeSnapshot", "Снимок автомобиля"],
-        ["text3", "homePreview", ""],
-        ["text3", "homeLog1", ""],
-        ["text3", "homeLog2", ""],
-        ["text", "homeSafety", "Произвольные команды Home Assistant отключены"]
-      ]
-    },
-    {
-      "name": "CONFIRM",
-      "kind": "menu",
-      "title": "Подтверждение",
-      "items": [
-        ["text3", "homeConfirmText", ""],
-        ["button", "homeConfirmYes", "Подтвердить"],
-        ["button", "homeConfirmNo", "Отмена"]
+      "buttons": [
+        ["BTN_ARRIVE", "Возвращаюсь"],
+        ["BTN_LEAVE", "Выезжаю"],
+        ["BTN_SNAPSHOT", "Снимок"],
+        ["BTN_SETTINGS", "Настройки"]
       ]
     }
   ],
   "settings": [
-    {"key": "journal", "label": "Локальный журнал действий", "type": "bool", "default": true}
+    {"key": "journal", "label": "Локальный журнал действий", "type": "bool", "default": true},
+    {"key": "theme", "label": "Цветовая тема", "type": "choice", "default": "m_tricolour",
+     "options": [["m_red", "M Red"], ["m_tricolour", "M Tricolour"], ["ice", "Ice White"], ["amber", "Night Amber"]]},
+    {"key": "layout", "label": "Раскладка экрана", "type": "choice", "default": "full",
+     "options": [["full", "Во весь экран"], ["standard", "Стандартная"]]},
+    {"key": "renderer", "label": "Рендерер", "type": "choice", "default": "auto",
+     "options": [["auto", "GPU 60 fps (по умолчанию)"], ["software", "Программный"]]}
   ]
 }
