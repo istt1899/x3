@@ -53,9 +53,14 @@ function candidate(z, fix, range, diagnostic, tracking) {
     if (!at || !z.travel.some(h => diff(h, (at.bearing + (sign < 0 ? 180 : 0)) % 360) <= 35)) return reject('CAMERA_DIRECTION');
     return { id: z.id, way: hit.road.id, sign, distanceM, limitKmh: z.limit, confidence: 'road', roadConfirmed: true };
 }
-function validPosition(f, now) {
+const ADMISSION_ACCURACY_M = 15;
+/* Once a road approach is confirmed, brief GNSS quality degradation must not
+ * flicker the warning. Road geometry, heading, freshness and distance
+ * hysteresis still apply; this extends only the metric quality bound. */
+const RETENTION_ACCURACY_M = 30;
+function validPosition(f, now, accuracyLimit) {
     return f && [f.timeMs, f.lat, f.lon, f.accuracyM, now].every(Number.isFinite) &&
-        Math.abs(f.lat) <= 90 && Math.abs(f.lon) <= 180 && f.accuracyM > 0 && f.accuracyM <= 15 &&
+        Math.abs(f.lat) <= 90 && Math.abs(f.lon) <= 180 && f.accuracyM > 0 && f.accuracyM <= (accuracyLimit || ADMISSION_ACCURACY_M) &&
         now - f.timeMs <= 3000 && f.timeMs <= now + 500;
 }
 function key(item) { return item.id + ':' + item.way + ':' + item.sign; }
@@ -100,8 +105,10 @@ function createGuidance(data) {
     }
     return { evaluate(f, now, enabled, rawPreferences) {
         if (!enabled) return clear('DISABLED', f);
-        if (!validPosition(f, now)) {
-            const why = !f ? 'FIX_MISSING' : !Number.isFinite(f.accuracyM) || f.accuracyM <= 0 ? 'ACCURACY_MISSING' : f.accuracyM > 15 ? 'ACCURACY_EXCEEDS_15M' :
+        const accuracyLimit = active ? RETENTION_ACCURACY_M : ADMISSION_ACCURACY_M;
+        if (!validPosition(f, now, accuracyLimit)) {
+            const why = !f ? 'FIX_MISSING' : !Number.isFinite(f.accuracyM) || f.accuracyM <= 0 ? 'ACCURACY_MISSING' :
+                f.accuracyM > accuracyLimit ? (accuracyLimit === RETENTION_ACCURACY_M ? 'ACCURACY_EXCEEDS_30M' : 'ACCURACY_EXCEEDS_15M') :
                 !Number.isFinite(f.timeMs) || !Number.isFinite(now) ? 'UTC_MISSING' : now - f.timeMs > 3000 ? 'UTC_EXPIRED' : f.timeMs > now + 500 ? 'UTC_FUTURE' : 'POSITION_INVALID';
             clear('GPS_INVALID', f, false, why); state.gpsReason = why;
             return null;

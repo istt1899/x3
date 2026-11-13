@@ -70,9 +70,18 @@ const wrongWayRoads = [roads[0], {id: 2, dir: 0, cam: -1, pts: [[-1600, 40], [30
 const wrongRoad = admitted({zones: [zone('a', 0, wrongWayRoads)]});
 assert.strictEqual(step(wrongRoad, -480, 3000, null, {lat: position(0, 40).lat}), null); assert.strictEqual(wrongRoad.diagnostic().lastClear.reason, 'CAMERA_WAY_MISSING');
 
-const accuracy = admitted(); assert.strictEqual(step(accuracy, -480, 3000, null, {accuracyM: 15.001}), null);
-assert.strictEqual(accuracy.diagnostic().lastClear.gpsReason, 'ACCURACY_EXCEEDS_15M');
-accuracy.evaluate(null, 4000, true); assert.strictEqual(accuracy.diagnostic().lastClear.gpsReason, 'ACCURACY_EXCEEDS_15M', 'Later missing fixes cannot erase the original quality failure');
+const accuracy = create(); assert.strictEqual(step(accuracy, -520, 1000), null);
+assert.strictEqual(step(accuracy, -500, 2000, null, {accuracyM: 15.001}), null, 'Admission quality remains 15 m');
+assert.strictEqual(accuracy.diagnostic().gpsReason, 'ACCURACY_EXCEEDS_15M');
+const retainedQuality = admitted();
+checkId(step(retainedQuality, -480, 3000, null, {accuracyM: 20}), 'a', 'A confirmed approach survives brief 20 m GNSS quality');
+checkId(step(retainedQuality, -460, 4000, null, {accuracyM: 30}), 'a', 'Retention quality bound is 30 m');
+assert.strictEqual(step(retainedQuality, -440, 5000, null, {accuracyM: 30.001}), null, 'Quality worse than the retention bound withdraws');
+assert.strictEqual(retainedQuality.diagnostic().lastClear.gpsReason, 'ACCURACY_EXCEEDS_30M');
+retainedQuality.evaluate(null, 6000, true); assert.strictEqual(retainedQuality.diagnostic().lastClear.gpsReason, 'ACCURACY_EXCEEDS_30M', 'Later missing fixes cannot erase the original quality failure');
+const noNewLowQuality = create(); assert.strictEqual(step(noNewLowQuality, -480, 3000, null, {accuracyM: 20}), null,
+    'Degraded quality cannot admit a new approach without the confirmed retention window');
+assert.strictEqual(noNewLowQuality.diagnostic().gpsReason, 'ACCURACY_EXCEEDS_15M');
 const expiry = admitted(), valid = fix(-500, 2000); assert.strictEqual(expiry.evaluate(valid, 5001, true), null);
 assert.strictEqual(expiry.diagnostic().lastClear.gpsReason, 'UTC_EXPIRED');
 assert.strictEqual(expiry.evaluate(valid, 5500, true), null);
@@ -132,4 +141,4 @@ const pair = nearbyPair(); step(pair, -520, 1000, null, {lat: position(0, -4).la
 checkId(step(pair, -480, 3000, null, {lat: position(0, 4).lat}), 'a');
 const different = nearbyPair(['redlight']); step(different, -520, 1000, null, {lat: position(0, -4).lat}); checkId(step(different, -500, 2000, null, {lat: position(0, -4).lat}), 'a');
 assert.deepStrictEqual(checkId(step(different, -480, 3000, null, {lat: position(0, 4).lat}), 'b').controls, ['redlight']);
-console.log('PASS warning continuity: 20 distances/default 1000, 1000-to-pass replay, distance/nearby jitter and bounded exit, slow traffic, independent cameras/control sets, filters/same-UTC settings, immutable source baseline, strict road/heading/15m/3s gates, replay and persistent withdrawal diagnostics; synthetic tests only');
+console.log('PASS warning continuity: 20 distances/default 1000, 1000-to-pass replay, distance/nearby jitter and bounded exit, slow traffic, independent cameras/control sets, filters/same-UTC settings, immutable source baseline, strict road/heading/fresh-UTC gates, 15 m admission with 30 m active-alert retention, replay and persistent withdrawal diagnostics; synthetic tests only');

@@ -5,12 +5,14 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'strelka04-actions-'));
 const gps=new EventEmitter();gps.start=gps.close=()=>{};
 let fix={lat:54.4932,lon:36.2282,timeMs:Date.now(),motionTimeMs:Date.now(),accuracyM:19.4,speedKmh:0,headingDeg:0,source:'bmw-nmea'};
 gps.current=()=>fix;
+const retainedAlert={id:'quality-retention-proof',type:'speed',controls:['speed'],distanceM:150,roadConfirmed:true,limitKmh:60,title:'Проверка удержания'};
+const guidance={evaluate:()=>null};
 let displayAlert=null,resolveAudio,resolveCheck,storeOptions;
 async function main(){let app;
  try{
   await new Promise((resolve,reject)=>{app=service.start({dataDir:dir,socket:process.platform==='win32'?'\\\\.\\pipe\\strelka04-'+process.pid:path.join(dir,'ctl.sock'),gps,
    storeFactory:o=>{storeOptions=o;return {current:()=>o.initial,status:()=>({phase:'idle',canCheck:true,canRollback:false}),check:()=>{o.onStatus({phase:'checking'});return new Promise(r=>{resolveCheck=r;});},close:()=>{}};},
-   audio:{play:()=>new Promise(r=>{resolveAudio=r;})},guidance:{evaluate:()=>null},
+   audio:{play:()=>new Promise(r=>{resolveAudio=r;})},guidance,
    display:{update:a=>{displayAlert=a;},status:()=>'ready',diagnostics:()=>({map:{state:'shown',target:'shown',rendering:'verified'},hud:{state:'shown',target:'shown',rendering:'verified'}}),close:()=>{}},
    dimmer:{update:()=>{},status:()=>'off',close:()=>{}},onListening:resolve,onError:reject});});
   app.command({cmd:'outputs',cluster:true,hud:true});
@@ -34,6 +36,12 @@ async function main(){let app;
   app.command({cmd:'enable'});const newest=app.state().commandResult.id;
   resolveCheck({phase:'current',currentVersion:'2026.11.6.1'});await new Promise(r=>setImmediate(r));
   assert.strictEqual(app.state().commandResult.id,newest,'old database completion must not replace a newer command result');
+  guidance.evaluate=()=>retainedAlert;
+  fix=Object.assign({},fix,{timeMs:Date.now(),motionTimeMs:Date.now(),accuracyM:20,speedKmh:36,headingDeg:90});
+  app.tick();assert.strictEqual(app.state().alert.id,'quality-retention-proof','the service keeps a guidance-retained visual alert at 20 m');
+  assert.strictEqual(displayAlert.id,'quality-retention-proof');
+  fix=Object.assign({},fix,{accuracyM:31});app.tick();assert.strictEqual(app.state().alert,null,'beyond the 30 m retention bound the service withdraws the alert');
+  assert.strictEqual(displayAlert,null);guidance.evaluate=()=>null;
   const stamp=Date.now();app.command({cmd:'vehicle-context',street:{name:'Тульское шоссе',source:'BMW',state:'ready',observedAtMs:stamp},audio:{state:'detected',available:true}});
   assert.strictEqual(app.state().street.name,'Тульское шоссе');
   app.command({cmd:'vehicle-context',street:{name:'old',source:'BMW',state:'ready',observedAtMs:stamp-16000}});assert.strictEqual(app.state().street.name,null);
@@ -41,7 +49,7 @@ async function main(){let app;
   assert.throws(()=>app.command({cmd:'vehicle-context',street:{name:'bad\nname',source:'BMW',state:'ready',observedAtMs:stamp}}),/STREET_PAYLOAD_INVALID/);
   app.close();displayAlert='closed-marker';gps.emit('fix',fix);app.tick();assert.strictEqual(displayAlert,'closed-marker');
   assert.throws(()=>app.command({cmd:'enable'}),/завершает работу/);
-  console.log('PASS real service 0.4: stationary 19.4m test, shared policy, renderer acknowledgement, calibration, moving withdrawal, live error, command-ID isolation and bounded native street');
+  console.log('PASS real service 0.4: stationary 19.4m test, shared policy, renderer acknowledgement, calibration, moving withdrawal, live error, command-ID isolation, bounded native street and retained-alert quality gate');
  }finally{if(app)app.close();fs.readdirSync(dir).forEach(n=>fs.unlinkSync(path.join(dir,n)));fs.rmdirSync(dir);}
 }
 main().catch(e=>{console.error(e.stack);process.exitCode=1;});

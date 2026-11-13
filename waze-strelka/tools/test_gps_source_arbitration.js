@@ -158,7 +158,8 @@ async function main() {
         app.tick();
         assert(app.state().gpsFix.accuracyM > 15, 'service receives the BMW position with about 19.4 m accuracy');
         assert(lastGuidanceFix, 'guidance was offered the low-accuracy position for diagnostics');
-        assert.strictEqual(app.state().alert, null, 'native road gate rejects a low-accuracy camera alert');
+        assert.strictEqual(app.state().alert && app.state().alert.id, 'low-accuracy-proof', 'the 30 m retention gate keeps an already confirmed visual alert');
+        assert.strictEqual(app.state().speedWarning.reason, 'GPS_INVALID', 'overspeed flash still requires the strict 15 m source quality');
         gps.inputNmea(nmeaSentences(null, now - 100).slice(0, 2).join('\r\n'));
         app.tick();
         assert.strictEqual(app.state().actions.displayTest.code, 'READY',

@@ -97,7 +97,9 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "قد ينقطع الصوت. على iPhone، أوقف Wi-Fi ثم شغّله.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "إعدادات خاصة لهذا السائق",
+   "Keep HUD map over BMW's pop-ups": "إبقاء خريطة HUD فوق النوافذ المنبثقة من BMW"
   }
  },
  {
@@ -196,7 +198,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Zvuk se může přerušovat. Na iPhonu vypněte a zapněte Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Vlastní nastavení pro tohoto řidiče",
+   "Keep HUD map over BMW's pop-ups": "Ponechat mapu na HUD přes vyskakovací okna BMW"
   }
  },
  {
@@ -295,7 +299,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Lyden kan falde ud. Slå Wi-Fi fra og til på din iPhone.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Egne indstillinger for denne fører",
+   "Keep HUD map over BMW's pop-ups": "Behold kort i HUD over BMW's pop-ups"
   }
  },
  {
@@ -394,7 +400,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Der Ton kann aussetzen. Am iPhone WLAN aus- und wieder einschalten.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Eigene Einstellungen für diesen Fahrer",
+   "Keep HUD map over BMW's pop-ups": "Karte im HUD vor BMW-Pop-ups behalten"
   }
  },
  {
@@ -493,7 +501,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ο ήχος μπορεί να διακόπτεται. Στο iPhone, απενεργοποιήστε και ενεργοποιήστε ξανά το Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Δικές ρυθμίσεις για αυτόν τον οδηγό",
+   "Keep HUD map over BMW's pop-ups": "Διατήρηση χάρτη στο HUD πάνω από τα αναδυόμενα της BMW"
   }
  },
  {
@@ -592,7 +602,9 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "El audio puede cortarse. En tu iPhone, desactiva y vuelve a activar el Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Configuración propia para este conductor",
+   "Keep HUD map over BMW's pop-ups": "Mantener mapa en el HUD sobre ventanas emergentes de BMW"
   }
  },
  {
@@ -691,7 +703,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "El audio puede cortarse. En tu iPhone, desactiva y vuelve a activar la Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Ajustes propios para este conductor",
+   "Keep HUD map over BMW's pop-ups": "Mantener mapa en el HUD sobre ventanas emergentes de BMW"
   }
  },
  {
@@ -790,7 +804,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ääni voi katkeilla. Laita iPhonen Wi-Fi pois ja takaisin päälle.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Omat asetukset tälle kuljettajalle",
+   "Keep HUD map over BMW's pop-ups": "Pidä HUD-kartta BMW:n ponnahdusikkunoiden päällä"
   }
  },
  {
@@ -889,7 +905,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Le son peut se couper. Sur votre iPhone, désactivez puis réactivez le Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Réglages propres à ce conducteur",
+   "Keep HUD map over BMW's pop-ups": "Garder la carte sur le HUD devant les fenêtres contextuelles BMW"
   }
  },
  {
@@ -988,7 +1006,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Le son peut se couper. Sur votre iPhone, désactivez puis réactivez le Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Réglages propres à ce conducteur",
+   "Keep HUD map over BMW's pop-ups": "Garder la carte sur le HUD devant les pop-up BMW"
   }
  },
  {
@@ -1087,7 +1107,9 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "השמע עלול להיקטע. ב-iPhone, כבו את ה-Wi-Fi והפעילו אותו מחדש.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "הגדרות נפרדות לנהג זה",
+   "Keep HUD map over BMW's pop-ups": "השארת המפה ב-HUD מעל החלונות הקופצים של BMW"
   }
  },
  {
@@ -1186,7 +1208,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "A hang akadozhat. Az iPhone-on kapcsolja ki, majd be a Wi-Fi-t.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Saját beállítások ennek a vezetőnek",
+   "Keep HUD map over BMW's pop-ups": "Térkép megtartása a HUD-on a BMW felugró ablakai felett"
   }
  },
  {
@@ -1285,7 +1309,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Audio mungkin terputus. Di iPhone Anda, matikan lalu nyalakan Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Pengaturan sendiri untuk pengemudi ini",
+   "Keep HUD map over BMW's pop-ups": "Pertahankan peta di HUD di atas pop-up BMW"
   }
  },
  {
@@ -1384,7 +1410,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "L'audio potrebbe interrompersi. Sull'iPhone, disattiva e riattiva il Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Impostazioni proprie per questo conducente",
+   "Keep HUD map over BMW's pop-ups": "Mantieni la mappa sull'HUD sopra i pop-up BMW"
   }
  },
  {
@@ -1483,7 +1511,9 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "音声が途切れることがあります。iPhoneでWi-Fiをオフにしてからオンにしてください。",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "このドライバー専用の設定",
+   "Keep HUD map over BMW's pop-ups": "HUDの地図をBMWのポップアップより優先"
   }
  },
  {
@@ -1582,7 +1612,9 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "오디오가 끊길 수 있습니다. iPhone에서 Wi-Fi를 껐다가 다시 켜십시오.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "이 운전자 전용 설정",
+   "Keep HUD map over BMW's pop-ups": "BMW 팝업 위에 HUD 지도 유지"
   }
  },
  {
@@ -1681,7 +1713,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Lyden kan falle ut. Slå Wi-Fi av og på igjen på iPhone.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Egne innstillinger for denne føreren",
+   "Keep HUD map over BMW's pop-ups": "Behold kart i HUD over BMWs popup-vinduer"
   }
  },
  {
@@ -1782,7 +1816,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Het geluid kan wegvallen. Zet Wi-Fi op je iPhone uit en weer aan.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Eigen instellingen voor deze bestuurder",
+   "Keep HUD map over BMW's pop-ups": "Kaart in HUD boven BMW-pop-ups houden"
   }
  },
  {
@@ -1881,7 +1917,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Dźwięk może się przerywać. Na iPhonie wyłącz i włącz Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Własne ustawienia dla tego kierowcy",
+   "Keep HUD map over BMW's pop-ups": "Zachowaj mapę na HUD nad wyskakującymi oknami BMW"
   }
  },
  {
@@ -1980,7 +2018,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "O áudio pode falhar. No iPhone, desative e ative o Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Configurações próprias para este motorista",
+   "Keep HUD map over BMW's pop-ups": "Manter mapa no HUD sobre pop-ups da BMW"
   }
  },
  {
@@ -2079,7 +2119,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "O áudio pode falhar. No iPhone, desative e volte a ativar o Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Definições próprias para este condutor",
+   "Keep HUD map over BMW's pop-ups": "Manter mapa no HUD sobre pop-ups BMW"
   }
  },
  {
@@ -2178,7 +2220,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Sunetul se poate întrerupe. Pe iPhone, dezactivați și reactivați Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Setări proprii pentru acest șofer",
+   "Keep HUD map over BMW's pop-ups": "Păstrare hartă pe HUD peste ferestrele pop-up BMW"
   }
  },
  {
@@ -2277,7 +2321,9 @@ module.exports = [
    "2.4 GHz": "2,4 ГГц",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Звук может прерываться. На iPhone выключите и снова включите Wi-Fi.",
    "Cameras": "Камеры / Стрелка",
-   "Waze Стрелка": "Waze Стрелка"
+   "Waze Стрелка": "Waze Стрелка",
+   "Own settings for this driver": "Свои настройки для этого водителя",
+   "Keep HUD map over BMW's pop-ups": "Оставлять карту на HUD поверх всплывающих окон BMW"
   }
  },
  {
@@ -2376,7 +2422,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Zvuk sa môže prerušovať. Na iPhone vypnite a zapnite Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Vlastné nastavenia pre tohto vodiča",
+   "Keep HUD map over BMW's pop-ups": "Ponechať mapu na HUD nad kontextovými oknami BMW"
   }
  },
  {
@@ -2475,7 +2523,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Zvok se lahko prekinja. Na iPhonu izklopite in vklopite Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Lastne nastavitve za tega voznika",
+   "Keep HUD map over BMW's pop-ups": "Ohrani zemljevid na HUD nad pojavnimi okni BMW"
   }
  },
  {
@@ -2574,7 +2624,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ljudet kan försvinna. Stäng av och slå på Wi-Fi på din iPhone.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Egna inställningar för den här föraren",
+   "Keep HUD map over BMW's pop-ups": "Behåll karta i HUD över BMW:s popup-fönster"
   }
  },
  {
@@ -2673,7 +2725,9 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "เสียงอาจขาดหาย ให้ปิดแล้วเปิด Wi-Fi บน iPhone",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "การตั้งค่าเฉพาะสำหรับผู้ขับขี่คนนี้",
+   "Keep HUD map over BMW's pop-ups": "คงแผนที่บน HUD ไว้เหนือป๊อปอัปของ BMW"
   }
  },
  {
@@ -2772,7 +2826,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Ses kesilebilir. iPhone'unuzda Wi-Fi'yi kapatıp açın.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Bu sürücüye özel ayarlar",
+   "Keep HUD map over BMW's pop-ups": "HUD haritasını BMW açılır pencerelerinin üstünde tut"
   }
  },
  {
@@ -2871,7 +2927,9 @@ module.exports = [
    "2.4 GHz": "2,4 ГГц",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Звук може перериватися. На iPhone вимкніть і знову ввімкніть Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Власні налаштування для цього водія",
+   "Keep HUD map over BMW's pop-ups": "Залишати карту на HUD поверх спливних вікон BMW"
   }
  },
  {
@@ -2970,7 +3028,9 @@ module.exports = [
    "2.4 GHz": "2,4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "Âm thanh có thể bị ngắt. Trên iPhone, hãy tắt rồi bật lại Wi-Fi.",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "Cài đặt riêng cho người lái này",
+   "Keep HUD map over BMW's pop-ups": "Giữ bản đồ trên HUD phía trên cửa sổ bật lên của BMW"
   }
  },
  {
@@ -3071,7 +3131,9 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "音频可能中断。请在 iPhone 上关闭再打开无线局域网。",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "此驾驶员的专属设置",
+   "Keep HUD map over BMW's pop-ups": "HUD 地图保持在 BMW 弹窗之上"
   }
  },
  {
@@ -3172,7 +3234,9 @@ module.exports = [
    "2.4 GHz": "2.4 GHz",
    "Audio may cut out. On your iPhone, turn Wi-Fi off and on.": "音訊可能中斷。請在 iPhone 上關閉再開啟 Wi-Fi。",
    "Waze Стрелка": "Waze Стрелка",
-   "Cameras": "Cameras"
+   "Cameras": "Cameras",
+   "Own settings for this driver": "此駕駛的專屬設定",
+   "Keep HUD map over BMW's pop-ups": "HUD 地圖保持在 BMW 彈出視窗之上"
   }
  }
 ];

@@ -1,13 +1,14 @@
 {
   "schema": 1,
   "id": "marku_kaluga_cameras",
-  "version": "0.8.3",
-  "tree": "marku_kaluga_cameras@0.8.3",
+  "version": "0.8.4",
+  "tree": "marku_kaluga_cameras@0.8.4",
   "modules": [
     "src/robertn_waze_cluster.js",
     "src/i18n.js",
     "src/locales.js",
     "src/waze_cluster_control.js",
+    "src/profile_sync.js",
     "src/logs_control.js",
     "src/qr.js",
     "src/qrcodegen.js",

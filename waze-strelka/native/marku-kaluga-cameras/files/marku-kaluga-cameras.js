@@ -20,10 +20,14 @@ function clockSnapshot(now, input) {
     admissionAfterUtcMs: num('admissionAfterUtcMs'), admissionAfterUtc: str('admissionAfterUtc'),
     issue: str('issue') || 'SOURCE_UTC_UNKNOWN', reason: str('reason') || 'Данные часов источника GPS недоступны' };
 }
-function validPosition(f, now) {
+function validPosition(f, now, accuracyLimit) {
   return f && [f.timeMs, f.lat, f.lon, f.accuracyM, now].every(Number.isFinite) && Math.abs(f.lat) <= 90 &&
-    Math.abs(f.lon) <= 180 && f.accuracyM > 0 && f.accuracyM <= 15 && now - f.timeMs <= 3000 && f.timeMs <= now + 500;
+    Math.abs(f.lon) <= 180 && f.accuracyM > 0 && f.accuracyM <= (accuracyLimit || 15) && now - f.timeMs <= 3000 && f.timeMs <= now + 500;
 }
+/* Guidance may retain an already confirmed road alert through brief quality
+ * degradation; the service keeps that visual alert while all non-metric
+ * safety gates remain strict. */
+function validRetainedPosition(f, now) { return validPosition(f, now, 30); }
 function mkdirp(dir) {
   try { if (fs.statSync(dir).isDirectory()) return; } catch (e) { if (e.code !== 'ENOENT') throw e; }
   var parent = path.dirname(dir); if (parent !== dir) mkdirp(parent);
@@ -74,7 +78,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.8.3', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.8.4', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -293,7 +297,7 @@ function start(options) {
     // to explain accuracy/UTC failures. The native output gate below remains.
     try { if (guidance) alert = guidance.evaluate(database && !roadBlocked ? fix : null, now, settings.enabled, settings.alertPreferences); }
     catch (e) { state.error = 'Guidance: ' + e.message; }
-    if (!settings.enabled || !validPosition(fix, now) || !database || roadBlocked) alert = null;
+    if (!settings.enabled || !(alert ? validRetainedPosition(fix, now) : validPosition(fix, now)) || !database || roadBlocked) alert = null;
     if (alert && (!alertPreferences.matches(alert, settings.alertPreferences) || !Number.isFinite(alert.distanceM) || alert.distanceM < 0 || alert.distanceM > settings.alertPreferences.warningDistanceM + 0.000001)) alert = null;
     state.guidance = guidance && typeof guidance.diagnostic === 'function' ? guidance.diagnostic() : null;
     state.nearestCandidates = state.nearestCandidates.map(function(item){

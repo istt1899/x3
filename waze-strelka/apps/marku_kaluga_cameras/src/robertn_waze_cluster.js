@@ -57,6 +57,7 @@ const logging = require('oap-sdk/src/logging/logging');
 const someipBuilders = require('oap-sdk/src/someip/someipBuilders');
 const i18n = require('./i18n.js');
 const { WazeClusterControl, ZOOM_STEP, SHOWN_ON } = require('./waze_cluster_control.js');
+const { ProfileSync, sessionReader } = require('./profile_sync.js');
 const { LogsControl, ROWS: LOGS_ROWS } = require('./logs_control.js');
 const { qrPng } = require('./qr.js');
 const { CameraControl } = require('./control.js');
@@ -89,7 +90,9 @@ const GUIDE_NAME = 'wocGuide';
 const HEAD_GENERAL_NAME = 'wocHeadGeneral';
 const HEAD_HUD_NAME = 'wocHeadHud';
 const HUD_NAME = 'wocHud';
+const HUD_KEEP_NAME = 'wocHudKeep';
 const SHOW_ON_NAME = 'wocShowOn';
+const PROFILE_NAME = 'wocProfile';
 const HUD_SIZE_NAME = 'wocHudSize';
 const HUD_OPACITY_NAME = 'wocHudOpacity';
 const HUD_POS_NAME = 'wocHudPos';
@@ -186,6 +189,9 @@ class WazeClusterApp extends OnlineApp {
         this._activityReported = null;
         this._control = new WazeClusterControl({ log: logger });
         this._control.on('change', () => this._render());
+        /* the map settings per driver profile, page shown or not */
+        this._profiles = new ProfileSync({ control: this._control, log: logger, readProfile: sessionReader(someipBuilders, logger) });
+        this._profiles.on('change', () => this._render());
         this._logs = new LogsControl({ log: logger });
         this._logs.on('change', () => this._renderLogs());
         this._cameraState = null;
@@ -222,6 +228,7 @@ class WazeClusterApp extends OnlineApp {
 
     _appInitialized() {
         logger.info(`robertn_waze_cluster ${this.getAppId()} v${this._packageJson.version} starting`);
+        this._profiles.start();
         // Never await GPS for RHMI startup. Its separate local IPC client and
         // background hold survive leaving this screen for CarPlay.
         Promise.resolve().then(() => { this._gpsBridge.start(); this._navigationBridge.start(); this._holdBridge.start(); }).catch(() => logger.warn('BMW context bridge start failed'));
@@ -273,7 +280,7 @@ class WazeClusterApp extends OnlineApp {
         this._cameraState=this._rhmiStates.cameras;this._diagState=this._rhmiStates.diagnostics;
         const names = [STATUS_NAME, MAP_NAME, RESTART_STATUS_NAME, ENABLE_NAME, DISABLE_NAME, WIFI_NAME, WIFI_HINT_NAME, AA_STATUS_NAME,
             AA_ENABLE_NAME, AA_DISABLE_NAME, AA_ZOOM_NAME, AA_ZOOM_OUT_NAME, AA_ZOOM_IN_NAME, AA_CARD_NAME, RESTART_NAME, GUIDE_NAME,
-            HEAD_GENERAL_NAME, HEAD_HUD_NAME, SHOW_ON_NAME, HUD_NAME, HUD_SIZE_NAME, HUD_OPACITY_NAME, HUD_POS_NAME]
+            HEAD_GENERAL_NAME, HEAD_HUD_NAME, SHOW_ON_NAME, PROFILE_NAME, HUD_NAME, HUD_KEEP_NAME, HUD_SIZE_NAME, HUD_OPACITY_NAME, HUD_POS_NAME]
             .concat(Object.values(HUD_MOVE_NAMES), [HUD_CENTRE_NAME, CAPTURE_NAME, CAPTURE_STATUS,
                 LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL, CAMERA_LINK], LOGS_ROW_NAMES, CAMERA_NAMES, DIAG_NAMES, CARD_NAMES, PREFERENCE_NAMES, OVERSPEED_NAMES);
         names.forEach((name) => { this._components[name] = rhmi.getByName(name); });
@@ -298,6 +305,18 @@ class WazeClusterApp extends OnlineApp {
              * decides what it shows */
             delete this._written[`selected:${GUIDE_NAME}`];
             this._control.toggleGuidance();
+        });
+        this._bind(HUD_KEEP_NAME, () => {
+            /* as for the turn box: the render's answer decides the tick */
+            delete this._written[`selected:${HUD_KEEP_NAME}`];
+            this._control.toggleHudKeep();
+            this._render();
+        });
+        this._bind(PROFILE_NAME, () => {
+            /* as for the turn box: patchd's answer decides the tick */
+            delete this._written[`selected:${PROFILE_NAME}`];
+            this._profiles.setOwn(!this._profiles.own);
+            this._render();
         });
         /* The HMI moves the drop-down's choice and the slider itself; the
          * control's state, as asked and then as the render says, decides
@@ -691,6 +710,7 @@ class WazeClusterApp extends OnlineApp {
         if(page==='calibration'&&!visible&&this._cameraPending)this._cameraPending.returnOnSaved=false;
         this._syncCameraHold();
         if (visible) {this._shownPage = page;this._syncCameraHold();}
+        if (page === 'main' && visible) this._profiles.refresh();
         if (page === 'logs') {
             if (visible) {
                 this._logs.open();
@@ -858,15 +878,22 @@ class WazeClusterApp extends OnlineApp {
         /* where the map shows: the choice, '—' in its place while there is none */
         const shownOn = SHOWN_ON.indexOf(c.shownOn());
         this._writeCell(SHOW_ON_NAME, 'HeaderText', t('Show on'), 'Text');
-        [t('Cluster'), t('HUD (experimental)'), t('Cluster and HUD (experimental)')].forEach((text, row) =>
+        [t('Cluster'), t('HUD (experimental)'), t('Cluster and HUD (experimental)'), t('Off')].forEach((text, row) =>
             this._writeCell(SHOW_ON_NAME, 'ItemText', row === 0 && shownOn < 0 ? '—' : text, 'Text', row));
         this._writeCell(SHOW_ON_NAME, 'SelectedItem', Math.max(shownOn, 0), 'UInt');
         this._setEnabled(SHOW_ON_NAME, c.canChooseShownOn());
+        const profiles = this._profiles;
+        this._write(PROFILE_NAME, t('Own settings for this driver'));
+        this._setSelected(PROFILE_NAME, profiles.ownShown());
+        this._setEnabled(PROFILE_NAME, profiles.canChooseOwn());
         /* the turn box's hold follows the map on the cluster */
         this._setEnabled(GUIDE_NAME, hide !== null && !unavailable && c.clusterOn() !== false);
         this._write(GUIDE_NAME, t("Hide BMW's turn box"));
         this._setSelected(GUIDE_NAME, !!hide && !unavailable);
         this._write(HUD_NAME, c.hudText());
+        this._write(HUD_KEEP_NAME, t("Keep HUD map over BMW's pop-ups"));
+        this._setSelected(HUD_KEEP_NAME, c.hudKeepShown() === true);
+        this._setEnabled(HUD_KEEP_NAME, c.canKeepHud());
         /* the size slider and the place buttons: greyed while the HUD is off
          * or disabled (the HMI greys no label) */
         const adjust = c.canChangeHudSize();
@@ -1343,6 +1370,7 @@ class WazeClusterApp extends OnlineApp {
         this._shuttingDown = true;
         clearTimeout(this._cameraCommandTimer); this._cameraCommandTimer=null;
         clearTimeout(this._hideTimer);
+        this._profiles.stop();
         this._control.close();
         this._logs.close();
         this._cameras.close();

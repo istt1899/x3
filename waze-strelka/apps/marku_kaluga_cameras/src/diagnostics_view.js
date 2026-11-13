@@ -11,6 +11,7 @@ const REASONS = { WAITING_GPS:'Ожидание GPS', GPS_INVALID:'Нет све
     TRACKING_APPROACH:'Подтверждённый подъезд сопровождается', NEARBY_TRACKING:'Сопровождение камеры рядом; дорога не подтверждена',
     TYPE_FILTERED:'Тип камеры выключен в настройках', TYPE_DISABLED:'Тип камеры выключен в настройках', ALL_TYPES_DISABLED:'Все типы камер выключены',
     CAMERA_PASSED:'Камера пройдена', ROAD_CHANGED:'Выбрана другая дорога', APPROACH_LOST:'Подъезд больше не подтверждается',
+    ACCURACY_EXCEEDS_30M:'Точность хуже 30 м при удержании предупреждения',
     POSITION_JUMP:'Скачок расстояния несовместим с движением', BEARING_CHANGED:'Направление на камеру изменилось' };
 const TYPES = {speed:'Контроль скорости',redlight:'Контроль светофора',average:'Средняя скорость'};
 const clean = v => v === null || v === undefined || v === '' ? '—' : String(v).replace(/[\r\n\t]/g,' ');

@@ -26,7 +26,7 @@ const path = require('path');
 const HERE = path.join(__dirname, '..');
 const DIR = path.join(HERE, 'locales');
 const OUT = path.join(HERE, 'src', 'locales.js');
-const TREE = path.join(HERE, fs.readdirSync(HERE).find((n) => /^marku_kaluga_cameras@\d+\.\d+\.\d+$/.test(n)));
+const TREE = path.join(HERE, JSON.parse(fs.readFileSync(path.join(HERE, 'mgu-app.json'), 'utf8')).tree);
 const TEXTS = path.join(TREE, 'rhmiData', 'variantGroups', 'Common', 'texts');
 
 /* The string ids of application.json and uiDescription.json, in English. */
