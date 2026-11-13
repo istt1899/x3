@@ -81,7 +81,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "c0965b09ca632d338096b2840ed1aa2706aa8d2800d0dba01bcef8b1927008bc"
+      "sha256": "dd067cc012f6c1e493af33bfad1ade0d5deb26d39c0464da954e6b4343e5d60d"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -89,10 +89,10 @@
   },
   "catalog_update": {
     "date": "2026-11-13",
-    "reason": "Update Waze Strelka app and service to 0.8.3 with the BMW navigation fallback for jammed GNSS in the sole configured x3 Store source",
-    "previous_sha256": "36d6e46a9f11025cbb401a4b9bff218a3cfd7321f86e63d9e505c74a8ddb8432",
-    "catalog_commit": "510839a24b412fa278794c9fb66eebe915026695",
-    "package_commit": "6859085014ecdcb0fa072244c0734908010d9e5e",
+    "reason": "Update Waze Strelka app and service to 0.8.4 with upstream map controls, driver profiles and camera-alert quality retention; refresh shared Waze providers to waze-on-cluster 0.9.14 and cluster-render 0.5.9",
+    "previous_sha256": "c0965b09ca632d338096b2840ed1aa2706aa8d2800d0dba01bcef8b1927008bc",
+    "catalog_commit": "30f49ba37de272bba22aef76cdd92d2f7cdcda1a",
+    "package_commit": "6726699d89c8bbd4cf9dc4a0537907ac030cdcdb",
     "verified_reader": {
       "updater_version": "0.8.31",
       "updater_commit": "675fe6140795e38d8f6c34fd0cbef163ba9e9a5d",
@@ -106,18 +106,20 @@
       "marku_rutube": "0.1.8",
       "jap-ridetube-d": "0.4.5",
       "jap-node22": "22.23.4",
-      "cluster-render": "0.4.0",
-      "waze-on-cluster": "0.9.0",
-      "marku_x3_health": "0.1.0",
-      "marku_x3_warm": "0.1.0",
-      "marku_daily_hud": "0.1.0",
-      "marku_x3_home": "0.1.0",
+      "cluster-render": "0.5.9",
+      "waze-on-cluster": "0.9.14",
+      "marku_x3_health": "0.2.0",
+      "marku_x3_warm": "0.2.0",
+      "marku_daily_hud": "0.2.0",
+      "marku_x3_home": "0.2.0",
       "marku-home-bridge": "0.1.0",
-      "marku_x3_trips": "0.1.0"
+      "marku_x3_trips": "0.2.0"
     },
     "updated_components": {
-      "marku-kaluga-cameras": "0.8.3",
-      "marku_kaluga_cameras": "0.8.3"
+      "marku-kaluga-cameras": "0.8.4",
+      "marku_kaluga_cameras": "0.8.4",
+      "cluster-render": "0.5.9",
+      "waze-on-cluster": "0.9.14"
     }
   }
 }
