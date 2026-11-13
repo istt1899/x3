@@ -7,10 +7,11 @@ const mgu = require('./kit/mgu');
 const { DiagnosticProbe } = require('./diagnostics.js');
 const model = require('./model.js');
 const store = require('./store.js');
+const view = require('./render.js');
 
 mgu.run({
   async start(ctx) {
-    const { app, ui, settings, log } = ctx;
+    const { ui, settings, log } = ctx;
     const historyFile = path.join(ctx.dataDir, 'health-history.json');
     const reportFile = path.join(ctx.dataDir, 'health-report.json');
     let loaded = store.loadHistory(historyFile);
@@ -21,10 +22,11 @@ mgu.run({
     let lastSnapshot = null;
     let comparison = null;
     let scanning = false;
-    let status = loaded.corrupted ? 'История повреждена; сохранена резервная копия' : 'Проверка ещё не запускалась';
+    let page = 0;
+    let status = loaded.corrupted ? 'История повреждена; резервная копия сохранена' : 'Проверка ещё не запускалась';
     const probe = new DiagnosticProbe();
 
-    app.on('shutdown', () => {
+    ctx.app.on('shutdown', () => {
       Promise.resolve().then(() => probe.close()).catch((error) => log.warn('health close: ' + error));
     });
 
@@ -38,45 +40,59 @@ mgu.run({
       statusBattery2: (value) => { battery = model.normalizeBattery(value); render(); }
     }, log, { pollMs: 10000 }).catch((error) => log.warn('health battery: ' + error));
 
-    function coverageText(snapshot) {
-      if (!snapshot) return 'Покрытие: CBS, 12 В, ECU discovery';
-      return 'Покрытие: CBS ' + snapshot.coverage.cbs + ' · 12 В ' + snapshot.coverage.battery + ' · ECU ' + snapshot.coverage.ecus;
+    function batteryHistory() {
+      const values = history.map((item) => (typeof item.battery === 'number' ? item.battery : null));
+      if (battery !== null) values.push(battery);
+      return values.slice(-24);
     }
 
-    function render() {
-      const writes = [];
-      const write = (name, value) => writes.push(Promise.resolve(ui.text(name, value)).catch((error) => log.warn('UI ' + name + ': ' + error)));
-      write('healthStatus', status);
-      write('healthBattery', '12 В: ' + (battery === null ? 'нет данных' : battery + ' %'));
-      const next = cbs.items.find((item) => item.color === 'red' || item.color === 'yellow') || cbs.items[0];
-      write('healthService', next ? 'CBS: ' + model.itemLine(next) : 'CBS: нет данных');
-      write('healthCoverage', coverageText(lastSnapshot));
-      ui.enabled('healthScan', !scanning);
-      ui.enabled('healthSave', !!lastSnapshot && !scanning);
-      ui.enabled('healthReport', !!lastSnapshot);
-      const latest = history.slice(-5).reverse();
-      for (let index = 0; index < 5; index += 1) {
-        const item = latest[index];
-        write('healthH' + (index + 1), item ? new Date(item.at).toLocaleString('ru-RU') + ' · ' + item.summary.verdict : '');
+    async function render() {
+      const t = ctx.theme();
+      const cv = ctx.canvas(view.W, view.H).clear(t.bg);
+      const urgent = cbs.items.filter((item) => item.color === 'red' || item.color === 'yellow').length;
+      const snapshotSummary = lastSnapshot ? lastSnapshot.summary : null;
+      if (page === 0) {
+        view.drawOverview(cv, t, {
+          battery, batteryHistory: batteryHistory(),
+          cbsItems: cbs.items, cbsSummary: cbs.summary,
+          ecuCount: lastSnapshot && lastSnapshot.ecus.known ? lastSnapshot.ecus.items.length : null,
+          coverage: lastSnapshot ? lastSnapshot.coverage : {},
+          verdict: lastSnapshot ? lastSnapshot.summary.verdict : 'unknown',
+          scanning, status,
+          checkedAt: lastSnapshot ? lastSnapshot.at : null,
+          historyCount: history.length,
+          changeCount: comparison && !comparison.baseline ? comparison.changes.length : 0,
+          onScan: () => scan(),
+          onSave: () => saveSnapshot()
+        });
+      } else if (page === 1) {
+        view.drawHistory(cv, t, history);
+      } else {
+        view.drawReport(cv, t, lastSnapshot, comparison);
       }
-      if (lastSnapshot && comparison) {
-        const lines = model.formatReport(lastSnapshot, comparison).split('\n');
-        for (let index = 0; index < 5; index += 1) write('healthR' + (index + 1), lines[index] || '');
-      }
-      return Promise.all(writes);
+      view.header(cv, t, page, [view.verdictBadge(snapshotSummary ? snapshotSummary.verdict : 'unknown', scanning)]);
+      syncBar();
+      return ui.image('MAIN_GFX', cv);
+    }
+
+    function syncBar() {
+      ui.text('BTN_SCAN', scanning ? 'Проверка…' : 'Проверить');
+      ui.text('BTN_SAVE', 'Снимок');
+      ui.enabled('BTN_SCAN', !scanning);
+      ui.enabled('BTN_SAVE', !!lastSnapshot && !scanning);
     }
 
     async function scan() {
       if (scanning) return;
       scanning = true;
-      status = 'Проверка: читаем CBS, 12 В и доступные блоки…';
+      status = 'Читаем CBS, 12 В и блоки…';
       render();
       const ecus = model.normalizeEcus(await probe.scan());
       const snapshot = model.buildSnapshot({ now: Date.now(), cbs, battery, ecus });
       comparison = model.diff(baseline, snapshot);
       lastSnapshot = snapshot;
       scanning = false;
-      status = ecus.error ? 'Проверка завершена с ошибкой: ' + ecus.error : 'Проверка завершена: ' + comparison.changes.length + ' изменений';
+      status = ecus.error ? 'Проверка завершена с ошибкой: ' + ecus.error : 'Проверено: ' + (urgentCount(snapshot)) + ' требуют внимания';
       try { fs.writeFileSync(reportFile, JSON.stringify({ snapshot, comparison }, null, 2) + '\n', { mode: 0o600 }); }
       catch (error) { log.warn('health report: ' + error); }
       if (settings.get('autoBaseline') && !baseline) {
@@ -87,18 +103,23 @@ mgu.run({
       return render();
     }
 
-    ui.onClick('healthScan', scan);
-    ui.onClick('healthSave', () => {
-      if (!lastSnapshot) return;
+    function urgentCount(snapshot) {
+      return snapshot.cbs.items.filter((item) => item.color === 'red' || item.color === 'yellow').length;
+    }
+
+    function saveSnapshot() {
+      if (!lastSnapshot || scanning) return;
       history = store.saveHistory(historyFile, history.concat(lastSnapshot), settings.get('historyLimit'));
       baseline = history[0] || lastSnapshot;
       status = 'Снимок сохранён локально';
       return render();
-    });
-    ui.onClick('healthHistory', () => render().then(() => ui.open('HISTORY')));
-    ui.onClick('healthBack', () => ui.close('HISTORY'));
-    ui.onClick('healthReport', () => render().then(() => ui.open('REPORT')));
-    ui.onClick('healthReportBack', () => ui.close('REPORT'));
-    render();
+    }
+
+    ui.onClick('BTN_SCAN', scan);
+    ui.onClick('BTN_SAVE', saveSnapshot);
+    ctx.onTab((i) => { if (i !== page) { page = i; return render(); } return null; });
+    settings.onChange(() => render());
+    ctx.loop('MAIN', 10, render);
+    return render().then(() => log.info('health 0.2.0 first frame'));
   }
 });

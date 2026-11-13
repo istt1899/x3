@@ -4,7 +4,8 @@
 const mgu = require('./kit/mgu');
 const { ClusterRender } = require('./cluster_render_client.js');
 const model = require('./model.js');
-const render = require('./render.js');
+const clusterRender = require('./render.js');
+const view = require('./view.js');
 
 mgu.run({
   async start(ctx) {
@@ -30,25 +31,12 @@ mgu.run({
       cbsDataServiceList: (value) => { cbsList = value; evaluate(); }
     }, log, { pollMs: 60000 }).catch((error) => log.warn('hud cbs: ' + error));
 
-    function statusText() {
-      if (!settings.get('enabled')) return 'Слой выключен';
-      return 'Слой включён · ' + service + ' · ' + targetState;
-    }
-
-    function renderStatus() {
-      const alerts = model.buildAlerts({ battery, tyrePressure, tyreTarget, cbs: cbsList,
+    function buildAlerts() {
+      return model.buildAlerts({ battery, tyrePressure, tyreTarget, cbs: cbsList,
         batteryThreshold: Number(settings.get('batteryThreshold')) });
-      const alert = settings.get('enabled') ? alerts.active : null;
-      ui.text('hudStatus', statusText());
-      ui.text('hudService', 'cluster-render: ' + service);
-      ui.text('hudAlert', alert ? alert.text : 'Отклонений нет');
-      ui.text('hudReason', alert ? 'Одна карточка по событию; постоянные шкалы отсутствуют' : 'В норме приложение ничего не рисует');
-      ui.text('hudToggle', settings.get('enabled') ? 'Выключить слой' : 'Включить слой');
-      ui.text('hudSafety', 'HUD включается только вручную после проверки на автомобиле');
-      return alerts;
     }
 
-    function draw(alerts) {
+    function drawLayer(alerts) {
       if (!client || !client.ready) return;
       const alert = settings.get('enabled') ? alerts.active : null;
       if (!alert) {
@@ -61,7 +49,7 @@ mgu.run({
         client.set(layer, { visible: true });
         return;
       }
-      const frame = render.rgbaAlert(alert.text, alert.color || 'yellow');
+      const frame = clusterRender.rgbaAlert(alert.text, alert.color || 'yellow');
       if (!layer) {
         layer = client.image({ target: settings.get('target') || 'panel', klass: 'overlay', z: 20,
           x: 720, y: 300, w: frame.width, h: frame.height, iw: frame.width, ih: frame.height,
@@ -73,9 +61,30 @@ mgu.run({
       shownText = signature;
     }
 
+    async function render() {
+      const alerts = buildAlerts();
+      const t = ctx.theme();
+      const cv = ctx.canvas(view.W, view.H).clear(t.bg);
+      const active = settings.get('enabled') ? alerts.active : null;
+      view.drawMain(cv, t, {
+        enabled: settings.get('enabled'),
+        service, targetState,
+        target: settings.get('target') || 'panel',
+        alert: active,
+        alerts,
+        frame: active ? view.alertFrame(active) : null,
+        threshold: Number(settings.get('batteryThreshold')),
+        onToggle: toggle,
+        onCheck: check
+      });
+      ui.text('BTN_TOGGLE', settings.get('enabled') ? 'Выключить' : 'Включить');
+      return ui.image('MAIN_GFX', cv);
+    }
+
     function evaluate() {
-      const alerts = renderStatus();
-      try { draw(alerts); } catch (error) { log.warn('hud draw: ' + error); service = 'ошибка отрисовки'; renderStatus(); }
+      const alerts = buildAlerts();
+      try { drawLayer(alerts); } catch (error) { log.warn('hud draw: ' + error); service = 'ошибка отрисовки'; }
+      return render();
     }
 
     function stopClient() {
@@ -99,16 +108,24 @@ mgu.run({
       evaluate();
     }
 
-    ui.onClick('hudToggle', () => {
+    function toggle() {
       settings.set('enabled', !settings.get('enabled'));
       startClient();
-    });
-    ui.onClick('hudCheck', () => { if (settings.get('enabled') && !client) startClient(); else evaluate(); });
+    }
+    function check() {
+      if (settings.get('enabled') && !client) startClient();
+      else evaluate();
+    }
+
+    ui.onClick('BTN_TOGGLE', toggle);
+    ui.onClick('BTN_CHECK', check);
     settings.onChange((key) => {
       if (key === 'enabled' || key === 'target') startClient();
       else evaluate();
     });
     app.on('shutdown', stopClient);
-    renderStatus();
+    ctx.loop('MAIN', 10, render);
+    startClient();
+    return null;
   }
 });

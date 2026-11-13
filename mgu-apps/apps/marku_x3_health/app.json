@@ -1,8 +1,8 @@
 {
   "id": "marku_x3_health",
   "title": "Здоровье X3",
-  "description": "Персональный read-only снимок CBS, 12 В и отвечающих блоков с историей",
-  "version": "0.1.0",
+  "description": "Read-only приборная панель CBS, 12 В и блоков ECU: приборы, история снимков, отчёт",
+  "version": "0.2.0",
   "license": "GPL-3.0-or-later",
   "vendor": "custom",
   "loggingId": "MX3H",
@@ -24,50 +24,24 @@
   "screens": [
     {
       "name": "MAIN",
-      "kind": "menu",
+      "kind": "canvas",
       "title": "Здоровье X3",
-      "settings": true,
-      "items": [
-        ["text", "healthStatus", "Проверка ещё не запускалась"],
-        ["text", "healthBattery", "12 В: нет данных"],
-        ["text", "healthService", "CBS: нет данных"],
-        ["text", "healthCoverage", "Покрытие: CBS, 12 В, ECU discovery"],
-        ["button", "healthScan", "Проверить сейчас"],
-        ["button", "healthSave", "Сохранить снимок"],
-        ["button", "healthHistory", "История"],
-        ["button", "healthReport", "Показать отчёт"]
-      ]
-    },
-    {
-      "name": "HISTORY",
-      "kind": "menu",
-      "title": "История здоровья",
-      "items": [
-        ["text3", "healthH1", ""],
-        ["text3", "healthH2", ""],
-        ["text3", "healthH3", ""],
-        ["text3", "healthH4", ""],
-        ["text3", "healthH5", ""],
-        ["button", "healthBack", "Назад"]
-      ]
-    },
-    {
-      "name": "REPORT",
-      "kind": "menu",
-      "title": "Отчёт здоровья",
-      "items": [
-        ["text3", "healthR1", ""],
-        ["text3", "healthR2", ""],
-        ["text3", "healthR3", ""],
-        ["text3", "healthR4", ""],
-        ["text3", "healthR5", ""],
-        ["button", "healthReportBack", "Назад"]
+      "buttons": [
+        ["BTN_SCAN", "Проверить"],
+        ["BTN_SAVE", "Снимок"],
+        ["BTN_SETTINGS", "Настройки"]
       ]
     }
   ],
   "settings": [
     {"key": "historyLimit", "label": "Снимков в истории", "type": "choice", "default": "10",
      "options": [["5", "5"], ["10", "10"], ["20", "20"]]},
-    {"key": "autoBaseline", "label": "Первый снимок как базовая линия", "type": "bool", "default": true}
+    {"key": "autoBaseline", "label": "Первый снимок как базовая линия", "type": "bool", "default": true},
+    {"key": "theme", "label": "Цветовая тема", "type": "choice", "default": "m_tricolour",
+     "options": [["m_red", "M Red"], ["m_tricolour", "M Tricolour"], ["ice", "Ice White"], ["amber", "Night Amber"]]},
+    {"key": "layout", "label": "Раскладка экрана", "type": "choice", "default": "full",
+     "options": [["full", "Во весь экран"], ["standard", "Стандартная"]]},
+    {"key": "renderer", "label": "Рендерер", "type": "choice", "default": "auto",
+     "options": [["auto", "GPU 60 fps (по умолчанию)"], ["software", "Программный"]]}
   ]
 }

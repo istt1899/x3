@@ -14,8 +14,13 @@ const IDS = ['marku_x3_health', 'marku_x3_warm', 'marku_daily_hud', 'marku_x3_ho
 function sha256(bytes) { return crypto.createHash('sha256').update(bytes).digest('hex'); }
 
 function main() {
+  const versionOf = (id) => {
+    const file = path.join(ROOT, 'apps', id, 'app.json');
+    if (!fs.existsSync(file)) return '0.1.0';
+    return JSON.parse(fs.readFileSync(file, 'utf8')).version;
+  };
   for (const id of IDS) {
-    const file = path.join(PUBLISH, `${id}@0.1.0.tgz`);
+    const file = path.join(PUBLISH, `${id}@${versionOf(id)}.tgz`);
     assert(fs.existsSync(file), `missing ${file}`);
     const files = cp.execFileSync('tar', ['--force-local', '-tzf', file], { encoding: 'utf8' }).trim().split(/\r?\n/);
     assert(files.length > 0);

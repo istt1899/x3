@@ -5,6 +5,7 @@ const path = require('path');
 const mgu = require('./kit/mgu');
 const model = require('./model.js');
 const store = require('./store.js');
+const view = require('./render.js');
 
 mgu.run({
   async start(ctx) {
@@ -16,8 +17,8 @@ mgu.run({
     let temperatures = { oil: null, coolant: null, known: false };
     let outside = null;
     let engine = null;
-    let lastEstimate = null;
     let warmStart = null;
+    let page = 0;
 
     ctx.signals.watch('de.bmw.infotainment.vehicle.CDS', '1', {
       statusEngineTemperature: (value) => { temperatures = model.normalizeTemperatures(value); render(); },
@@ -33,27 +34,37 @@ mgu.run({
       ExteriorTemperature: (value) => { outside = model.normalizeOutside(value); render(); }
     }, log, { pollMs: 30000 }).catch((error) => log.warn('warm outside: ' + error));
 
-    function render() {
-      const writes = [];
-      const write = (name, value) => writes.push(Promise.resolve(ui.text(name, value)).catch((error) => log.warn('UI ' + name + ': ' + error)));
-      lastEstimate = estimator.estimate(Date.now(), temperatures.oil, temperatures.coolant);
-      const advice = model.recommendation(outside, Number(settings.get('threshold')));
-      write('warmEngine', 'Двигатель: ' + (engine || 'нет данных'));
-      write('warmOil', 'Масло: ' + (temperatures.oil === null ? 'нет данных' : temperatures.oil.toFixed(1) + ' °C'));
-      write('warmCoolant', 'ОЖ: ' + (temperatures.coolant === null ? 'нет данных' : temperatures.coolant.toFixed(1) + ' °C'));
-      write('warmEstimate', model.formatEstimate(lastEstimate));
-      write('warmAdvice', advice.text);
-      write('warmSafety', 'Запись в климатический блок не выполняется');
-      records.slice(-5).reverse().forEach((record, index) => {
-        write('warmH' + (index + 1), new Date(record.at).toLocaleString('ru-RU') + ' · ' + record.minutes + ' мин');
-      });
-      for (let index = records.slice(-5).length; index < 5; index += 1) write('warmH' + (index + 1), '');
-      return Promise.all(writes);
+    function readyPercent(estimate) {
+      if (!estimate.known) return null;
+      if (estimate.ready) return 100;
+      const target = temperatures.coolant !== null ? 85 : 80;
+      const current = temperatures.coolant !== null ? temperatures.coolant : temperatures.oil;
+      if (current === null || current >= target) return 100;
+      const span = target - Math.min(0, current > 0 ? 0 : current);
+      return Math.max(0, Math.min(99, Math.round((current / target) * 100)));
     }
 
-    ui.onClick('warmRefresh', () => render());
-    ui.onClick('warmHistory', () => render().then(() => ui.open('HISTORY')));
-    ui.onClick('warmBack', () => ui.close('HISTORY'));
+    async function render() {
+      const t = ctx.theme();
+      const cv = ctx.canvas(view.W, view.H).clear(t.bg);
+      const estimate = estimator.estimate(Date.now(), temperatures.oil, temperatures.coolant);
+      if (page === 0) {
+        view.drawWarm(cv, t, {
+          oil: temperatures.oil, coolant: temperatures.coolant,
+          outside, estimate, engine,
+          advice: model.recommendation(outside, Number(settings.get('threshold'))),
+          readyPct: readyPercent(estimate)
+        });
+      } else {
+        view.drawHistory(cv, t, records);
+      }
+      view.header(cv, t, page, temperatures.known ? [] : [{ text: 'НЕТ ДАННЫХ', color: 'dim' }]);
+      return ui.image('MAIN_GFX', cv);
+    }
+
+    ui.onClick('BTN_REFRESH', () => render());
+    ctx.onTab((i) => { if (i !== page) { page = i; return render(); } return null; });
+    settings.onChange(() => render());
     process.on('exit', () => {
       const estimate = estimator.estimate(Date.now(), temperatures.oil, temperatures.coolant);
       if (settings.get('history') && warmStart && estimate.known && estimate.ready) {
@@ -61,6 +72,7 @@ mgu.run({
       }
       try { store.save(file, estimator.toJSON(), records); } catch (error) { log.warn('warm save: ' + error); }
     });
-    render();
+    ctx.loop('MAIN', 10, render);
+    return render().then(() => log.info('warm 0.2.0 first frame'));
   }
 });

@@ -13,16 +13,29 @@ const APPS = ['marku_x3_health', 'marku_x3_warm', 'marku_daily_hud', 'marku_x3_h
 
 async function runApp(id) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'mgu-five-hu-'));
-  const archive = path.join(PUBLISH, `${id}@0.1.0.tgz`);
+  const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', id, 'app.json'), 'utf8')).version;
+  const archive = path.join(PUBLISH, `${id}@${version}.tgz`);
   const unpacked = path.join(temp, 'package');
   fs.mkdirSync(unpacked, { recursive: true });
   cp.execFileSync('tar', ['--force-local', '-xzf', archive], { cwd: temp });
   const stage = path.join(temp, 'stage');
   fs.mkdirSync(stage, { recursive: true });
   fs.renameSync(unpacked, path.join(stage, 'source'));
+  const kitDir = path.join(stage, 'source', 'javascript', 'kit');
+  const { Canvas } = require(path.join(kitDir, 'canvas.js'));
+  const { play } = require(path.join(kitDir, 'record.js'));
+  let frames = 0;
   const failures = [];
   const hu = headUnit(stage, { dataDir: temp, fresh: true, log: {
     info() {}, warn() {}, debug() {}, error(message, error) { failures.push(error || message); }
+  },
+  // canvas-приложения: каждый переданный кадр растеризуем целиком — ошибки
+  // отрисовки (неизвестные опкоды, битые слои) вылетят здесь, а не в машине
+  image: (name, cv) => {
+    if (Buffer.isBuffer(cv)) return;
+    if (typeof cv.words === 'function') { const real = new Canvas(cv.w, cv.h); play(cv.words(), real); real.png(); }
+    else cv.png();
+    frames += 1;
   } });
   hu.ctx.app = hu;
   let watches = 0;
@@ -40,6 +53,7 @@ async function runApp(id) {
   hu.start();
   await new Promise((resolve) => setTimeout(resolve, 120));
   assert(watches > 0, `${id}: no SOME/IP watches`);
+  assert(frames > 0, `${id}: no frames drawn`);
   assert.deepStrictEqual(failures, [], `${id}: runtime errors`);
   hu.emit('shutdown');
   fs.rmSync(temp, { recursive: true, force: true });
@@ -48,4 +62,5 @@ async function runApp(id) {
 (async () => {
   for (const id of APPS) await runApp(id);
   console.log('app_kit.test.js: OK');
-})().catch((error) => { console.error(error); process.exitCode = 1; });
+  process.exit(process.exitCode || 0);   // интервалы приложений держат event loop; логика проверки завершена
+})().catch((error) => { console.error(error); process.exit(1); });
