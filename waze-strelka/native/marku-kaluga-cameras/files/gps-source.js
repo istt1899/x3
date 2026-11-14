@@ -7,10 +7,13 @@ var BRIDGE_STATES = ['starting', 'subscribed', 'unavailable', 'error', 'stopped'
 function number(n) { return typeof n === 'number' && isFinite(n); }
 function numeric(s) { return typeof s === 'string' && s.trim() !== '' && isFinite(Number(s)) ? Number(s) : null; }
 function fresh(time, now) { return number(time) && time >= now - MAX_AGE && time <= now + 500; }
+function navigationAccuracyReady(fix) {
+  return fix && fix.source === 'bmw-navigation' && fix.accuracySource === 'bmw-road-match';
+}
 function roadReady(fix) {
   return fix && number(fix.speedKmh) && fix.speedKmh >= 0 && number(fix.headingDeg) &&
-    fix.headingDeg >= 0 && fix.headingDeg < 360 && number(fix.accuracyM) &&
-    fix.accuracyM > 0 && fix.accuracyM <= 15;
+    fix.headingDeg >= 0 && fix.headingDeg < 360 &&
+    ((number(fix.accuracyM) && fix.accuracyM > 0 && fix.accuracyM <= 15) || navigationAccuracyReady(fix));
 }
 function inc(n) { return Math.min(MAX_COUNTER, n + 1); }
 function coordinate(s, hemisphere, longitude) {
@@ -267,11 +270,15 @@ GpsProvider.prototype.clearNavigation = function (reason) {
 GpsProvider.prototype.inputNavigation = function (raw) {
   this.navigation.updates = inc(this.navigation.updates);
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { this.rejectNavigation('payload is not an object'); return false; }
-  var allowed = { lat: true, lon: true, speedKmh: true, headingDeg: true, accuracyM: true, timeMs: true, timeOrigin: true }, key;
+  var allowed = { lat: true, lon: true, speedKmh: true, headingDeg: true, accuracyM: true, accuracySource: true, motionDerived: true, timeMs: true, timeOrigin: true }, key;
   for (key in raw) if (Object.prototype.hasOwnProperty.call(raw, key) && !allowed[key]) { this.rejectNavigation('unknown field ' + key); return false; }
   if (!number(raw.lat) || !number(raw.lon) || Math.abs(raw.lat) > 90 || Math.abs(raw.lon) > 180) { this.rejectNavigation('coordinates missing or out of range'); return false; }
-  if (!number(raw.accuracyM) || raw.accuracyM <= 0) { this.rejectNavigation('accuracy in metres missing'); return false; }
-  if (raw.accuracyM > 15) { this.rejectNavigation('accuracy worse than 15 m'); return false; }
+  var hasAccuracy = raw.accuracyM !== null && raw.accuracyM !== undefined;
+  if (hasAccuracy && (!number(raw.accuracyM) || raw.accuracyM <= 0)) { this.rejectNavigation('accuracy in metres missing'); return false; }
+  if (hasAccuracy && raw.accuracyM > 15) { this.rejectNavigation('accuracy worse than 15 m'); return false; }
+  if (!hasAccuracy && raw.accuracySource !== 'bmw-road-match') { this.rejectNavigation('accuracy in metres missing'); return false; }
+  if (raw.accuracySource !== undefined && ['explicit', 'bmw-road-match'].indexOf(raw.accuracySource) < 0) { this.rejectNavigation('unknown accuracy source'); return false; }
+  if (raw.motionDerived !== undefined && raw.motionDerived !== true && raw.motionDerived !== false) { this.rejectNavigation('invalid derived-motion marker'); return false; }
   if (raw.speedKmh !== null && raw.speedKmh !== undefined && (!number(raw.speedKmh) || raw.speedKmh < 0)) { this.rejectNavigation('speed missing or negative'); return false; }
   if (raw.headingDeg !== null && raw.headingDeg !== undefined && (!number(raw.headingDeg) || raw.headingDeg < 0 || raw.headingDeg >= 360)) { this.rejectNavigation('heading outside 0–360°'); return false; }
   if (!number(raw.timeMs) || !fresh(raw.timeMs, this.now())) { this.rejectNavigation('stale or future navigation time'); return false; }
@@ -279,7 +286,10 @@ GpsProvider.prototype.inputNavigation = function (raw) {
   var fix = { lat: raw.lat, lon: raw.lon,
     speedKmh: raw.speedKmh === undefined ? null : raw.speedKmh,
     headingDeg: raw.headingDeg === undefined ? null : raw.headingDeg,
-    accuracyM: raw.accuracyM, timeMs: raw.timeMs, motionTimeMs: raw.timeMs,
+    accuracyM: raw.accuracyM === undefined ? null : raw.accuracyM,
+    accuracySource: raw.accuracySource || (hasAccuracy ? 'explicit' : null),
+    motionDerived: raw.motionDerived === true,
+    timeMs: raw.timeMs, motionTimeMs: raw.timeMs,
     source: 'bmw-navigation', quality: 'navigation-fallback', hdop: null, satellites: null,
     fallback: true, timeOrigin: raw.timeOrigin };
   this.navigationFix = fix;
@@ -333,6 +343,7 @@ GpsProvider.prototype.description = function (fix, now) {
     var label = fix.source === 'bmw-nmea' ? 'BMW' : fix.source === 'gpsd' ? 'GPSD' :
       fix.source === 'bmw-navigation' ? 'Навигация BMW' : 'Внешний NMEA';
     if (!number(fix.accuracyM) || fix.accuracyM <= 0) {
+      if (navigationAccuracyReady(fix)) return label + ': запасной режим BMW; позиция привязана к дороге, метрическая точность не сообщается';
       if (fix.source === 'bmw-nmea' && timing.pairReason === 'GGA_GST_OFFSET') return label + ': координаты есть; UTC GST/GGA не совпадает (' + Math.round(timing.ggaGstDeltaMs) + ' мс)';
       return label + ': координаты есть; ' + (fix.source === 'bmw-nmea' && !kinds.GST ? 'нет GST с точностью в метрах' : 'точность в метрах не подтверждена');
     }

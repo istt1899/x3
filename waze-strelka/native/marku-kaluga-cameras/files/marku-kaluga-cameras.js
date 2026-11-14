@@ -20,9 +20,13 @@ function clockSnapshot(now, input) {
     admissionAfterUtcMs: num('admissionAfterUtcMs'), admissionAfterUtc: str('admissionAfterUtc'),
     issue: str('issue') || 'SOURCE_UTC_UNKNOWN', reason: str('reason') || 'Данные часов источника GPS недоступны' };
 }
+function navigationAccuracyReady(f) {
+  return f && f.source === 'bmw-navigation' && f.accuracySource === 'bmw-road-match';
+}
 function validPosition(f, now, accuracyLimit) {
-  return f && [f.timeMs, f.lat, f.lon, f.accuracyM, now].every(Number.isFinite) && Math.abs(f.lat) <= 90 &&
-    Math.abs(f.lon) <= 180 && f.accuracyM > 0 && f.accuracyM <= (accuracyLimit || 15) && now - f.timeMs <= 3000 && f.timeMs <= now + 500;
+  var accurate = f && ((Number.isFinite(f.accuracyM) && f.accuracyM > 0 && f.accuracyM <= (accuracyLimit || 15)) || navigationAccuracyReady(f));
+  return f && [f.timeMs, f.lat, f.lon, now].every(Number.isFinite) && Math.abs(f.lat) <= 90 &&
+    Math.abs(f.lon) <= 180 && accurate && now - f.timeMs <= 3000 && f.timeMs <= now + 500;
 }
 /* Guidance may retain an already confirmed road alert through brief quality
  * degradation; the service keeps that visual alert while all non-metric
@@ -78,7 +82,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.8.4', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.8.5', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -258,8 +262,8 @@ function start(options) {
     try { fix = gps.current(now); } catch (e) { state.error = 'GPS provider: ' + e.message; gpsError = true; }
     var motions = gpsError ? [] : motionFixes(now), motion = actionPolicy.motionStatus(fix, now, motions);
     var roadBlocked = motion.conflict || motion.roadMismatch;
-    var valid = fix && typeof fix.accuracyM === 'number' && fix.accuracyM > 0 && fix.accuracyM <= 15 &&
-      typeof fix.speedKmh === 'number' && isFinite(fix.speedKmh) && fix.speedKmh >= 0 && typeof fix.headingDeg === 'number' && isFinite(fix.headingDeg);
+    var valid = fix && navigationAccuracyReady(fix) || (fix && typeof fix.accuracyM === 'number' && fix.accuracyM > 0 && fix.accuracyM <= 15);
+    valid = !!(valid && typeof fix.speedKmh === 'number' && isFinite(fix.speedKmh) && fix.speedKmh >= 0 && typeof fix.headingDeg === 'number' && isFinite(fix.headingDeg));
     state.gpsFix = fix || null;
     state.gpsMotion = motion;
     if(state.gpsReset.phase==='waiting-new-fix'&&validPosition(fix,now)&&fix.timeMs>state.gpsReset.afterUtc)state.gpsReset.phase='receiving';

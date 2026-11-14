@@ -37,7 +37,8 @@ function values(state, version, frozen) {
         nmeaGgaGst:'Разница UTC (GST − GGA): ' + n(timing.ggaGstDeltaMs,0) + ' мс',
         position:'Широта ' + n(f.lat,6) + ' • долгота ' + n(f.lon,6), fixUtc:'UTC позиции: ' + utc(f.timeMs),
         age:'Возраст позиции ' + n(Number.isFinite(now) && Number.isFinite(f.timeMs) ? (now-f.timeMs)/1000 : null,2) + ' с • пакета ' + n(Number.isFinite(input.lastPacketAgeMs)?input.lastPacketAgeMs/1000:null,2) + ' с',
-        accuracy:'Оценка точности: ' + n(f.accuracyM) + ' м • ' + clean(f.source),
+        accuracy:'Оценка точности: ' + (Number.isFinite(f.accuracyM) ? n(f.accuracyM) + ' м' :
+            f.accuracySource === 'bmw-road-match' ? 'дорожная привязка BMW' : '—') + ' • ' + clean(f.source),
         motion:'Скорость ' + n(f.speedKmh) + ' км/ч • курс ' + n(f.headingDeg) + '°',
         gnss:'GGA ' + clean(f.quality) + ' • спутники ' + clean(f.satellites) + ' • HDOP ' + n(f.hdop,2),
         bridge:'GPS-интерфейс: ' + clean(b.state) + (b.errorCode ? ' • '+clean(b.errorCode) : ''),

@@ -24,6 +24,16 @@ function numberAt(value, names) {
     for (const name of names) {
         const candidate = value[name];
         if (typeof candidate === 'number' && isFinite(candidate)) return candidate;
+        if (candidate && typeof candidate === 'object' && typeof candidate.value === 'number' && isFinite(candidate.value)) return candidate.value;
+    }
+    return null;
+}
+function stringAt(value, names) {
+    if (!value || typeof value !== 'object') return null;
+    for (const name of names) {
+        const candidate = value[name];
+        if (typeof candidate === 'string' && candidate) return candidate;
+        if (candidate && typeof candidate === 'object' && typeof candidate.unit === 'string' && candidate.unit) return candidate.unit;
     }
     return null;
 }
@@ -41,7 +51,7 @@ function explicitSpeedOf(value) {
     if (direct !== null) return direct >= 0 ? direct : null;
     const speed = numberAt(value, ['speed', 'vehicleSpeed', 'motionSpeed']);
     if (speed === null || speed < 0) return null;
-    const unit = value.speedUnit || value.speedUnits || value.velocityUnit || value.vehicleSpeedUnit;
+    const unit = stringAt(value, ['speedUnit', 'speedUnits', 'velocityUnit', 'vehicleSpeedUnit', 'speed']);
     if (typeof unit !== 'string') return null;
     const normalized = unit.toLowerCase().replace(/[\s_]/g, '');
     if (['km/h', 'kmh', 'kph', 'kilometresperhour', 'kilometersperhour'].indexOf(normalized) >= 0) return speed;
@@ -57,20 +67,73 @@ function explicitTimeOf(value) {
     const parsed = Date.parse(text);
     return isFinite(parsed) ? parsed : null;
 }
+function distanceM(a, b) {
+    const rad = Math.PI / 180, x = (b.lon - a.lon) * Math.cos((a.lat + b.lat) * rad / 2), y = b.lat - a.lat;
+    return Math.sqrt(x * x + y * y) * rad * 6371008.8;
+}
+function bearingDeg(a, b) {
+    const rad = Math.PI / 180, lat1 = a.lat * rad, lat2 = b.lat * rad, dLon = (b.lon - a.lon) * rad;
+    const y = Math.sin(dLon) * Math.cos(lat2), x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+class NavigationMotion {
+    constructor() { this.samples = []; }
+    reset() { this.samples = []; }
+    observe(fix, now) {
+        if (!fix) { this.reset(); return fix; }
+        const sample = { lat: fix.lat, lon: fix.lon, timeMs: fix.timeOrigin === 'source' ? fix.timeMs : now };
+        const previous = this.samples[this.samples.length - 1];
+        if (previous && sample.timeMs <= previous.timeMs) this.samples = [];
+        this.samples.push(sample);
+        this.samples = this.samples.filter(item => sample.timeMs - item.timeMs <= 5000);
+        let speed = Number.isFinite(fix.speedKmh) ? fix.speedKmh : null;
+        let heading = Number.isFinite(fix.headingDeg) ? fix.headingDeg : null;
+        let derived = false;
+        if (speed === null) {
+            speed = this.speedFromSamples();
+            derived = speed !== null;
+        }
+        if (heading === null && Number.isFinite(speed) && speed >= 3) {
+            heading = this.headingFromSamples();
+            derived = derived || heading !== null;
+        }
+        return Object.assign({}, fix, { speedKmh: speed, headingDeg: heading, motionDerived: derived });
+    }
+    speedFromSamples() {
+        if (this.samples.length < 2) return null;
+        const first = this.samples[0], last = this.samples[this.samples.length - 1], elapsed = last.timeMs - first.timeMs;
+        if (elapsed < 900) return null;
+        let farthest = 0;
+        this.samples.forEach(item => { farthest = Math.max(farthest, distanceM(first, item)); });
+        if (this.samples.length >= 3 && elapsed >= 2000 && farthest <= 2) return 0;
+        const moved = distanceM(first, last);
+        if (moved < 3) return null;
+        const speed = moved / (elapsed / 1000) * 3.6;
+        if (speed > 250) { this.samples = [last]; return null; }
+        return speed;
+    }
+    headingFromSamples() {
+        if (this.samples.length < 2) return null;
+        const first = this.samples[0], last = this.samples[this.samples.length - 1];
+        return distanceM(first, last) >= 3 ? bearingDeg(first, last) : null;
+    }
+}
 function navigationFixOf(value, now) {
     const unavailable = reason => ({ state: 'unavailable', reason, observedAtMs: now, fix: null });
     const partial = reason => ({ state: 'partial', reason, observedAtMs: now, fix: null });
     if (!value || typeof value !== 'object' || Array.isArray(value)) return unavailable('BMW не передала объект текущей позиции навигации');
     if (value.status !== 'ON_ROAD' && value.status !== 1) return unavailable('Штатная навигация не подтвердила состояние ON_ROAD');
     const position = firstObject(value, ['position', 'geoPosition', 'location', 'currentPosition', 'coordinate']);
-    const roots = [value, position].filter(Boolean);
+    const motion = firstObject(value, ['motion', 'dynamics', 'vehicleMotion']);
+    const roots = [value, position, motion].filter(Boolean);
     const latitude = roots.reduce((found, item) => found !== null ? found : numberAt(item, ['latitude', 'lat']), null);
     const longitude = roots.reduce((found, item) => found !== null ? found : numberAt(item, ['longitude', 'lon', 'lng']), null);
     if (latitude === null || longitude === null || Math.abs(latitude) > 90 || Math.abs(longitude) > 180)
         return unavailable('В ответе навигации нет явных координат в градусах');
     const accuracy = roots.reduce((found, item) => found !== null ? found : numberAt(item,
-        ['horizontalAccuracyM', 'accuracyM', 'positionAccuracyM', 'uncertaintyM', 'horizontalUncertaintyM']), null);
-    if (accuracy === null || accuracy <= 0) return partial('Навигация BMW дала позицию без явной точности в метрах; предупреждения не разрешены');
+        ['horizontalAccuracyM', 'accuracyM', 'positionAccuracyM', 'uncertaintyM', 'horizontalUncertaintyM',
+            'horizontalAccuracy', 'positionAccuracy', 'accuracy']), null);
+    if (accuracy !== null && accuracy <= 0) return partial('Навигация BMW дала недопустимую точность; предупреждения не разрешены');
     if (accuracy > 15) return partial('Точность навигации BMW хуже 15 м; предупреждения не разрешены');
     const heading = roots.reduce((found, item) => found !== null ? found : numberAt(item,
         ['headingDeg', 'headingDegrees', 'heading', 'courseDeg', 'course', 'bearingDeg', 'bearing']), null);
@@ -78,8 +141,8 @@ function navigationFixOf(value, now) {
     const speed = roots.reduce((found, item) => found !== null ? found : explicitSpeedOf(item), null);
     const timeMs = explicitTimeOf(value);
     return {
-        state: 'ready', reason: null, observedAtMs: now,
-        fix: { lat: latitude, lon: longitude, accuracyM: accuracy,
+        state: 'ready', reason: accuracy === null ? 'Точность BMW не сообщается; используется дорожная привязка ON_ROAD' : null, observedAtMs: now,
+        fix: { lat: latitude, lon: longitude, accuracyM: accuracy, accuracySource: accuracy === null ? 'bmw-road-match' : 'explicit',
             speedKmh: speed, headingDeg: heading,
             timeMs: timeMs === null ? now : timeMs, timeOrigin: timeMs === null ? 'receipt' : 'source' }
     };
@@ -94,6 +157,7 @@ class BmwNavigationBridge extends EventEmitter {
         this.maxAttempts=3;this.pendingGetter=null;
         this.street={name:null,source:'BMW',state:'unavailable',reason:'Название улицы BMW ещё не получено',observedAtMs:null};
         this.navigation={state:'unavailable',reason:'Позиция навигации BMW ещё не получена',observedAtMs:null,fix:null};
+        this.motion=new NavigationMotion();
         this.audio={available:false,state:'unverified',reason:'Безопасный звуковой канал BMW не подтверждён'};
         this.lastLinkUp=false;this.controlChanged=()=>{const up=this.control&&this.control.link==='up';if(up&&!this.lastLinkUp)this.lastPublished='';this.lastLinkUp=up;this.publish();};
         if(this.control && this.control.on)this.control.on('change',this.controlChanged);
@@ -181,6 +245,7 @@ class BmwNavigationBridge extends EventEmitter {
         if(this.running)return;this.running=true;this.subscribed=false;this.pollPending=false;const generation=++this.generation;
         this.street={name:null,source:'BMW',state:'unavailable',reason:'Название улицы BMW ещё не получено',observedAtMs:null};
         this.navigation={state:'unavailable',reason:'Позиция навигации BMW ещё не получена',observedAtMs:null,fix:null};
+        this.motion.reset();
         this.audio={available:false,state:'unverified',reason:'Безопасный звуковой канал BMW не подтверждён'};
         this.lastPublished='';this.publish();
         this.connect('nav',generation);this.connect('audio',generation);
@@ -207,6 +272,8 @@ class BmwNavigationBridge extends EventEmitter {
     receive(value,generation){
         if(!this.current(generation))return;
         const name=streetOf(value), navigation=navigationFixOf(value,this.now());
+        if(navigation.fix)navigation.fix=this.motion.observe(navigation.fix,this.now());
+        else this.motion.reset();
         this.street={name,source:'BMW',state:name?'ready':'unavailable',reason:name?null:'BMW не передала подтверждённое название текущей улицы',observedAtMs:this.now()};
         this.navigation=navigation;
         this.publish();this.emit('change');
@@ -216,8 +283,9 @@ class BmwNavigationBridge extends EventEmitter {
         Object.keys(this.channels).forEach(kind=>{const channel=this.channels[kind];clearTimeout(channel.retry);channel.retry=null;channel.attempts.forEach(attempt=>clearTimeout(attempt.deadline));channel.active=null;});
         clearTimeout(this.pollDeadline);clearInterval(this.timer);this.timer=null;this.proxy=null;this.pollPending=false;this.subscribed=false;this.pollGeneration++;
         this.navigation={state:'unavailable',reason:'Чтение позиции навигации BMW остановлено',observedAtMs:null,fix:null};
+        this.motion.reset();
         // Pending uncancellable getters/registrations retain their bounded
         // slots across start/stop. Late callbacks cannot publish cached data.
     }
 }
-module.exports={BmwNavigationBridge,streetOf,navigationFixOf,NAV,GONG};
+module.exports={BmwNavigationBridge,NavigationMotion,streetOf,navigationFixOf,NAV,GONG};

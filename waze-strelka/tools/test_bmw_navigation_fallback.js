@@ -10,6 +10,7 @@ const path = require('path');
 const service = require('../native/marku-kaluga-cameras/files/marku-kaluga-cameras');
 const { GpsProvider } = require('../native/marku-kaluga-cameras/files/gps-source');
 const { CameraControl } = require('../apps/marku_kaluga_cameras/src/control');
+const actionPolicy = require('../native/marku-kaluga-cameras/files/action-policy');
 
 let now = Date.now();
 function provider() { return new GpsProvider({ now: () => now, nmeaPort: 0, port: 1 }); }
@@ -86,6 +87,20 @@ async function main() {
     assert.strictEqual(gps.inputNavigation(navigationFix(now - 100, { headingDeg: 360 })), false, 'invalid navigation heading is rejected');
     assert.strictEqual(gps.diagnostics(now).gpsNavigation.rejected, 4);
 
+    let motionOnly = provider();
+    assert.strictEqual(motionOnly.inputNavigation(navigationFix(now - 100, { accuracyM: null, speedKmh: 0, headingDeg: null })), false,
+        'navigation without an accuracy source is still rejected');
+    assert.strictEqual(motionOnly.inputNavigation(navigationFix(now - 100, { accuracyM: null, accuracySource: 'bmw-road-match',
+        speedKmh: 0, headingDeg: null, motionDerived: true })), true,
+        'road-matched BMW navigation supplies stationary motion without fabricated metres');
+    assert.strictEqual(motionOnly.current(now).accuracyM, null);
+    assert.strictEqual(actionPolicy.policies({ capabilities: { displayTest: true }, outputs: { cluster: true, hud: false } },
+        motionOnly.current(now), now, motionOnly.motionFixes(now)).displayTest.code, 'READY');
+    assert.strictEqual(motionOnly.inputNavigation(navigationFix(now - 100, { accuracyM: null, accuracySource: 'bmw-road-match',
+        speedKmh: 60, headingDeg: 90, motionDerived: true })), true);
+    assert.strictEqual(motionOnly.current(now).speedKmh, 60);
+    assert(motionOnly.motionFixes(now).some(item => item.source === 'bmw-navigation' && item.speedKmh === 60));
+
     let primary = provider();
     feedRoadReadyBmw(primary, now - 100);
     assert.strictEqual(primary.inputNavigation(navigationFix(now - 200)), true);
@@ -124,6 +139,12 @@ async function main() {
         assert.strictEqual(app.state().alert && app.state().alert.id, 'navigation-fallback-proof');
         assert.strictEqual(app.state().gpsNavigation.accepted, acceptedBeforeService + 1);
         assert(/Навигация BMW/.test(app.state().gps));
+
+        client.send({ cmd: 'vehicle-context', navigation: { source: 'bmw-navigation', state: 'ready', observedAtMs: Date.now(),
+            fix: navigationFix(Date.now(), { accuracyM: null, accuracySource: 'bmw-road-match', motionDerived: true }) } });
+        await until(() => app.state().gpsFix && app.state().gpsFix.accuracySource === 'bmw-road-match');
+        assert.strictEqual(app.state().alert && app.state().alert.id, 'navigation-fallback-proof',
+            'ON_ROAD map-matched navigation must restore warnings when GNSS is jammed');
 
         client.send({ cmd: 'vehicle-context', navigation: { source: 'bmw-navigation', state: 'partial',
             reason: 'Навигация BMW дала позицию без явной точности в метрах', observedAtMs: Date.now(), fix: null } });
