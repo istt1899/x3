@@ -42,7 +42,7 @@ function styledPixels(alert,target,profile) {
 }
 function createDisplay(options){
     let client=null,layers={},states={},sentPixels={},signature='',requested='',active=null,
-        profiles=normalizeLayouts(),profileSignature='';
+        profiles=normalizeLayouts(),profileSignature='',suspended=false;
     function release(remember){
         if(client)client.close();
         client=null;layers={};sentPixels={};signature='';profileSignature='';requested='';active=null;
@@ -93,10 +93,25 @@ function createDisplay(options){
         outputs=outputs||{};
         const nextProfiles=normalizeLayouts(layouts),nextProfileSignature=JSON.stringify(nextProfiles);
         const targets=['map','hud'].filter(t=>t==='map'?outputs.cluster:outputs.hud);
-        if(!alert||!targets.length){if(client)release(true);return;}
+        if(!alert||!targets.length){
+            if(client){
+                if(targets.length&&requested){
+                    // 0.8.7: no card is not a reason to tear the renderer
+                    // session down. Hide the layers and keep the connection:
+                    // a brief GPS gap must not become a reconnect storm.
+                    suspended=true;
+                    for(const n of Object.keys(layers))client.set(layers[n],{visible:false});
+                    Object.keys(states).forEach(n=>{states[n]=Object.assign({},states[n],{
+                        lastState:states[n].state,state:'скрыт',reason:'NO_ACTIVE_ALERT',target:null,holder:null,
+                        targetReason:null,rendering:null,retryInMs:null});});
+                    active=null;
+                } else release(true);
+            }
+            return;
+        }
         const key=targets.join(','),sig=JSON.stringify(card.presentation(alert));
         if(!client||key!==requested){
-            release(false);requested=key;active=alert;signature=sig;profiles=nextProfiles;profileSignature=nextProfileSignature;
+            release(false);requested=key;active=alert;signature=sig;suspended=false;profiles=nextProfiles;profileSignature=nextProfileSignature;
             client=new ClusterRender('marku_kaluga_cameras',options&&options.socket);
             const session=client;
             targets.forEach(n=>{states[n]={state:'ожидание',reason:'WAITING_RENDERER',layout:layoutFor(n,null,null,profiles[n])};});
@@ -118,6 +133,13 @@ function createDisplay(options){
             client.connect();
         }else{
             active=alert;
+            if(suspended){
+                // Resume after a brief gap without recreating the session:
+                // show the layers again and push the current card whole.
+                suspended=false;
+                for(const n of targets)if(layers[n])client.set(layers[n],{visible:true});
+                signature='';
+            }
             if(profileSignature!==nextProfileSignature){
                 profiles=nextProfiles;profileSignature=nextProfileSignature;signature=sig;
                 if(client.ready)arrange(targets,false);
@@ -128,7 +150,11 @@ function createDisplay(options){
         connection: client && client.ready ? 'ready' : 'disconnected',
         backend: client && client.backend || null,
         version: client && client.ready && client.version || null,
-        versionReported: !!(client && client.ready && client.version)
+        versionReported: !!(client && client.ready && client.version),
+        reconnects: client ? client.reconnects : 0,
+        lastDisconnectReason: client && client.lastDisconnectError || null,
+        lastDisconnectAt: client && client.lastDisconnectAt || null,
+        lastReconnectAt: client && client.lastReadyAt || null
     });},close:function(){release(false);}};
 }
 module.exports={createDisplay,parseTargets,layoutFor,styledPixels};

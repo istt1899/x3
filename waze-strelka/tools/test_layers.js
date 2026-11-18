@@ -171,7 +171,27 @@ function styleMatches(actual,original,brightnessPct,opacityPct){
         peers.forEach(sock=>sock.write(frame({ev:'error',op:'layer',ref:hudRef,reason:'HUD_GUARD'})));
         for(let wait=0;wait<100&&display.diagnostics().hud.state!=='отказ';wait++)await sleep(10);
         assert.strictEqual(display.diagnostics().hud.reason,'HUD_GUARD');assert.strictEqual(display.diagnostics().map.state,'visible');
+        // 0.8.7 suspend contract: no card with outputs on hides the layers but
+        // KEEPS the renderer session; a later card resumes without recreating
+        // layers or a connection.
+        const reconnectsBefore=display.diagnostics().reconnects;
         display.update(null,{cluster:true,hud:true});
+        await sleep(25);
+        assert.strictEqual(display.diagnostics().map.state,'скрыт');
+        assert.strictEqual(display.diagnostics().map.reason,'NO_ACTIVE_ALERT');
+        assert.strictEqual(display.diagnostics().map.rendering,null,'suspending invalidates stale scene subscription evidence');
+        assert.strictEqual(display.diagnostics().connection,'ready','a brief no-card gap must not tear the session down');
+        let suspendedCount=0;peers.forEach(()=>suspendedCount++);
+        assert.strictEqual(suspendedCount,1,'suspend keeps the single renderer connection');
+        const layerOpsBefore=wireMessages.filter(m=>m.op==='layer').length;
+        display.update(a,{cluster:true,hud:true});
+        await until('resumed card after suspend',()=>displayed.size===2&&pixels.size===2&&wireMessages.filter(m=>m.op==='set'&&m.visible===1).length>=4);
+        await sleep(40);
+        assert.strictEqual(wireMessages.filter(m=>m.op==='layer').length,layerOpsBefore,'resume reuses existing layer refs');
+        assert.strictEqual(display.diagnostics().reconnects,reconnectsBefore,'suspend and resume never reconnect');
+        assert.strictEqual(display.diagnostics().map.state,'visible');
+        // Outputs off is the real shutdown: the session closes.
+        display.update(a,{cluster:false,hud:false});
         await sleep(25);const count=await new Promise((resolve,reject)=>server.getConnections((e,n)=>e?reject(e):resolve(n)));
         assert.strictEqual(count,0);
         assert.strictEqual(display.diagnostics().map.state,'скрыт');

@@ -39,15 +39,20 @@ function alertPreferences(state) {
         reason:!state?'Сервис недоступен':!supported?'Для настройки дистанции и типов обновите сервис камер':
             !available?'Ожидание подтверждённых настроек сервиса':null};
 }
-const OVERSPEED_RECOMMENDED = Object.freeze({visualFlash:true,visualOffsetKmh:0,soundEnabled:false,soundOffsetKmh:20});
+const OVERSPEED_RECOMMENDED = Object.freeze({visualFlash:true,visualOffsetKmh:0,soundEnabled:false,soundOffsetKmh:20,
+    soundDistanceM:400,soundRepeatSec:5,soundOnCameraAppear:false});
 function overspeedPreferences(state) {
     const s=state||{}, p=s.overspeedPreferences||{}, audio=s.audio||{};
     const supported=!!(s.capabilities&&s.capabilities.overspeedPreferences===true);
     const offset=value=>Number.isInteger(value)&&value>=0&&value<=30;
     const available=supported&&typeof p.visualFlash==='boolean'&&typeof p.soundEnabled==='boolean'&&
-        offset(p.visualOffsetKmh)&&offset(p.soundOffsetKmh);
+        typeof p.soundOnCameraAppear==='boolean'&&offset(p.visualOffsetKmh)&&offset(p.soundOffsetKmh)&&
+        Number.isInteger(p.soundDistanceM)&&p.soundDistanceM>=100&&p.soundDistanceM<=700&&
+        [0,3,5,10].indexOf(p.soundRepeatSec)>=0;
     return {available,visualFlash:available?p.visualFlash:null,visualOffsetKmh:available?p.visualOffsetKmh:null,
         soundEnabled:available?p.soundEnabled:null,soundOffsetKmh:available?p.soundOffsetKmh:null,
+        soundDistanceM:available?p.soundDistanceM:null,soundRepeatSec:available?p.soundRepeatSec:null,
+        soundOnCameraAppear:available?p.soundOnCameraAppear:null,
         audioAvailable:audio.available===true,audioReason:clean(audio.reason,audio.available===true?
             'Канал подтверждён; слышимость проверяется на стоянке':'Звуковой канал BMW не подтверждён'),
         reason:!state?'Сервис недоступен':!supported?'Для настройки превышения обновите сервис камер':
@@ -75,6 +80,16 @@ function gpsSummary(state) {
     const age = Number.isFinite(input.lastPacketAgeMs) ? Math.max(0, Math.floor(input.lastPacketAgeMs / 1000)) + ' с назад' : 'ещё нет';
     return 'GPS BMW: RMC ' + count('RMC') + ' • GGA ' + count('GGA') + ' • GST ' + count('GST') + ' • пакет: ' + age;
 }
+const CAPTURE_SOURCES = { owner: 'запись владельца', 'osm-direction': 'OSM direction', 'osm-relation': 'OSM enforcement',
+    openspeedcam: 'OpenSpeedcam', 'gibdd-text': 'Госавтоинспекция' };
+function captureInfo(camera) {
+    const c = camera || {}, cls = c.captureClass;
+    const where = cls === 'front' ? 'в лицо' : cls === 'rear' ? 'в спину' : cls === 'both' ? 'в обе стороны' :
+        cls === 'cross' ? 'поперёк дороги' : 'направление неизвестно';
+    const capture = c.capture || {};
+    const source = CAPTURE_SOURCES[capture.source] || null;
+    return 'Контроль: ' + where + (source ? ' • ' + source + (capture.verified ? ' (подтверждено)' : ' (не подтверждено)') : '');
+}
 function model(state) {
     const s = state || {}, db = s.database || {}, outputs = s.outputs || {};
     const connected = !!state;
@@ -85,7 +100,6 @@ function model(state) {
     const fresh=Number.isFinite(fixAge)&&fixAge>=-500&&fixAge<=3000;
     const reference=c.limitReference&&c.limitReference.state==='known'?c.limitReference.valueKmh:null;
     const limit=a&&a.roadConfirmed&&Number.isFinite(a.limitKmh)?a.limitKmh:Number.isFinite(c.cameraLimitKmh)?c.cameraLimitKmh:Number.isFinite(reference)?reference:Number.isFinite(c.limitKmh)?c.limitKmh:c.limit;
-    const capture=c.captureDirectionVerified===true?{front:'спереди',rear:'сзади',both:'спереди и сзади'}[c.captureDirection]||'направление неизвестно':'направление неизвестно';
     const coverage=coverageRows(s);
     const providers=db.sourceMetadata&&Array.isArray(db.sourceMetadata.providers)?db.sourceMetadata.providers:[],
         official=providers.find(p=>p.id==='gibdd-official');
@@ -108,7 +122,7 @@ function model(state) {
         cameraCommandMore:' ',
         cameraLimit:(a&&a.roadConfirmed&&Number.isFinite(a.limitKmh)?'Лимит по дороге: ':'Лимит по базе: ')+(Number.isFinite(limit)?limit+' км/ч':'неизвестен')+
             (a&&a.roadConfirmed?' • дорога подтверждена':' • применимость к дороге не подтверждена'),
-        cameraDirection:'Контроль: '+capture,
+        cameraDirection:captureInfo(c),
         cameraFacing:cameraFacing(c),
         cameraCoverage:coverage[0],cameraCoverageLimits:coverage[1],cameraCoverageRoad:coverage[2],cameraCoverageDirection:coverage[3],
         cameraEnable:!connected?'Предупреждения: сервис недоступен':s.enabled?'Выключить предупреждения':'Включить предупреждения',
@@ -158,4 +172,4 @@ function hubSummary(state) {
 }
 
 module.exports = { model, outputCommand, diagnostics, date, distance, ALERT_TYPES, alertPreferences, hubSummary,
-    OVERSPEED_RECOMMENDED, overspeedPreferences, coverageRows, cameraFacing };
+    OVERSPEED_RECOMMENDED, overspeedPreferences, coverageRows, cameraFacing, captureInfo };

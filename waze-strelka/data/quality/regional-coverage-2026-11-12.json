@@ -64,8 +64,8 @@
     "roadZones": 19,
     "numericRoadZones": 18,
     "recordsWithoutRoadZone": 467,
-    "facingKnown": 20,
-    "captureSideKnown": 0
+    "facingKnown": 185,
+    "captureSideKnown": 152
   },
   "records": [
     {

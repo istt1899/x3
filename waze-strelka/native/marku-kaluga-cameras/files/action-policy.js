@@ -41,7 +41,10 @@ function policies(state, fix, now, motionFixes) {
         !state.rendererDetails || state.rendererDetails.connection !== 'ready' ? no('RENDERER_NOT_READY', 'Дождитесь подключения выбранного экрана') : stop;
     return { displayTest: test, calibrationTest: test, cardLayout: stop, cardMove: move,
         displayTestStop: { allowed: true, code: 'READY', reason: 'Скрыть тест и сохранить настройки' },
-        audioTest: state.audio && state.audio.available ? stop : no('AUDIO_UNAVAILABLE', state.audio && state.audio.reason || 'Безопасный канал звуковых уведомлений не подтверждён'),
+        // The test exists to confirm the channel: it is allowed whenever the
+        // sound module lives; an unconfirmed remote channel simply publishes
+        // its request and times out honestly without a HMI answer.
+        audioTest: state.audio && state.audio.phase !== 'closed' ? stop : no('AUDIO_UNAVAILABLE', state.audio && state.audio.reason || 'Безопасный канал звуковых уведомлений не подтверждён'),
         databaseCheck: check,
         databaseRollback: check.allowed && update.canRollback ? { allowed: true, code: 'READY', reason: 'Вернуть предыдущую проверенную базу' } : no('ROLLBACK_UNAVAILABLE', update.busy ? 'Дождитесь завершения проверки базы' : 'Предыдущая версия базы недоступна'),
         diagnosticExport: { allowed: true, code: 'READY', reason: 'Сохранить локальный отчёт по отдельному действию' } };

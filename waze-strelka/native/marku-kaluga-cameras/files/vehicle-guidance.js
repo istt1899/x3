@@ -3,6 +3,7 @@ const pack = require('./road-zones.json');
 const database = require('./kaluga-speed.json');
 const info = require('./camera-info');
 const preferences = require('./alert-preferences');
+const captureData = require('./capture-data');
 function angle(x, y) { return (Math.atan2(x, y) * 180 / Math.PI + 360) % 360; }
 function diff(a, b) { return Math.abs((a - b + 540) % 360 - 180); }
 function distance(a, b) {
@@ -78,6 +79,13 @@ function plausible(previous, next, fix, dt) {
 function approaches(previous, next, fix, dt) {
     return plausible(previous, next, fix, dt) && previous.distanceM - next.distanceM > .5;
 }
+/* Nearby retention tolerates the GPS-hold horizon: an extrapolated fix may
+ * arrive five seconds after the last accepted epoch, so the plausibility
+ * window matches the hold instead of the fresh-fix three seconds. */
+function plausibleHold(previous, next, fix, dt) {
+    return previous && dt > 0 && dt <= 5.5 &&
+        Math.abs(previous.distanceM - next.distanceM) <= fix.speedKmh / 3.6 * Math.min(dt, 5) * 2 + 6;
+}
 function createGuidance(data) {
     const zones = (data || pack).zones.map(prepare);
     const records = data && data.records || (data ? data.zones.map(z => ({ id: z.id, position: { lat: z.lat, lon: z.lon },
@@ -90,6 +98,9 @@ function createGuidance(data) {
     // Consecutive fresh samples with a growing distance for the retained
     // nearby camera; three in a row release the warning.
     let nearbyGrowth = 0;
+    /* 0.8.7 anti-flicker floor: a shown card lives at least this long unless
+     * the camera was physically passed. */
+    let activeSinceMs = null;
     let state = { mode: 'none', reason: 'WAITING_GPS', zoneCount: zones.length, cameraCount: records.length };
     function transition(previous, reason, f, gpsReason) {
         const changed = mode(previous) !== mode(active) || previous && active && previous.id !== active.id;
@@ -107,7 +118,7 @@ function createGuidance(data) {
     function clear(reason, f, restart, gpsReason) {
         const previous = active;
         prior = {}; priorNearby = {}; active = anchor = closest = heading = null;
-        if (restart) { lastTime = lastSource = null; settingsKey = null; passed = {}; lastTransition = lastClear = null; nearbyGrowth = 0; }
+        if (restart) { lastTime = lastSource = null; settingsKey = null; passed = {}; lastTransition = lastClear = null; nearbyGrowth = 0; activeSinceMs = null; }
         state = { mode: 'none', reason, zoneCount: zones.length, cameraCount: records.length };
         if (f && Number.isFinite(f.timeMs)) state.fixTimeMs = f.timeMs;
         transition(previous, reason, f, gpsReason); return null;
@@ -156,9 +167,10 @@ function createGuidance(data) {
             const delta = diff(angle(dx, dy), course);
             if (delta > NEARBY_BEHIND_DEG) return 'BEHIND';
             if (delta > NEARBY_AHEAD_MAX_DEG) return 'OFF_COURSE';
-            const facing = describeCamera(r).cameraFacing;
-            if (facing && facing.state === 'mapped' && facing.bearingsDeg && facing.bearingsDeg.length &&
-                !facing.bearingsDeg.some(b => diff(b, (course + 180) % 360) <= NEARBY_FACING_DEG)) return 'DIRECTION';
+            // 0.8.7: warn from either side; a camera verified to look across
+            // the road (not at our stream) is rejected as DIRECTION.
+            const cls = captureData.classify(describeCamera(r).capture, course);
+            if (cls === 'cross') return 'DIRECTION';
             return null;
         };
         const nearbyReject = {};
@@ -262,7 +274,14 @@ function createGuidance(data) {
                         if (previous && d > previous.distanceM + 0.000001) nearbyGrowth++;
                         else nearbyGrowth = 0;
                         if (nearbyGrowth >= NEARBY_GROWTH_EXIT) reject = 'RECEEDING';
-                        else if (!plausible(previous, next, f, dt)) reject = 'POSITION_JUMP';
+                        else if (!plausibleHold(previous, next, f, dt)) reject = 'POSITION_JUMP';
+                    }
+                    if (reject) {
+                        // Three-second show floor: geometry noise must not
+                        // blink the card right after it appeared. Passing the
+                        // camera (BEHIND) and impossible jumps stay critical.
+                        if (activeSinceMs !== null && f.timeMs - activeSinceMs < 3000 && reject !== 'BEHIND' && reject !== 'POSITION_JUMP' &&
+                            d <= range + jitter(f) && (delta === null || delta <= NEARBY_BEHIND_DEG)) reject = null;
                     }
                     if (reject) {
                         if (reject === 'BEHIND') passed[r.id] = true;
@@ -292,6 +311,8 @@ function createGuidance(data) {
             priorNearby = {}; nearbyCandidates.forEach(item => { priorNearby[item.id] = item; });
         }
         active = selected ? Object.assign({}, describeCamera(byId[selected.id]), selected) : null;
+        if (active && (!previous || previous.id !== active.id || mode(previous) !== mode(active))) activeSinceMs = f.timeMs;
+        if (!active) activeSinceMs = null;
         if (active) {
             const same = previous && previous.id === active.id && mode(previous) === mode(active);
             closest = same && closest !== null ? Math.min(closest, active.distanceM) : active.distanceM;

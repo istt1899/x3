@@ -49,7 +49,8 @@ const JSON_T = 0x4a;    /* 'J' */
 const FRAME_T = 0x46;   /* 'F' */
 const MESH_T = 0x4d;    /* 'M' */
 const MAX_DIRTY = 16;
-const BACKOFF_MS = [250, 500, 1000, 2000];
+/* 0.8.7: the owner's contract — half a second, then 1, 2 and 5 seconds. */
+const BACKOFF_MS = [500, 1000, 2000, 5000];
 const SET_KEYS = ['klass', 'z', 'x', 'y', 'w', 'h', 'visible', 'exclusive', 'prewarm', 'contend', 'guide_hold',
     'opacity', 'rotate', 'sx', 'sy', 'px', 'py'];
 const MESH_KEYS = ['projection', 'fov', 'ortho_h', 'near', 'far', 'cx', 'cy', 'cz', 'crx', 'cry', 'crz'];
@@ -124,6 +125,12 @@ class ClusterRender extends EventEmitter {
         this.backend = '';
         this.version = null;
         this.targets = '';
+        /* 0.8.7 resilience counters, surfaced through camera-layers. */
+        this.connects = 0;
+        this.reconnects = 0;
+        this.lastDisconnectAt = null;
+        this.lastDisconnectError = null;
+        this.lastReadyAt = null;
     }
 
     connect() {
@@ -142,6 +149,10 @@ class ClusterRender extends EventEmitter {
 
     _open() {
         if (this.closed || this.sock) return;
+        /* Every (re)connect attempt counts: a dead listener produces failed
+         * attempts with no 'connect' event at all. */
+        if (this.connects > 0 || this.reconnects > 0 || this._openedOnce) this.reconnects++;
+        this._openedOnce = true;
         const sock = net.connect(this.path);
         this.sock = sock;
         this.blocked = false;
@@ -150,6 +161,7 @@ class ClusterRender extends EventEmitter {
         sock.on('connect', () => {
             /* Everything made before now goes in the replay below. */
             this.connected = true;
+            this.connects++;
             this._send({ op: 'hello', app: this.app, proto: PROTO });
             /* Assets first, so binds find them; binds and animations once
              * every layer and part is made. */
@@ -171,14 +183,17 @@ class ClusterRender extends EventEmitter {
          * are ignored. */
         sock.on('data', (d) => { if (this.sock === sock) this._data(d); });
         sock.on('drain', () => { if (this.sock === sock) { this.blocked = false; this._pump(); } });
-        sock.on('error', () => {});
+        sock.on('error', (e) => { this.lastDisconnectError = e && e.code ? String(e.code).slice(0, 48) : 'SOCKET_ERROR'; });
         sock.on('close', () => {
             if (this.sock !== sock) return;
             const wasReady = this.ready;
+            const wasConnected = this.connected === true;
             this.sock = null;
             this.ready = false;
             this.connected = false;
             this.pendingFrames.clear();
+            this.lastDisconnectAt = Date.now();
+            if (this.lastDisconnectError === null) this.lastDisconnectError = wasReady ? 'CLOSED_BY_RENDERER' : wasConnected ? 'CLOSED_DURING_SESSION' : 'CONNECT_FAILED';
             if (wasReady) this.emit('disconnected');
             if (this.closed) return;
             const ms = BACKOFF_MS[Math.min(this.backoff, BACKOFF_MS.length - 1)];
@@ -212,6 +227,8 @@ class ClusterRender extends EventEmitter {
             this.version = typeof ev.version === 'string' && /^[A-Za-z0-9._+-]{1,64}$/.test(ev.version) ? ev.version : null;
             this.targets = ev.targets;
             this.ready = true;
+            this.lastReadyAt = Date.now();
+            this.lastDisconnectError = null;
             this.backoff = 0;
             this._pump();
             this.emit('ready');

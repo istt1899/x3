@@ -1,5 +1,7 @@
 'use strict';
 // Counts source records, never claims a count of physical camera complexes.
+// 0.8.7: direction coverage comes from the normalized capture field
+// (docs/camera-direction-0.8.7.md), not from the OSM-only lens parser.
 var info=require('./camera-info');
 function numeric(value){return Number.isFinite(value)&&value>0&&value<=300;}
 function summarize(records,zones){
@@ -12,8 +14,9 @@ function summarize(records,zones){
   else if(detail.limitReference&&detail.limitReference.state==='known'&&numeric(detail.limitReference.valueKmh))result.referenceLimit++;
   else result.unknownLimit++;
   if(!zoneIds[record.id])result.recordsWithoutRoadZone++;
-  if(detail.cameraFacing.state==='mapped')result.facingKnown++;
-  if(detail.captureDirectionVerified)result.captureSideKnown++;
+  var capture=detail.capture;
+  if((capture&&Number.isFinite(capture.facingDeg))||detail.cameraFacing.state==='mapped')result.facingKnown++;
+  if((capture&&capture.side!=='unknown')||detail.captureDirectionVerified)result.captureSideKnown++;
  });
  return result;
 }

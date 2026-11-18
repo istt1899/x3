@@ -3,6 +3,7 @@
 // enforcement or of a particular hardware model.
 const fs = require('fs');
 const orientation = require('./camera-orientation');
+const captureData = require('./capture-data');
 const LABELS = { speed: 'Контроль скорости', redlight: 'Контроль светофора', average: 'Средняя скорость',
     stopline: 'Стоп-линия', belt: 'Контроль ремня', pedestrian: 'Пешеходный переход', lane: 'Контроль полосы', phone: 'Контроль телефона',
     signs_marking: 'Знаки и разметка', road_position: 'Расположение ТС / встречный разъезд / обгон' };
@@ -38,6 +39,7 @@ function describe(camera) {
         captureDirection: side,
         captureDirectionVerified: !!side,
         captureDirectionSource: side ? camera.captureSideSourceUrl : null,
+        capture: camera.capture ? JSON.parse(JSON.stringify(camera.capture)) : captureData.captureFor(camera),
         cameraFacing: orientation.describe(camera),
         enforcementRelations: camera.enforcementRelations ? camera.enforcementRelations.map(r => ({id:r.id,sourceUrl:r.sourceUrl})) : null };
 }
@@ -105,11 +107,26 @@ function supplement(database, file) {
             typeof r.inKalugaCity !== 'boolean' || typeof r.positionSourceUrl !== 'string' ||
             !/^https:\/\/www\.openstreetmap\.org\/node\/\d+$/.test(r.positionSourceUrl) ||
             (r.sourceUrl !== undefined && r.sourceUrl !== null)) throw new Error('Invalid reported intersection camera');
+        // 0.8.7: the owner may state which way the camera works. Optional,
+        // validated the same strict way as every other source claim.
+        var ownerSide = r.captureSide === undefined ? null : r.captureSide;
+        if (ownerSide !== null && ['front', 'rear', 'both'].indexOf(ownerSide) < 0) throw new Error('Invalid reported capture side');
+        var ownerFacing = r.facingDeg;
+        if (ownerFacing !== undefined && ownerFacing !== null && (!Number.isFinite(ownerFacing) || ownerFacing < 0 || ownerFacing >= 360)) throw new Error('Invalid reported facing');
+        if (ownerSide === null && ownerFacing == null && (r.captureSide !== undefined || r.facingDeg !== undefined)) throw new Error('Invalid reported direction');
         ids[r.id] = true;
-        return { id: r.id, type: 'camera', controls: [], limitKmh: null,
+        var reported = { id: r.id, type: 'camera', controls: [], limitKmh: null,
             description: r.description.trim(), provenance: 'owner-report', positionKind: 'intersection',
             position: { lat: r.position.lat, lon: r.position.lon }, positionSourceUrl: r.positionSourceUrl,
             inKalugaCity: r.inKalugaCity, reportStatus: 'unverified', sourceUrl: null };
+        if (ownerSide) reported.captureSide = ownerSide;
+        if (ownerFacing != null) reported.facingDeg = Math.round(ownerFacing) % 360;
+        if (reported.captureSide && reported.captureSide !== 'unknown') {
+            reported.captureSideSourceUrl = r.captureSideSourceUrl || r.positionSourceUrl;
+            if (!/^https:\/\/www\.openstreetmap\.org\/(?:node|way|relation)\/\d+$/.test(reported.captureSideSourceUrl)) throw new Error('Invalid reported direction evidence');
+            reported.captureSideVerifiedAt = typeof r.captureSideVerifiedAt === 'string' && Number.isFinite(Date.parse(r.captureSideVerifiedAt)) ? r.captureSideVerifiedAt : '2026-11-18T00:00:00.000Z';
+        }
+        return reported;
     });
     const osmCount = database.records.filter(r => r.provenance !== 'owner-report').length;
     database.records = database.records.concat(added);

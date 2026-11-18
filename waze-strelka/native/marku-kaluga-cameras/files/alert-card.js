@@ -21,9 +21,10 @@ function presentation(alert) {
     const overspeed = alert.roadConfirmed === true && alert.overspeed === true && roadLimit !== null && rawSpeed !== null && rawSpeed > roadLimit;
     const hiddenBoundary = Number.isFinite(warning.displayBoundaryKmh) && rawSpeed > warning.displayBoundaryKmh && speed <= warning.displayBoundaryKmh ? warning.displayBoundaryKmh :
         overspeed && speed <= roadLimit ? roadLimit : null;
-    const direction = alert.captureDirectionVerified === true && ['front','rear'].indexOf(alert.captureDirection) >= 0 ? alert.captureDirection : 'unknown';
+    const direction = ['front','rear','both','unknown'].indexOf(alert.captureClass) >= 0 ? alert.captureClass :
+        alert.captureDirectionVerified === true && ['front','rear'].indexOf(alert.captureDirection) >= 0 ? alert.captureDirection : 'unknown';
     return { controls, extraControls: Math.max(0,known.length-controls.length), limit, limitScope, speed,
-        speedText:speed===null?'—':hiddenBoundary===null?String(speed):'>'+hiddenBoundary, direction,
+        speedText:speed===null?'—':hiddenBoundary===null?String(speed):'>'+hiddenBoundary, direction, captureClass: direction,
         distance: Number.isFinite(alert.distanceM) && alert.distanceM >= 0 ? Math.round(alert.distanceM/10)*10 : null,
         mode: alert.positionKind === 'intersection' ? 'Ориентир' : alert.roadConfirmed === true ? (alert.controlScope === 'enforcement-location' ? 'Рубеж' : 'По дороге') : 'Рядом',
         test: alert.test === true, calibration: alert.calibration === true, decoy: !!(alert.decoyReport && alert.decoyReport.state === 'reported'),
@@ -83,7 +84,7 @@ function card(alert, target) {
     model.controls.forEach((type,index)=>{const x=6+index*106;icon(type,x,53);text(types[type],x+27,71,18,white,73);});
     text(model.test||model.calibration?'ТЕСТ':model.limitScope==='reference'?model.mode+' • база':model.mode,7,90,18,muted,150);
     if(model.extraControls)text('+'+model.extraControls,158,90,18,amber,38);
-    text(model.direction==='front'?'В лоб':model.direction==='rear'?'Сзади':'Напр. ?',202,90,18,muted,111);
+    text(model.direction==='front'?'В лоб':model.direction==='rear'?'Сзади':model.direction==='both'?'Две стороны':'Напр. ?',202,90,18,muted,111);
     if(model.calibration) {
         // Mark only this card's boundary. It cannot obscure the whole panel.
         outline(0,0,width,height,amber);

@@ -23,7 +23,7 @@ async function main(){
  assert.deepStrictEqual(app.state().overspeedPreferences,defaults);assert.strictEqual(app.state().database.coverage.sourceRecords,486);assert.strictEqual(app.state().database.coverage.numericRoadZones,18);
  await run.command({cmd:'alert-preferences',warningDistanceM:900,cameraTypes:{belt:false}});await run.command({cmd:'hud-opacity',percent:55});
  var originalLayouts=JSON.stringify(app.state().cardLayout);
- var reply=await run.command({cmd:'overspeed-preferences',soundEnabled:true,soundOffsetKmh:20});assert.strictEqual(reply.commandResult.phase,'finished');
+ var reply=await run.command({cmd:'overspeed-preferences',soundEnabled:true,soundOffsetKmh:20,soundRepeatSec:0});assert.strictEqual(reply.commandResult.phase,'finished');
  await run.step(80);assert.strictEqual(run.calls.length,0);assert.strictEqual(app.state().speedWarning.soundExceeded,false);
  await run.step(80.1);assert.strictEqual(run.calls.length,1);assert.strictEqual(app.state().audio.phase,'played');assert.strictEqual(card.presentation(run.shown()).speedText,'>80');assert.strictEqual(run.shown().limitKmh,60);
  await run.step(82);assert.strictEqual(run.calls.length,1,'Successful same approach cannot repeat');
@@ -33,11 +33,20 @@ async function main(){
  var before=JSON.stringify(app.state().overspeedPreferences),bytes=fs.readFileSync(path.join(dir,'settings.json'),'utf8');
  [{soundOffsetKmh:31},{visualOffsetKmh:1.5},{soundEnabled:'true'},{visualFlash:null},{extra:1}].forEach(function(p){assert.throws(function(){app.command(Object.assign({cmd:'overspeed-preferences'},p));});assert.strictEqual(JSON.stringify(app.state().overspeedPreferences),before);assert.strictEqual(fs.readFileSync(path.join(dir,'settings.json'),'utf8'),bytes);});
  assert.strictEqual(app.state().alertPreferences.warningDistanceM,900);assert.strictEqual(app.state().alertPreferences.cameraTypes.belt,false);assert.strictEqual(JSON.stringify(app.state().cardLayout),originalLayouts);assert.strictEqual(app.state().hudOpacityPct,55);
- run.gps.fix.timeMs=clock-3001;app.tick();assert.strictEqual(app.state().alert,null);assert.strictEqual(app.state().speedWarning.reason,'GPS_INVALID');
+ run.gps.fix.timeMs=clock;app.tick();
+ clock+=4000;app.tick();
+ assert(app.state().alert&&app.state().alert.id==='C','a stale fix holds the active card by honest extrapolation');
+ assert.strictEqual(app.state().gpsHold.active,true);
+ assert.strictEqual(app.state().speedWarning.reason,'GPS_STALE','warnings still demand the real fix');
+ clock+=2000;app.tick();
+ assert.strictEqual(app.state().alert,null,'after five seconds without a fresh fix the card withdraws');
+ assert.strictEqual(app.state().gpsHold.reason,'GPS_LOST');
  fs.mkdirSync(path.join(dir,'settings.json.tmp'));app.command({cmd:'overspeed-preferences',visualOffsetKmh:5});assert.strictEqual(app.state().overspeedPreferences.visualOffsetKmh,5);assert.strictEqual(app.state().storage.settingsSaved,false);assert(/временно/.test(app.state().commandResult.message));fs.rmdirSync(path.join(dir,'settings.json.tmp'));
  app.close();var restarted=await start(dir,false);assert.strictEqual(restarted.app.state().overspeedPreferences.visualOffsetKmh,0);assert.strictEqual(restarted.app.state().overspeedPreferences.visualFlash,false);assert.strictEqual(restarted.app.state().alertPreferences.warningDistanceM,900);assert.strictEqual(restarted.app.state().hudOpacityPct,55);
  reply=await restarted.command({cmd:'overspeed-preferences',soundEnabled:true});assert(reply.overspeedPreferences.soundEnabled);assert.strictEqual(reply.audio.available,false);assert.notStrictEqual(reply.audio.phase,'played');assert(/не подтверждён/.test(reply.audio.reason));
- assert.throws(function(){restarted.app.command({cmd:'audio-test'});},/подтверждён/);assert.notStrictEqual(restarted.app.state().commandResult.phase,'played');
+ restarted.app.command({cmd:'audio-test'});assert.strictEqual(restarted.app.state().commandResult.phase,'requested','the test publishes a request the HMI must answer');
+ await turn();
+ assert(restarted.app.state().audioRequest && restarted.app.state().audioRequest.test===true,'the request is visible for the app');
  console.log('PASS actual overspeed service IPC: 60/80/80.1 boundary, fractional raster, adapter success/dedup, independent toggles, strict patches, old-setting migration, unrelated calibration/filter/range persistence, stale withdrawal, temporary storage and honest production-unavailable audio');
 }
 function remove(dir){assert(dir.indexOf(root)===0);fs.readdirSync(dir).forEach(function(n){var p=path.join(dir,n),s=fs.lstatSync(p);if(s.isDirectory()&&!s.isSymbolicLink())remove(p);else fs.unlinkSync(p);});fs.rmdirSync(dir);}

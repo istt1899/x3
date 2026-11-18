@@ -5,7 +5,10 @@ var root=path.resolve(__dirname,'..'),file=path.join(root,'data/camera-database-
 function hash(){return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');}
 var before=hash(),report=builder.build(root),saved=JSON.parse(fs.readFileSync(path.join(root,'data/quality/regional-coverage-2026-11-12.json'),'utf8'));
 assert.deepStrictEqual(report,saved);assert.strictEqual(builder.serialize(report),fs.readFileSync(path.join(root,'data/quality/regional-coverage-2026-11-12.json'),'utf8'));
-assert.deepStrictEqual(report.summary,{complete:false,sourceRecords:486,directLimit:228,referenceLimit:97,unknownLimit:161,roadZones:19,numericRoadZones:18,recordsWithoutRoadZone:467,facingKnown:20,captureSideKnown:0});
+// 0.8.7: direction coverage is computed from every source via the capture
+// normalization (docs/camera-direction-0.8.7.md), not from the OSM lens
+// parser alone — 20/0 became 185/152 on the unchanged 2026.11.12.1 sources.
+assert.deepStrictEqual(report.summary,{complete:false,sourceRecords:486,directLimit:228,referenceLimit:97,unknownLimit:161,roadZones:19,numericRoadZones:18,recordsWithoutRoadZone:467,facingKnown:185,captureSideKnown:152});
 assert.strictEqual(report.records.length,486);assert.strictEqual(new Set(report.records.map(function(r){return r.id;})).size,486);
 ['direct','reference','unknown'].forEach(function(state,i){assert.strictEqual(report.records.filter(function(r){return r.limit.state===state;}).length,[228,97,161][i]);});
 report.records.forEach(function(r){assert.strictEqual(r.road.runtimeConfirmed,false);if(r.road.state==='no-zone'){assert.strictEqual(r.road.evidence,null);assert.strictEqual(r.road.limitKmh,null);}if(r.limit.state==='unknown')assert(r.limit.unknownReason);});

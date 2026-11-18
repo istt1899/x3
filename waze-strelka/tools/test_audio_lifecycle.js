@@ -5,11 +5,11 @@ function wait(ms){return new Promise(function(r){setTimeout(r,ms);});}
 function fix(t,s){return {lat:54,lon:36,accuracyM:5,timeMs:t,motionTimeMs:t,speedKmh:s};}
 function alert(id){return {id:id,sign:1,roadConfirmed:true,limitKmh:60};}
 async function run(){
- var calls=[],queue=[],a=createAudio({play:function(){calls.push(1);var d=defer();queue.push(d);return d.promise;}},{timeoutMs:20});a.configure(true,20);
+ var calls=[],queue=[],a=createAudio({play:function(){calls.push(1);var d=defer();queue.push(d);return d.promise;}},{timeoutMs:20});a.configure({soundEnabled:true,soundOffsetKmh:20,soundRepeatSec:0});
  a.update(alert('A'),fix(100000,80),100000);await wait(1);assert.strictEqual(calls.length,0);
  a.update(alert('A'),fix(101000,80.1),101000);await wait(1);assert.strictEqual(calls.length,1);
  await wait(30);assert.strictEqual(a.status().phase,'outcome-unknown');assert(a.status().pending);
- a.configure(false,20);a.configure(true,20);a.update(alert('B'),fix(115000,82),115000);await wait(1);assert.strictEqual(calls.length,1);
+ a.configure({soundEnabled:false,soundOffsetKmh:20,soundRepeatSec:0});a.configure({soundEnabled:true,soundOffsetKmh:20,soundRepeatSec:0});a.update(alert('B'),fix(115000,82),115000);await wait(1);assert.strictEqual(calls.length,1);
  await a.test(115000).then(function(){assert.fail();},function(){});
  queue[0].resolve({played:true});await wait(1);assert(!a.status().pending);a.update(alert('A'),fix(116000,82),116000);await wait(1);assert.strictEqual(calls.length,1,'late successful A remains deduplicated');
  a.update(alert('B'),fix(117000,82),117000);await wait(1);assert.strictEqual(calls.length,2);queue[1].reject(new Error('failure'));await wait(1);
@@ -32,6 +32,8 @@ async function run(){
  epochQueue[1].resolve({played:true});await wait(1);assert.strictEqual(e.status().phase,'outcome-unknown','retired callback cannot change phase');
  e.update(alert('B'),fix(102001,81),102001);await wait(1);assert.strictEqual(epochCalls.length,2,'late played remains deduplicated after epoch reset');e.close();
  var xCalls=0,x=createAudio({play:function(){xCalls++;return Promise.resolve({played:true});}});x.configure(true,20);x.update(alert('X'),fix(100000,81),100000);x.configure(true,21);await wait(1);assert.strictEqual(xCalls,0,'threshold change revokes queued play');x.close();
- console.log('PASS audio timeout quarantine, late acknowledgement, retries, A/B dedup, clock rollback, stale motion and close');
+ // Legacy positional configure keeps the 5 s repeat default for the other
+// instances; repeats get their own coverage in test_overspeed_sound.js.
+console.log('PASS audio timeout quarantine, late acknowledgement, retries, A/B dedup, clock rollback, stale motion and close');
 }
 run().catch(function(e){console.error(e.stack);process.exitCode=1;});

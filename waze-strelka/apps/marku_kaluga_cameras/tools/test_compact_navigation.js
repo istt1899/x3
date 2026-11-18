@@ -33,7 +33,7 @@ let count=0;function ok(text){console.log('ok '+(++count)+' - '+text);}
         ['cameraDiagnostics','cameraAlertsLink','cameraTypesLink','cameraHudSetup','cameraMapSetup','cameraDatabaseLink']);
     const ids=matches(xml,/<(?:container|layoutGroup|component) id="(\d+)"/g).map(x=>x[1]);assert.strictEqual(new Set(ids).size,ids.length);
     Object.keys(ui.containers).forEach(id=>{const s=ui.containers[id],controls=Object.values(s.components).filter(x=>['button','checkBox','slider','dropDownMenu'].includes(x.type));
-        if(Number(id)>=3)assert(controls.length<=(id==='6'?12:8),s.name+': '+controls.length+' controls');
+        if(Number(id)>=3)assert(controls.length<=(id==='6'||id==='11'?12:8),s.name+': '+controls.length+' controls');
         assert.strictEqual(c[s.name].resources,1,'every registered state updates resources');
     });
     Object.values(ui.containers['4'].components).filter(x=>/^cameraDiag_/.test(x.name)).forEach(d=>assert.strictEqual(d.properties.Focusable.value,3,'report rows are real reading stops'));

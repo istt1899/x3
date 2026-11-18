@@ -5,6 +5,7 @@
 const assert = require('assert');
 const engine = require('../native/marku-kaluga-cameras/files/vehicle-guidance');
 const preferences = require('../native/marku-kaluga-cameras/files/alert-preferences');
+const captureData = require('../native/marku-kaluga-cameras/files/capture-data');
 const cos = Math.cos(54 * Math.PI / 180);
 function position(x, y) { return { lat: 54 + (y || 0) / 111320, lon: 36 + x / (111320 * cos) }; }
 function fix(x, t, extra) { return Object.assign(position(x, 0), { timeMs: t, accuracyM: 5, speedKmh: 36, headingDeg: 90 }, extra); }
@@ -43,17 +44,22 @@ function checkId(value, id, message) { assert(value && value.id === id, message 
     checkId(notice, 'reported:test:1', 'The owner camera warns in nearby mode');
     assert.strictEqual(notice.confidence, 'nearby');
 }
-// 4. A camera behind, or facing away from the stream, does not warn.
+// 4. Direction classes: facing our course shoots the rear plate (warn),
+// facing against us is «в лицо» (warn), a verified cross-road camera does not
+// warn at all, and an unknown direction warns honestly.
 {
     const behind = engine.createGuidance({ zones: [], records: [record('n', 0, 0)], nearby: true });
     assert.strictEqual(step(behind, 300, 1000, null, { headingDeg: 90 }), null, 'A camera behind the course is not a candidate');
     assert.strictEqual(behind.diagnostic().nearestReject, 'BEHIND');
-    const facing = record('osm:node:10701120297', 0, 0, ['speed'], { sourceUrl: 'https://www.openstreetmap.org/node/10701120297', rawDirection: 'E' });
-    const wrongWay = engine.createGuidance({ zones: [], records: [facing], nearby: true });
-    assert.strictEqual(step(wrongWay, -200, 1000, null, { headingDeg: 90 }), null, 'A camera facing the other way is rejected');
-    assert.strictEqual(wrongWay.diagnostic().nearestReject, 'DIRECTION');
-    const towards = engine.createGuidance({ zones: [], records: [record('osm:node:10701120297', 0, 0, ['speed'], { sourceUrl: 'https://www.openstreetmap.org/node/10701120297', rawDirection: 'W' })], nearby: true });
-    checkId(step(towards, -200, 1000), 'osm:node:10701120297', 'A camera facing our stream warns');
+    const mk = dir => engine.createGuidance({ zones: [], records: [record('osm:node:10701120297', 0, 0, ['speed'],
+        { sourceUrl: 'https://www.openstreetmap.org/node/10701120297', rawDirection: dir })], nearby: true });
+    const at = (g, extra) => step(g, -200, 1000, null, Object.assign({ headingDeg: 90 }, extra));
+    const rearAlert = at(mk('E'));
+    assert.strictEqual(captureData.classify(rearAlert.capture, 90), 'rear', 'A camera facing along our course shoots the rear plate and warns');
+    assert.strictEqual(captureData.classify(at(mk('W')).capture, 90), 'front', 'A camera facing against our course is «в лицо»');
+    const cross = mk('N');
+    assert.strictEqual(at(cross), null, 'A verified camera looking across the road does not warn');
+    assert.strictEqual(cross.diagnostic().nearestReject, 'DIRECTION');
 }
 // 5. Standing still never admits a new nearby warning.
 {
@@ -84,6 +90,23 @@ function checkId(value, id, message) { assert(value && value.id === id, message 
         t += 1000;
     }
     assert.strictEqual(g.diagnostic().mode, 'nearby');
+}
+// 7b. Anti-flicker floor: right after the card appears, three quick distance
+// growths (noise, a turn) may not withdraw it; passing (BEHIND) still clears.
+{
+    const g = engine.createGuidance({ zones: [], records: [record('n', 0, 0)], nearby: true });
+    checkId(step(g, -220, 1000), 'n');
+    checkId(step(g, -230, 1500), 'n');
+    checkId(step(g, -240, 2000), 'n');
+    checkId(step(g, -250, 2500), 'n', 'the three-second show floor keeps the card through quick recession noise');
+    assert.strictEqual(g.diagnostic().mode, 'nearby');
+    // After the floor expires the same recession releases it honestly.
+    assert.strictEqual(step(g, -300, 6000), null, 'past the floor the release applies');
+    assert.strictEqual(g.diagnostic().lastClear.reason, 'RECEEDING');
+    const pass = engine.createGuidance({ zones: [], records: [record('n', 0, 0)], nearby: true });
+    checkId(step(pass, -50, 1000), 'n');
+    assert.strictEqual(step(pass, 30, 1500), null, 'passing the camera clears inside the floor');
+    assert.strictEqual(pass.diagnostic().lastClear.reason, 'BEHIND');
 }
 // 8. The 19 road zones still work unchanged with nearby mode enabled.
 {

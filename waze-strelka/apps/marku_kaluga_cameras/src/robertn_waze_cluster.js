@@ -66,6 +66,7 @@ const cameraDiagnostics = require('./diagnostics_view.js');
 const { BmwGpsBridge } = require('./bmw_gps_bridge.js');
 const { BmwNavigationBridge } = require('./bmw_navigation_bridge.js');
 const { BmwHoldBridge } = require('./bmw_hold_bridge.js');
+const { BmwGongPlayer } = require('./bmw_gong_player.js');
 const { CameraMoveRepeater } = require('./camera_move_repeater.js');
 
 const logger = logging.getSDKLogger();
@@ -124,8 +125,11 @@ const CAMERA_NAMES = ['cameraStatus','cameraDatabase','cameraDate','cameraCovera
     'cameraOverspeedCommand','cameraOverspeedCommandMore','cameraOverspeedResultMore'];
 const PREFERENCE_NAMES = ['cameraPreferencesHead','cameraWarningDistance','cameraPreferencesStatus','cameraPreferencesHint']
     .concat(cameraView.ALERT_TYPES.map(type=>'cameraType_'+type.key));
-const OVERSPEED_CHECKS = {cameraVisualFlash:'visualFlash',cameraSoundEnabled:'soundEnabled'};
-const OVERSPEED_SLIDERS = {cameraVisualOffset:{key:'visualOffsetKmh',label:'Порог мигания'},cameraSoundOffset:{key:'soundOffsetKmh',label:'Порог звука'}};
+const SOUND_REPEAT_VALUES = [0, 3, 5, 10];
+const OVERSPEED_CHECKS = {cameraVisualFlash:'visualFlash',cameraSoundEnabled:'soundEnabled',cameraSoundAppear:'soundOnCameraAppear'};
+const OVERSPEED_SLIDERS = {cameraVisualOffset:{key:'visualOffsetKmh',label:'Порог мигания',max:30},cameraSoundOffset:{key:'soundOffsetKmh',label:'Порог звука',max:30},
+    cameraSoundDistance:{key:'soundDistanceM',label:'Дистанция контроля',max:12,format:v=>v+' м'},
+    cameraSoundRepeat:{key:'soundRepeatSec',label:'Повтор сигнала',max:3,format:v=>v===0?'однократно':'каждые '+v+' с',fromSlider:v=>SOUND_REPEAT_VALUES[v],toSlider:v=>Math.max(0,SOUND_REPEAT_VALUES.indexOf(v))}};
 const OVERSPEED_NAMES = ['cameraOverspeedHead','cameraOverspeedRecommended','cameraOverspeedStatus','cameraOverspeedHint',
     'cameraAudioStatus','cameraGpsReset','cameraGpsResetHint'].concat(Object.keys(OVERSPEED_CHECKS),Object.keys(OVERSPEED_SLIDERS));
 const CARD_MOVE_NAMES = {up:'cameraCardUp',down:'cameraCardDown',left:'cameraCardLeft',right:'cameraCardRight'};
@@ -197,8 +201,10 @@ class WazeClusterApp extends OnlineApp {
         this._cameraState = null;
         this._cameraInfoMode = null;
         this._cameras = new CameraControl();
-        this._cameras.on('change', () => { this._refreshCameraFeedback(); this._renderCameras(); this._renderHudOpacity(); });
+        this._cameras.on('change', () => { this._refreshCameraFeedback(); this._renderCameras(); this._renderHudOpacity(); this._handleAudioRequest(); });
         this._gpsBridge = new BmwGpsBridge({ builders: someipBuilders });
+        this._gongPlayer = new BmwGongPlayer({ builders: someipBuilders });
+        this._lastAudioSeq = null;
         this._navigationBridge = new BmwNavigationBridge({builders:someipBuilders,control:this._gpsBridge.control});
         this._gpsBridge.on('change', () => this._syncActivity());
         this._holdBridge=new BmwHoldBridge({builders:someipBuilders});
@@ -226,12 +232,25 @@ class WazeClusterApp extends OnlineApp {
         });
     }
 
+    _handleAudioRequest() {
+        const state = this._cameras.state;
+        if (!state || !state.audioRequest) return;
+        const req = state.audioRequest;
+        if (this._lastAudioSeq === req.seq) return;
+        this._lastAudioSeq = req.seq;
+        this._gongPlayer.play(req).then(
+            () => this._cameras.send({ cmd: 'audio-played', seq: req.seq, played: true }),
+            (error) => this._cameras.send({ cmd: 'audio-played', seq: req.seq, played: false,
+                reason: String(error && error.message || error).slice(0, 160) }));
+    }
+
     _appInitialized() {
         logger.info(`robertn_waze_cluster ${this.getAppId()} v${this._packageJson.version} starting`);
         this._profiles.start();
         // Never await GPS for RHMI startup. Its separate local IPC client and
         // background hold survive leaving this screen for CarPlay.
         Promise.resolve().then(() => { this._gpsBridge.start(); this._navigationBridge.start(); this._holdBridge.start(); }).catch(() => logger.warn('BMW context bridge start failed'));
+        Promise.resolve().then(() => this._gongPlayer.probe()).catch(() => logger.warn('BMW gong probe failed'));
         if (!this.rhmiApplication) {
             logger.info('no RhmiApplication for this start reason; initializing without a screen');
             return Promise.resolve(this.initialized()).then(() => this._syncActivity());
@@ -409,9 +428,11 @@ class WazeClusterApp extends OnlineApp {
             });
         });
         Object.keys(OVERSPEED_SLIDERS).forEach(name=>this._components[name].on('changed',step=>{
-            const prefs=cameraView.overspeedPreferences(this._cameras.state),key=OVERSPEED_SLIDERS[name].key;
-            if(prefs.available&&Number.isInteger(step)&&step>=0&&step<=30&&step!==prefs[key]){
-                const patch={cmd:'overspeed-preferences'};patch[key]=step;this._cameraCommand(patch);
+            const config=OVERSPEED_SLIDERS[name],prefs=cameraView.overspeedPreferences(this._cameras.state),key=config.key;
+            if(!prefs.available||!Number.isInteger(step)||step<0||step>(config.max!==undefined?config.max:30))return;
+            const value=typeof config.fromSlider==='function'?config.fromSlider(step):step;
+            if(Number.isInteger(value)&&value!==prefs[key]){
+                const patch={cmd:'overspeed-preferences'};patch[key]=value;this._cameraCommand(patch);
             }
             delete this._written['cell:'+name+':0:Value'];setImmediate(()=>this._renderOverspeedPreferences());
         }));
@@ -1209,13 +1230,16 @@ class WazeClusterApp extends OnlineApp {
             'Знак не меняется. 60/+20: сигнал только свыше 80 км/ч');
         this._write('cameraVisualFlash','Мигание при превышении');
         this._write('cameraSoundEnabled','Включать звуковой сигнал');
+        this._write('cameraSoundAppear','Сигнал при появлении камеры');
         Object.keys(OVERSPEED_CHECKS).forEach(name=>{
             this._setEnabled(name,prefs.available);this._setSelected(name,prefs.available?prefs[OVERSPEED_CHECKS[name]]:false);
         });
         Object.keys(OVERSPEED_SLIDERS).forEach(name=>{
-            const config=OVERSPEED_SLIDERS[name];
-            this._writeCell(name,'TextDescription',config.label+': '+(prefs.available?'+'+prefs[config.key]+' км/ч':'нет подтверждённых данных'),'Text',0);
-            this._writeCell(name,'Value',prefs.available?prefs[config.key]:0,'SInt',0);
+            const config=OVERSPEED_SLIDERS[name],value=prefs.available?prefs[config.key]:null;
+            const shown=config.toSlider&&value!==null?config.toSlider(value):value;
+            this._writeCell(name,'TextDescription',config.label+': '+(value===null?'нет подтверждённых данных':
+                config.format?config.format(value):'+'+value+' км/ч'),'Text',0);
+            this._writeCell(name,'Value',value===null?0:shown,'SInt',0);
             this._setEnabled(name,prefs.available);
         });
         this._write('cameraAudioStatus','Звук '+(prefs.audioAvailable?'доступен':'недоступен')+': '+prefs.audioReason);

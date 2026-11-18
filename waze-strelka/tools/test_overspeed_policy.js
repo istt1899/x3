@@ -1,10 +1,11 @@
 'use strict';
 var assert=require('assert'),p=require('../native/marku-kaluga-cameras/files/warning-policy');
 var now=100000,fix={lat:54,lon:36,timeMs:now,motionTimeMs:now,accuracyM:5,speedKmh:60},alert={id:'a',roadConfirmed:true,limitKmh:60};
-assert.deepStrictEqual(p.normalize(),{visualFlash:true,visualOffsetKmh:0,soundEnabled:false,soundOffsetKmh:20});
-assert.strictEqual(p.normalize(Object.create({soundEnabled:true})).soundEnabled,false);
-assert.deepStrictEqual(p.patch(p.DEFAULTS,{soundEnabled:true}),{visualFlash:true,visualOffsetKmh:0,soundEnabled:true,soundOffsetKmh:20});
-[{soundOffsetKmh:2.5},{soundOffsetKmh:31},{visualFlash:'true'},{what:1},null].forEach(function(v){assert.throws(function(){p.patch(p.DEFAULTS,v);});});
+assert.deepStrictEqual(p.normalize(),{visualFlash:true,visualOffsetKmh:0,soundEnabled:true,soundOffsetKmh:20,soundDistanceM:400,soundRepeatSec:5,soundOnCameraAppear:false});
+assert.strictEqual(p.normalize(Object.create({soundEnabled:false})).soundEnabled,true);
+assert.deepStrictEqual(p.patch(p.DEFAULTS,{soundEnabled:true,soundDistanceM:100,soundRepeatSec:10,soundOnCameraAppear:true}),{visualFlash:true,visualOffsetKmh:0,soundEnabled:true,soundOffsetKmh:20,soundDistanceM:100,soundRepeatSec:10,soundOnCameraAppear:true});
+assert.throws(function(){p.patch(p.DEFAULTS,null);});assert.throws(function(){p.patch(p.DEFAULTS,{what:1});});
+[{soundOffsetKmh:2.5},{soundOffsetKmh:31},{visualFlash:'true'},{soundDistanceM:120},{soundDistanceM:750},{soundRepeatSec:4},{soundOnCameraAppear:'да'}].forEach(function(v){assert.throws(function(){p.patch(p.DEFAULTS,v);});});assert.strictEqual(p.patch(p.DEFAULTS,{soundDistanceM:700,soundRepeatSec:3}).soundDistanceM,700);
 [60,60.1,80,80.1,81,82].forEach(function(v){var r=p.evaluate(alert,Object.assign({},fix,{speedKmh:v}),now);assert.strictEqual(r.overspeed,v>60);assert.strictEqual(r.soundExceeded,v>80);assert.strictEqual(r.flashActive,v>60);assert.strictEqual(r.limitKmh,60);});
 assert.strictEqual(p.evaluate(alert,Object.assign({},fix,{speedKmh:80.1}),now).displayBoundaryKmh,80);
 assert.strictEqual(p.evaluate(alert,Object.assign({},fix,{speedKmh:60.1}),now).displayBoundaryKmh,60);
