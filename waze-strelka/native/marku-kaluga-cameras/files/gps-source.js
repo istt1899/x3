@@ -225,10 +225,11 @@ function GpsProvider(options) {
 }
 GpsProvider.prototype = Object.create(EventEmitter.prototype);
 GpsProvider.prototype.constructor = GpsProvider;
-GpsProvider.prototype.setBridgeStatus = function (state, errorCode) {
+GpsProvider.prototype.setBridgeStatus = function (state, errorCode, reason) {
   if (BRIDGE_STATES.indexOf(state) < 0) throw new Error('GPS_BRIDGE_STATE_INVALID');
   if (errorCode !== undefined && errorCode !== null && (typeof errorCode !== 'string' || !/^[A-Z0-9_.-]{1,48}$/.test(errorCode))) errorCode = 'GPS_BRIDGE_ERROR';
-  this.bridge = { state: state, errorCode: state === 'error' || state === 'unavailable' ? errorCode || null : null, changedAt: this.now() };
+  this.bridge = { state: state, errorCode: state === 'error' || state === 'unavailable' ? errorCode || null : null, changedAt: this.now(),
+    reason: typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, 160) : null };
   if (state !== 'subscribed') {
     this.bmwDecoder.rmc = this.bmwDecoder.gga = this.bmwDecoder.gst = null;
     this.bmwDecoder.last['bmw-nmea'] = null;
@@ -329,7 +330,7 @@ GpsProvider.prototype.diagnostics = function (now) {
       sourceUtc: iso(sourceUtc), sourceDeltaMs: delta, lastPacketAgeMs: receiptDelta !== null && receiptDelta >= 0 ? receiptDelta : null,
       packetReceiptDeltaMs: receiptDelta, receiptClockDiscontinuity: receiptDelta === null ? null : receiptDelta < 0,
       admissionAfterUtcMs: number(cutoff) ? cutoff : null, admissionAfterUtc: iso(cutoff), issue: issue, reason: reason },
-    gpsBridge: { state: this.bridge.state, errorCode: this.bridge.errorCode, ageMs: age(this.bridge.changedAt) },
+    gpsBridge: { state: this.bridge.state, errorCode: this.bridge.errorCode, ageMs: age(this.bridge.changedAt), reason: this.bridge.reason || null },
     gpsInput: { source: 'bmw-nmea', packets: this.input.packets, badPackets: this.input.badPackets, checksumErrors: this.input.checksumErrors,
       sentences: Object.assign({}, this.input.sentences), lastPacketAgeMs: age(this.input.lastPacketAt), fixUtcAgeMs: age(this.input.fixUtc),
       sourceUtcAgeMs: this.bmwDecoder.lastParsedUtc === null ? null : now - this.bmwDecoder.lastParsedUtc,

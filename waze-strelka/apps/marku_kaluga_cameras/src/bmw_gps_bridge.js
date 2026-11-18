@@ -65,8 +65,16 @@ class BmwGpsBridge extends EventEmitter {
         if (!force && this.sent === key) return;
         this.sent = key;
         try {
-            if (!this.control.send({ cmd: 'gps-bridge', state: this.state, errorCode: this.errorCode })) this.sent = null;
+            if (!this.control.send({ cmd: 'gps-bridge', state: this.state, errorCode: this.errorCode, reason: this.reasonText() })) this.sent = null;
         } catch (error) { this.sent = null; }
+    }
+    reasonText() {
+        switch (this.state) {
+            case 'subscribed': return 'Мост GPS BMW работает';
+            case 'starting': return 'Мост GPS подключается к BMW';
+            case 'stopped': return 'Мост не запущен: приложение не стартовало или остановлено';
+            default: return this.errorCode ? 'Мост GPS недоступен: ' + this.errorCode : 'Мост GPS недоступен';
+        }
     }
     controlChanged() {
         const up = this.control.link === 'up';

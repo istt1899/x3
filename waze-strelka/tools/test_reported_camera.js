@@ -25,7 +25,7 @@ assert.strictEqual(nearest.reportStatus, 'unverified'); assert.strictEqual(neare
 assert.strictEqual(nearest.positionSourceUrl, 'https://www.openstreetmap.org/node/277492125');
 assert(nearest.title.includes('тип не подтверждён')); assert(nearest.description.includes('сообщение владельца'));
 const g = createGuidance({ zones: [], records: db.records });
-const fix = { lat: intersection.lat + .00025, lon: intersection.lon, timeMs: 1000, speedKmh: 0, headingDeg: null, accuracyM: 5 };
+const fix = { lat: intersection.lat + .00025, lon: intersection.lon, timeMs: 1000, speedKmh: 19, headingDeg: 180, accuracyM: 5 };
 const notice = g.evaluate(fix, 1000, true);
 assert(notice && notice.id === report.id && notice.confidence === 'nearby' && notice.roadConfirmed === false);
 assert.strictEqual(notice.limitKmh, null); assert.deepStrictEqual(notice.controls, []);

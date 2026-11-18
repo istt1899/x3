@@ -2,7 +2,7 @@
 const cameraView = require('./view_model.js');
 const KEYS = ['stamp','versions','service','health','nmeaPair','nmeaRmc','nmeaGga','nmeaGst','nmeaRmcGga','nmeaGgaGst',
     'position','fixUtc','age','accuracy','motion','gnss','bridge','counts','reject','navigation','gpsStatus','gpsStatusMore','rejectReason',
-    'nearest','type','description','descriptionMore','limit','mode','reason','way','samples','alert','outputs','map','hud','test','dimmer','database','error','errorMore'];
+    'nearest','type','description','descriptionMore','limit','mode','reason','way','samples','candidates','alert','outputs','map','hud','test','dimmer','database','error','errorMore'];
 const REASONS = { WAITING_GPS:'Ожидание GPS', GPS_INVALID:'Нет свежей точной позиции', DISABLED:'Предупреждения выключены', GPS_REPLAY:'UTC пришёл в обратном порядке',
     WAITING_MOTION:'Ожидание движения', WAITING_APPROACH:'Нужны две позиции подъезда', NO_ROAD_ZONE:'Для объекта нет дорожной зоны',
     OUT_OF_RANGE:'Вне дистанции предупреждения', OFF_ROAD:'Позиция вне дорожного коридора', CAMERA_WAY_MISSING:'Ближайшая дорога не связана с камерой',
@@ -12,7 +12,9 @@ const REASONS = { WAITING_GPS:'Ожидание GPS', GPS_INVALID:'Нет све
     TYPE_FILTERED:'Тип камеры выключен в настройках', TYPE_DISABLED:'Тип камеры выключен в настройках', ALL_TYPES_DISABLED:'Все типы камер выключены',
     CAMERA_PASSED:'Камера пройдена', ROAD_CHANGED:'Выбрана другая дорога', APPROACH_LOST:'Подъезд больше не подтверждается',
     ACCURACY_EXCEEDS_30M:'Точность хуже 30 м при удержании предупреждения',
-    POSITION_JUMP:'Скачок расстояния несовместим с движением', BEARING_CHANGED:'Направление на камеру изменилось' };
+    POSITION_JUMP:'Скачок расстояния несовместим с движением', BEARING_CHANGED:'Направление на камеру изменилось',
+    STATIONARY:'Остановка: новые «рядом» не включаются', COURSE_UNKNOWN:'Курс неизвестен', BEHIND:'Камера позади',
+    OFF_COURSE:'Вне сектора 40° впереди', DIRECTION:'Камера смотрит в другую сторону', RECEEDING:'Камера остаётся позади: расстояние растёт' };
 const TYPES = {speed:'Контроль скорости',redlight:'Контроль светофора',average:'Средняя скорость'};
 const clean = v => v === null || v === undefined || v === '' ? '—' : String(v).replace(/[\r\n\t]/g,' ');
 const n = (v, digits) => Number.isFinite(v) ? v.toFixed(digits === undefined ? 1 : digits) : '—';
@@ -41,7 +43,7 @@ function values(state, version, frozen) {
             f.accuracySource === 'bmw-road-match' ? 'дорожная привязка BMW' : '—') + ' • ' + clean(f.source),
         motion:'Скорость ' + n(f.speedKmh) + ' км/ч • курс ' + n(f.headingDeg) + '°',
         gnss:'GGA ' + clean(f.quality) + ' • спутники ' + clean(f.satellites) + ' • HDOP ' + n(f.hdop,2),
-        bridge:'GPS-интерфейс: ' + clean(b.state) + (b.errorCode ? ' • '+clean(b.errorCode) : ''),
+        bridge:'GPS-интерфейс: ' + clean(b.state) + (b.errorCode ? ' • '+clean(b.errorCode) : '') + (b.reason ? ' • '+clean(b.reason) : ''),
         counts:'RMC ' + clean(kinds.RMC) + ' • GGA ' + clean(kinds.GGA) + ' • GST ' + clean(kinds.GST),
         reject:'Ошибки checksum ' + clean(input.checksumErrors) + ' • пакетов ' + clean(input.badPackets),
         navigation:'Навигация BMW: ' + clean(nav.state) + ' • принято ' + clean(nav.accepted) + ' • отклонено ' + clean(nav.rejected) + ' • ' + clean(nav.reason),
@@ -55,6 +57,7 @@ function values(state, version, frozen) {
         reason:'Дорожный фильтр: ' + clean(REASONS[g.roadReason || g.reason] || g.roadReason || g.reason),
         way:'Дорога OSM: ' + clean(g.way) + ' • отклонение ' + n(g.lateralErrorM) + ' м',
         samples:'Подъезд: ' + clean(g.approachSamples) + ' позиции • зоны ' + clean(g.zoneCount) + '/' + clean(g.cameraCount),
+        candidates:'«Рядом»: кандидатов в радиусе ' + clean(g.candidateCount) + ' • отказ ближайшего: ' + clean(REASONS[g.nearestReject] || g.nearestReject),
         alert:'Уведомление: ' + (a ? clean(a.title) + ' • ' + clean(a.confidence) : 'нет активного'),
         outputs:'Выходы: приборы ' + on(o.cluster) + ' • HUD ' + on(o.hud), map:'Приборы: '+layer('map'), hud:'HUD: '+layer('hud'),
         test:'Тест вывода: ' + (s.displayTest && s.displayTest.active ? s.displayTest.pinned?
@@ -218,7 +221,7 @@ function reportPage(report, live, version, pageIndex, blockIndex, localResult, c
             'Контроль: '+clean(c.captureDirectionVerified?{front:'спереди',rear:'сзади',both:'спереди и сзади'}[c.captureDirection]||'направление неизвестно':'направление неизвестно')+' • источник '+clean(c.captureDirectionSource),
             cameraView.cameraFacing(c),
             'Ориентация объектива — полные данные: '+JSON.stringify(c.cameraFacing||null),
-            existing.mode,existing.reason,existing.way,existing.samples,
+            existing.mode,existing.reason,existing.way,existing.samples,existing.candidates,
             'Переход: '+clean(transition.from)+' → '+clean(transition.to)+' • '+clean(transition.reason),
             'Объект перехода: '+clean(transition.cameraId)+' • UTC '+utc(transition.timeMs),
             'Переход — полные данные: '+JSON.stringify(g.transition||null),

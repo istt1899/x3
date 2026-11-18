@@ -57,10 +57,13 @@ for(const route of fixture.routes.filter(r=>r.approachAllowed)) {
     tested++;
 }
 assert.strictEqual(tested,3);
-// Cameras lacking a road zone still give honest proximity information.
+// Cameras lacking a road zone still give honest proximity information, but
+// only to a moving car: a stationary fix never admits a new nearby warning.
 const missing=db.records.find(r=>!zones.some(z=>z.id===r.id));
 const g=createGuidance({zones:[],records:[missing]});
 let fix={lat:missing.position.lat+.00025,lon:missing.position.lon,timeMs:now,speedKmh:0,headingDeg:null,accuracyM:5};
+assert.strictEqual(g.evaluate(fix,now,true),null,'A stationary fix must not admit a new nearby warning');
+fix=Object.assign({},fix,{speedKmh:36,headingDeg:180});
 const notice=g.evaluate(fix,now,true);assert(notice&&notice.confidence==='nearby'&&notice.roadConfirmed===false&&notice.limitKmh===null);
 assert.strictEqual(g.evaluate(Object.assign({},fix,{accuracyM:null}),now,true),null);
 assert.strictEqual(g.evaluate(fix,now,false),null);

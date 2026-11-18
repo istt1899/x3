@@ -35,6 +35,9 @@ function patch(previous,partial){
 }
 function matches(record,preferences){
  if(!object(record))return false;
+ // The owner's own reported cameras carry no confirmed type; they warn
+ // regardless of type switches, which only filter classified source records.
+ if(record.provenance==='owner-report')return true;
  var prefs=normalize(preferences),safe={type:record.type};
  if(own(record,'controls'))safe.controls=Array.isArray(record.controls)?record.controls.filter(function(value){return typeof value==='string';}):[];
  if(object(record.officialSiteContext)&&record.officialSiteContext.scope==='enforcement-location'&&Array.isArray(record.officialSiteContext.controls))safe.officialSiteContext={scope:'enforcement-location',controls:record.officialSiteContext.controls.filter(function(value){return typeof value==='string';})};

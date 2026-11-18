@@ -130,7 +130,7 @@ assert.strictEqual(popova.captureSide, 'unknown');
 assert.strictEqual(popova.bearingDeg, null);
 assert.strictEqual(popova.hardwareModel, null);
 var popovaFix = { lat: popova.position.lat, lon: popova.position.lon, timeMs: startTime + 400000,
-    speedKmh: 0, headingDeg: null, accuracyM: 5 };
+    speedKmh: 36, headingDeg: 0, accuracyM: 5 };
 var popovaAlert = createGuidance(bundle).evaluate(popovaFix, popovaFix.timeMs, true);
 assert(popovaAlert && popovaAlert.id === popova.id);
 assertOfficialContext(popovaAlert, popova.id);

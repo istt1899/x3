@@ -23,6 +23,20 @@ function clockSnapshot(now, input) {
 function navigationAccuracyReady(f) {
   return f && f.source === 'bmw-navigation' && f.accuracySource === 'bmw-road-match';
 }
+/* Why the BMW GPS bridge gives no position, in plain words for the status. */
+function bridgeReason(b) {
+  if (!b || typeof b !== 'object') return null;
+  if (b.reason && typeof b.reason === 'string') return b.reason.slice(0, 160);
+  if (b.state === 'subscribed') return 'Мост GPS BMW работает';
+  if (b.state === 'starting') return 'Мост GPS подключается к SatellitePositioning';
+  if (b.state === 'stopped' || b.state === null || b.state === undefined) return 'Мост не запущен: приложение не стартовало или остановлено';
+  var codes = { GPS_EVENT_TIMEOUT: 'События GPS не приходят; подписка перезапускается', GPS_PROXY_TIMEOUT: 'GPS-прокси BMW не отвечает',
+    GPS_SUBSCRIPTION_TIMEOUT: 'Подписка на GPS не подтверждена', GPS_RETRY_CAPACITY_LIMIT: 'Исчерпаны повторы подключения GPS; перезапустите приложение',
+    GPS_EVENT_UNAVAILABLE: 'Событие updatePosition недоступно в этом SDK', GPS_PROXY_UNAVAILABLE: 'SDK не предоставляет прокси GPS',
+    NMEA_PAYLOAD_INVALID: 'Пакет NMEA от BMW невалиден' };
+  if (b.errorCode && codes[b.errorCode]) return codes[b.errorCode];
+  return 'Мост GPS недоступен' + (b.errorCode ? ': ' + String(b.errorCode).slice(0, 48) : '');
+}
 function validPosition(f, now, accuracyLimit) {
   var accurate = f && ((Number.isFinite(f.accuracyM) && f.accuracyM > 0 && f.accuracyM <= (accuracyLimit || 15)) || navigationAccuracyReady(f));
   return f && [f.timeMs, f.lat, f.lon, now].every(Number.isFinite) && Math.abs(f.lat) <= 90 &&
@@ -82,7 +96,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.8.5', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.8.6', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -94,7 +108,7 @@ function start(options) {
     hudDimming: 'unavailable', capabilities: { outputs: false, update: false, hudOpacity: false, displayTest: false, alertPreferences: true, overspeedPreferences: true, gpsReset: false },
     rendererDetails: {}, displayTest: { active: false, pinned: false, target: null, calibration: false, untilMs: 0 },
     gps: 'Ожидание моста GPS BMW', gpsFix: null, gpsMotion: { state:'unknown', conflict:false, roadMismatch:false, sources:[] }, clock: clockSnapshot(Date.now(), null),
-    gpsBridge: { state: 'stopped', errorCode: null, ageMs: null },
+    gpsBridge: { state: 'stopped', errorCode: null, ageMs: null, reason: 'Мост не запущен: приложение не стартовало или остановлено' },
     gpsNavigation: { source: 'bmw-navigation', state: 'unavailable', updates: 0, accepted: 0, rejected: 0, lastUpdateAgeMs: null, reason: 'Позиция навигации BMW ещё не получена' },
     gpsInput: { source: 'bmw-nmea', packets: 0, badPackets: 0, checksumErrors: 0, sentences: { RMC: 0, GGA: 0, GST: 0 }, lastPacketAgeMs: null, fixUtcAgeMs: null },
     database: { state: 'error', source: 'OpenStreetMap', count: 0, error: null },
@@ -272,6 +286,7 @@ function start(options) {
     state.clock = clockSnapshot(now, null);
     if (typeof gps.diagnostics === 'function') {
       var gpsDiagnostics = gps.diagnostics(now); state.gpsBridge = gpsDiagnostics.gpsBridge; state.gpsInput = gpsDiagnostics.gpsInput;
+      if (state.gpsBridge) state.gpsBridge.reason = bridgeReason(state.gpsBridge);
       if (gpsDiagnostics.gpsNavigation) state.gpsNavigation = gpsDiagnostics.gpsNavigation;
       state.clock = clockSnapshot(now, gpsDiagnostics.clock);
     }
@@ -436,8 +451,9 @@ function start(options) {
       gps.inputNmea(msg.data); tick(); return;
     }
     if (msg.cmd === 'gps-bridge') {
+      if (typeof msg.reason !== 'undefined' && typeof msg.reason !== 'string') throw new Error('GPS_BRIDGE_REASON_INVALID');
       if (typeof gps.setBridgeStatus !== 'function') throw new Error('GPS_BRIDGE_UNAVAILABLE');
-      gps.setBridgeStatus(msg.state, msg.errorCode); tick(); return;
+      gps.setBridgeStatus(msg.state, msg.errorCode, msg.reason); tick(); return;
     }
     var next = nextSettings();
     if (msg.cmd === 'enable' || msg.cmd === 'disable') next.enabled = msg.cmd === 'enable';

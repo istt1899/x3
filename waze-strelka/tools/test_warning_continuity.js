@@ -123,16 +123,26 @@ const passFallback = admitted({nearby: true}); step(passFallback, -480, 3000);
 for (let x = -460, t = 4000; x <= 0; x += 20, t += 1000) step(passFallback, x, t);
 assert.strictEqual(step(passFallback, 5, 28000), null); assert.strictEqual(step(passFallback, 6, 29000, null, {speedKmh: 0, headingDeg: null}), null, 'Proximity fallback must not resurrect a passed camera at a stop');
 
-// Nearby-only entry/exit margins are bounded. They never become road proof.
-const vicinity = create({zones: [], nearby: true}); step(vicinity, -520, 1000, null, {lat: position(0, 16).lat});
-assert.strictEqual(checkId(step(vicinity, -500, 2000, null, {lat: position(0, 16).lat}), 'a').roadConfirmed, false);
-checkId(step(vicinity, -480, 3000, null, {lat: position(0, 19).lat}), 'a', 'Nearby lateral jitter inside the exit margin must not flicker');
+// Nearby (zone-less) entry and exit follow the 0.8.6 contract: motion plus the
+// 40° ahead cone admit; the camera behind, the release margin, or three
+// consecutive growing distances release. Lateral drift inside the cone keeps.
+const vicinity = create({zones: [], nearby: true});
+checkId(step(vicinity, -500, 1000, null, {lat: position(0, 16).lat}), 'a');
+checkId(step(vicinity, -480, 2000, null, {lat: position(0, 19).lat}), 'a', 'Lateral jitter inside the cone keeps the warning');
 assert.strictEqual(vicinity.diagnostic().reason, 'NEARBY_TRACKING');
-assert.strictEqual(step(vicinity, -460, 4000, null, {lat: position(0, 24).lat}), null, 'Nearby exit margin is bounded');
-assert.strictEqual(vicinity.diagnostic().lastClear.reason, 'BEARING_CHANGED');
-const angular = create({zones: [], nearby: true}); step(angular, -220, 1000, null, {headingDeg: 86}); checkId(step(angular, -200, 2000, null, {headingDeg: 86}), 'a');
+assert.strictEqual(step(vicinity, 20, 3000, null, {lat: position(0, 16).lat}), null, 'A passed camera ends the warning');
+assert.strictEqual(vicinity.diagnostic().lastClear.reason, 'BEHIND');
+const recede = create({zones: [], nearby: true});
+checkId(step(recede, -200, 1000, null, {accuracyM: 8}), 'a');
+checkId(step(recede, -205, 2000, null, {accuracyM: 8}), 'a', 'One growing sample keeps the warning');
+checkId(step(recede, -210, 3000, null, {accuracyM: 8}), 'a', 'Two growing samples keep the warning');
+assert.strictEqual(step(recede, -213, 4000, null, {accuracyM: 8}), null, 'Three consecutive growing samples release it');
+assert.strictEqual(recede.diagnostic().lastClear.reason, 'RECEEDING');
+const angular = create({zones: [], nearby: true});
+checkId(step(angular, -220, 1000, null, {headingDeg: 86}), 'a');
+checkId(step(angular, -200, 2000, null, {headingDeg: 86}), 'a');
 checkId(step(angular, -180, 3000, null, {headingDeg: 84}), 'a');
-assert.strictEqual(step(angular, -160, 4000, null, {headingDeg: 80}), null, 'Nearby heading-derived lateral hysteresis must not retain a turn away');
+checkId(step(angular, -160, 4000, null, {headingDeg: 80}), 'a', 'A course inside the 40° cone keeps the warning');
 
 // Stable nearby identity applies only to the same control set. A closer
 // record with different controls must retain its original metadata and win.
