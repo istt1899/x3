@@ -64,13 +64,14 @@ assert.strictEqual(described.capture.source, 'osm-direction');
 
 // --- rebuilt coverage on the shipped bundle --------------------------------
 const bundle = require('./build-camera-database').bundle();
-assert.strictEqual(bundle.version, '2026.11.18.1', 'the rebuilt database carries the new version');
+assert.strictEqual(bundle.version, '2026.11.19.1', 'the rebuilt database carries the new version');
 const cov = require(path.join(base, 'database-coverage')).summarize(bundle.records, bundle.zones);
-assert.strictEqual(cov.sourceRecords, 486);
+assert.strictEqual(cov.sourceRecords, 14200);
 assert(cov.facingKnown > 100, 'facingKnown grew far beyond the old OSM-only 20: ' + cov.facingKnown);
 assert(cov.captureSideKnown >= 150, 'captureSideKnown grew beyond the old 0: ' + cov.captureSideKnown);
 const oscRecord = bundle.records.find(x => x.id === 'osc:619c87ee2aff727eb541eb5b');
-assert(oscRecord.capture && oscRecord.capture.flowDeg === 271, 'the photographed OSC point now carries its direction');
+const oscCapture = info.describe(oscRecord).capture;
+assert(oscCapture && oscCapture.flowDeg === 271, 'the photographed OSC point now carries its direction');
 // Guidance consumes it: the «в лицо» / «в спину» / cross gating is covered by
 // test_nearby_mode.js; here we only pin the data contract.
 console.log('PASS camera direction: OSM direction/relation, OpenSpeedcam flow, ГИБДД text, owner reports, driver-relative classifier, describe/coverage integration; facingKnown ' + cov.facingKnown + ' (was 20), captureSideKnown ' + cov.captureSideKnown + ' (was 0)');

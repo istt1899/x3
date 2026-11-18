@@ -10,7 +10,10 @@ export const SOURCE_URL='https://openspeedcam.net/';
 export const API_URL='https://openspeedcam.net/api/points/';
 // Generous box around the Kaluga region; region attribution is taken from the
 // point itself, neighbouring regions stay out of the snapshot.
-export const BOUNDS={x1:33.5,y1:53.3,x2:37.2,y2:55.4};
+export const BOUNDS={x1:33.2,y1:53.3,x2:40.6,y2:57.3};
+export const REGION_CODES={'Калужская область':'RU-KLU','Москва':'RU-MOW','Московская область':'RU-MOS','МО':'RU-MOS'};
+export const ACCEPTED_REGIONS=Object.keys(REGION_CODES);
+export const REGIONS=Object.values(REGION_CODES).filter((value,index,all)=>all.indexOf(value)===index);
 export const IMPORTED_KINDS=['static_cam','speed_cam','control_cam_red','video_control','dummy','stationary_porst_dps'];
 export const MOBILE_KINDS=['mobile_ambush','rec_policeman'];
 const ALL_TYPES=['static_cam','control_cam_red','speed_cam','mobile_ambush','dummy','traffic_control_ot','video_control',
@@ -40,6 +43,7 @@ function normalizePoint(point){
         pedestrians:'pedestrians',overtaking:'overtaking',inBack:'inBack'};
     for(const[key,field]of Object.entries(flagSource))flags[key]=point[field]===true;
     return{id:'osc:'+point._id,kind:point.type,subType:text(point.subType,64)?point.subType:null,
+        region:REGION_CODES[point.region]||null,
         position:{lat:point.y,lon:point.x},
         limitKmh:Number.isInteger(point.speed)&&point.speed>=5&&point.speed<=180?point.speed:null,
         dirType:[0,1,2].includes(point.dirType)?point.dirType:null,
@@ -56,15 +60,15 @@ export function normalizeSnapshot(points,meta){
     for(const point of points){
         const region=typeof point?.region==='string'?point.region:'';
         const kind=typeof point?.type==='string'?point.type:'unknown';
-        if(!/^Калужская область$/i.test(region)){excluded.push({id:/^[a-f0-9]{24}$/.test(point?._id||'')?point._id:null,kind,reason:'other-region'});continue;}
+        if(ACCEPTED_REGIONS.indexOf(region)<0){excluded.push({id:/^[a-f0-9]{24}$/.test(point?._id||'')?point._id:null,kind,reason:'other-region'});continue;}
         if(!IMPORTED_KINDS.includes(kind)){excluded.push({id:point._id,kind,reason:MOBILE_KINDS.includes(kind)?'mobile-or-typical-location':'non-enforcement-poi'});continue;}
         const record=normalizePoint(point);
         if(!record){excluded.push({id:point?._id||null,kind,reason:'invalid-point'});continue;}
-        if(record.position.lat<53||record.position.lat>56||record.position.lon<33||record.position.lon>38){excluded.push({id:point._id,kind,reason:'outside-region-bounds'});continue;}
+        if(record.position.lat<53||record.position.lat>57.3||record.position.lon<33||record.position.lon>40.6){excluded.push({id:point._id,kind,reason:'outside-region-bounds'});continue;}
         if(ids.has(record.id)){excluded.push({id:point._id,kind,reason:'duplicate-id'});continue;}
         ids.add(record.id);records.push(record);
     }
-    return{schema:1,kind:'openspeedcam-snapshot',source:'OpenSpeedcam',region:'RU-KLU',sourceUrl:SOURCE_URL,apiUrl:API_URL,
+    return{schema:1,kind:'openspeedcam-snapshot',source:'OpenSpeedcam',region:'RU-KLU',regions:REGIONS.slice(),sourceUrl:SOURCE_URL,apiUrl:API_URL,
         retrievedAt:meta.retrievedAt,bounds:Object.assign({},meta.bounds||BOUNDS),rawSha256:meta.rawSha256||null,rawBytes:meta.rawBytes||null,
         reuse:{attributionRequired:true,statement:'OpenSpeedcam — свободно редактируемая открытая база точек; все точки доступны для исправления, обновления и загрузки.',statementUrl:SOURCE_URL},
         counts:{fetched:points.length,imported:records.length,excluded:excluded.length},records,excluded};

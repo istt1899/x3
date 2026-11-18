@@ -3,8 +3,11 @@
 var fs = require('fs'), path = require('path'), https = require('https'), crypto = require('crypto');
 var URL = require('url').URL;
 // Separate data channel: older clients only understand the OSM/owner schema.
-var SOURCE = 'https://raw.githubusercontent.com/istt1899/bmw-kaluga-cameras/main/data/manifest-v2.json';
-var MAX_BUNDLE = 8 * 1024 * 1024, MAX_MANIFEST = 64 * 1024, MAX_RECORDS = 20000, TIMEOUT = 15000;
+/* 0.9.0: publications moved to istt1899/x3 per the owner's 09.11.2026 rule. */
+var SOURCE = 'https://raw.githubusercontent.com/istt1899/x3/main/waze-strelka/data/manifest-v2.json';
+/* 0.9.0: Moscow + Moscow oblast OSC/OSM records roughly triple the bundle;
+ * facts stay, the transport bound moves to 16 MiB (still hard-capped). */
+var MAX_BUNDLE = 16 * 1024 * 1024, MAX_MANIFEST = 64 * 1024, MAX_RECORDS = 20000, TIMEOUT = 15000;
 var CONTROLS = ['speed', 'redlight', 'average', 'stopline', 'belt', 'phone', 'lane', 'pedestrian', 'signs_marking', 'road_position'];
 var TYPES = ['speed', 'average', 'redlight', 'camera'];
 function fail(code, message) { var e = new Error(message || code); e.code = code; throw e; }
@@ -18,12 +21,13 @@ function compare(a, b) {
   return 0;
 }
 function text(s, max) { return typeof s === 'string' && s.length <= max && !/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(s); }
-function position(p) { return object(p) && number(p.lat) && number(p.lon) && p.lat >= 53 && p.lat <= 56 && p.lon >= 33 && p.lon <= 38; }
+/* 0.9.0: the database covers Kaluga plus Moscow and Moscow oblast. */
+function position(p) { return object(p) && number(p.lat) && number(p.lon) && p.lat >= 53 && p.lat <= 57.3 && p.lon >= 33 && p.lon <= 40.6; }
 function officialSource(s) { return typeof s === 'string' && /^https:\/\/xn--80aebkobnwfcnsfk1e0h\.xn--p1ai\/upload\/site40\/report\/publication\/file\/[A-Za-z0-9_-]+\.xlsx$/.test(s); }
 function communitySource(s) { return typeof s === 'string' && /^https:\/\/openspeedcam\.net\/\?point=[a-f0-9]{24}$/.test(s); }
 function sourceUrl(s) { return typeof s === 'string' && (/^https:\/\/(?:www\.)?openstreetmap\.org\/(?:node|way|relation)\/\d+$/.test(s) || officialSource(s) || communitySource(s)); }
 function inspect(o, depth, budget) {
-  if (++budget.count > 350000 || depth > 24) fail('DATA_COMPLEXITY', 'Database is too complex');
+  if (++budget.count > 1500000 || depth > 24) fail('DATA_COMPLEXITY', 'Database is too complex');
   if (typeof o === 'string' && !text(o, 4096)) fail('DATA_TEXT', 'Invalid database text');
   if (typeof o === 'number' && !isFinite(o)) fail('DATA_NUMBER');
   if (!o || typeof o !== 'object') return;
@@ -220,7 +224,7 @@ function loadActive(options) { return loadActiveResult(options).bundle; }
 function allowed(url, manifest) {
   var u; try { u = new URL(url); } catch (e) { fail('UPDATE_URL'); }
   if (u.protocol !== 'https:' || u.hostname !== 'raw.githubusercontent.com' || u.port || u.username || u.password || u.hash || u.search) fail('UPDATE_URL');
-  if (manifest ? url !== SOURCE : !/^\/istt1899\/bmw-kaluga-cameras\/[a-f0-9]{40}\/data\/camera-database-[A-Za-z0-9._-]+\.json$/.test(u.pathname)) fail('UPDATE_URL');
+  if (manifest ? url !== SOURCE : !/^\/istt1899\/(?:bmw-kaluga-cameras|x3)\/[a-f0-9]{40}\/(?:waze-strelka\/)?data\/camera-database-[A-Za-z0-9._-]+\.json$/.test(u.pathname)) fail('UPDATE_URL');
   return u;
 }
 function fetchBounded(url, max, requests, redirects) {

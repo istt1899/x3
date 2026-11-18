@@ -61,11 +61,12 @@ async function main() {
             display: { update: () => {}, status: () => 'off', close: () => {} },
             dimmer: { update: () => {}, status: () => 'off', close: () => {} } }); });
         const publicDb = app.state().database;
-        assert.strictEqual(publicDb.state, 'ready'); assert.strictEqual(publicDb.count, 486);
+        assert.strictEqual(publicDb.state, 'ready'); assert.strictEqual(publicDb.count, 14200);
         assert.strictEqual(publicDb.osmCount, 150); assert.strictEqual(publicDb.reportedCount, 1);
         assert.strictEqual(publicDb.source, 'Mixed OSM + Госавтоинспекция + сообщения владельца + OpenSpeedcam');
-        assert.strictEqual(publicDb.officialCount,152); assert.strictEqual(publicDb.openSpeedcamCount,178);
-        console.log('PASS real daemon startup advertises mixed-source database and separate OSM/reported counts');
+        assert.strictEqual(publicDb.officialCount,152); assert.strictEqual(publicDb.openSpeedcamCount,12526);
+        assert(Array.isArray(publicDb.regionalSources) && publicDb.regionalSources.length >= 1, 'regional merge provenance is public');
+console.log('PASS real daemon startup advertises mixed-source database, separate OSM/reported counts and Moscow regional provenance');
     } finally {
         if (app) app.close();
         fs.readdirSync(dir).forEach(name => fs.unlinkSync(path.join(dir, name))); fs.rmdirSync(dir);

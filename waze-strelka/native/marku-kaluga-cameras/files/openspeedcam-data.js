@@ -13,7 +13,7 @@ function pointUrl(id) { return 'https://openspeedcam.net/?point=' + id.slice(4);
 function oscSource(v) { return typeof v === 'string' && /^https:\/\/openspeedcam\.net\/\?point=[a-f0-9]{24}$/.test(v); }
 function clone(v) { return JSON.parse(JSON.stringify(v)); }
 function inspect(v, depth, budget) {
-  if (++budget.count > 350000 || depth > 24) fail('OSC_COMPLEXITY');
+  if (++budget.count > 2000000 || depth > 24) fail('OSC_COMPLEXITY');
   if (typeof v === 'string' && !text(v, 8192)) fail('OSC_TEXT');
   if (typeof v === 'number' && !isFinite(v)) fail('OSC_NUMBER');
   if (v && typeof v === 'object') Object.keys(v).forEach(function (k) { if (['__proto__', 'prototype', 'constructor'].indexOf(k) >= 0) fail('OSC_KEY'); inspect(v[k], depth + 1, budget); });
@@ -21,9 +21,13 @@ function inspect(v, depth, budget) {
 function validateSnapshot(snapshot) {
   if (!object(snapshot)) fail('OSC_SCHEMA');
   inspect(snapshot, 0, { count: 0 });
-  if (Buffer.byteLength(JSON.stringify(snapshot), 'utf8') > 8 * 1024 * 1024) fail('OSC_SIZE');
+  if (Buffer.byteLength(JSON.stringify(snapshot), 'utf8') > 24 * 1024 * 1024) fail('OSC_SIZE');
+  // 0.8.x snapshots predate the regions field: they are Kaluga-only.
+  var regions = Array.isArray(snapshot.regions) ? snapshot.regions : ['RU-KLU'];
   if (snapshot.schema !== 1 || snapshot.kind !== 'openspeedcam-snapshot' || snapshot.source !== 'OpenSpeedcam' ||
-      snapshot.region !== 'RU-KLU' || snapshot.sourceUrl !== 'https://openspeedcam.net/' || !date(snapshot.retrievedAt) ||
+      snapshot.region !== 'RU-KLU' ||
+      regions.filter(function (r) { return ['RU-KLU', 'RU-MOW', 'RU-MOS'].indexOf(r) < 0; }).length ||
+      snapshot.sourceUrl !== 'https://openspeedcam.net/' || !date(snapshot.retrievedAt) ||
       !/^[a-f0-9]{64}$/.test(snapshot.rawSha256 || '') || !Number.isInteger(snapshot.rawBytes) ||
       !Array.isArray(snapshot.records) || snapshot.records.length > 20000 || !Array.isArray(snapshot.excluded)) fail('OSC_SCHEMA');
   if (!object(snapshot.counts) || snapshot.counts.imported !== snapshot.records.length ||
@@ -32,9 +36,11 @@ function validateSnapshot(snapshot) {
   snapshot.records.forEach(function (r) {
     if (!object(r) || !/^osc:[a-f0-9]{24}$/.test(r.id || '') || ids[r.id]) fail('OSC_ID'); ids[r.id] = true;
     if (KINDS.indexOf(r.kind) < 0 || !object(r.position) || !Number.isFinite(r.position.lat) || !Number.isFinite(r.position.lon) ||
-        r.position.lat < 53 || r.position.lat > 56 || r.position.lon < 33 || r.position.lon > 38) fail('OSC_RECORD');
+        r.position.lat < 53 || r.position.lat > 57.3 || r.position.lon < 33 || r.position.lon > 40.6) fail('OSC_RECORD');
     if (r.limitKmh !== null && (!Number.isInteger(r.limitKmh) || r.limitKmh < 5 || r.limitKmh > 180)) fail('OSC_LIMIT');
     if (r.dirType !== null && [0, 1, 2].indexOf(r.dirType) < 0) fail('OSC_DIRECTION');
+    var recordRegion = r.region === undefined || r.region === null ? 'RU-KLU' : r.region;
+    if (['RU-KLU', 'RU-MOW', 'RU-MOS'].indexOf(recordRegion) < 0) fail('OSC_REGION');
     if (r.comment !== null && !text(r.comment, 250)) fail('OSC_TEXT');
     if (!object(r.flags)) fail('OSC_FLAGS');
   });
@@ -66,6 +72,7 @@ function toRecord(r) {
     limitKmh: controls.indexOf('speed') >= 0 ? r.limitKmh : null,
     directionKnown: r.dirType === 1 && r.directionDeg !== null,
     rawDirection: r.dirType === 1 && r.directionDeg !== null ? String(r.directionDeg) : null,
+    region: r.region === undefined || r.region === null ? 'RU-KLU' : r.region,
     description: description, provenance: 'OpenSpeedcam', positionKind: 'community-point',
     sourceUrl: pointUrl(r.id), positionSourceUrl: pointUrl(r.id),
     sourceCreatedAt: r.created, sourceRating: r.rating, sourceKind: r.kind,

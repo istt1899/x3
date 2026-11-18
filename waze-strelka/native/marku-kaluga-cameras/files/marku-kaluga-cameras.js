@@ -97,7 +97,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.8.7', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.9.0', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -134,7 +134,8 @@ function start(options) {
         JSON.parse(fs.readFileSync(options.officialQuality || path.join(__dirname, 'official-camera-quality.json'), 'utf8')));
       database = require('./speed-limits').augment(database,JSON.parse(fs.readFileSync(options.speedLimitData || path.join(__dirname,'speed-limit-data.json'),'utf8')));
       database = require('./openspeedcam-data').augment(database,
-        JSON.parse(fs.readFileSync(options.openSpeedcamSnapshot || path.join(__dirname, 'openspeedcam-kaluga.json'), 'utf8')));
+        JSON.parse(fs.readFileSync(options.openSpeedcamSnapshot || path.join(__dirname, 'openspeedcam-central.json'), 'utf8')));
+      database = require('./region-osm').merge(database, require('./region-osm').load(options.moscowOsm || path.join(__dirname, 'moscow-osm.json')));
       database = require('./capture-data').augment(database);
       state.sourceAssembly.state = 'complete';
     } catch (sourceError) {
@@ -188,6 +189,7 @@ function start(options) {
       openSpeedcamCount: bundle.openSpeedcamCount || 0,
       speedLimitCoverage: {known:known,unknown:bundle.records.length-known,total:bundle.records.length}, sourceMetadata: bundle.sourceMetadata || null, speedLimitMetadata: bundle.speedLimitMetadata || null, countUnit: 'source-position-records',
       updated: bundle.sourceTimestamp, generatedAt: bundle.generatedAt, count: bundle.records.length, version: bundle.version,
+      regions: Array.isArray(bundle.regions) ? bundle.regions.slice() : ['RU-KLU'], regionalSources: Array.isArray(bundle.regionalSources) ? bundle.regionalSources.map(function (r) { return Object.assign({}, r); }) : [],
       sha256: crypto.createHash('sha256').update(JSON.stringify(bundle)).digest('hex'), digestKind: 'canonical-json',
       licence: bundle.licence, region: bundle.region, coverage: databaseCoverage.summarize(bundle.records,bundle.zones||[]),
       skippedCount: bundle.enforcementAudit && Array.isArray(bundle.enforcementAudit.unsupported) ? bundle.enforcementAudit.unsupported.length : null,
@@ -200,7 +202,9 @@ function start(options) {
   }
   var activateDatabaseBase = activateDatabase;
   activateDatabase = function (bundle) {
-    // Stored bundles from before 0.8.7 predate the capture field: derive it.
+    // Stored bundles from before 0.9.0 predate the Moscow merge and the
+    // capture field: derive both. The merge is idempotent.
+    try { bundle = require('./region-osm').merge(bundle, require('./region-osm').load(path.join(__dirname, 'moscow-osm.json'))); } catch (ignored) {}
     activateDatabaseBase(require('./capture-data').augment(bundle));
   };
   function updateStatus(value) {

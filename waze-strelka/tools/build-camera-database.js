@@ -14,9 +14,12 @@ function bundle(){
  db=official.augment(db,JSON.parse(fs.readFileSync(path.join(files,'gibdd-kaluga.json'),'utf8')),
   JSON.parse(fs.readFileSync(path.join(files,'official-camera-quality.json'),'utf8')));
  db=require(path.join(files,'speed-limits')).augment(db,JSON.parse(fs.readFileSync(path.join(files,'speed-limit-data.json'),'utf8')));
- db=require(path.join(files,'openspeedcam-data')).augment(db,JSON.parse(fs.readFileSync(path.join(files,'openspeedcam-kaluga.json'),'utf8')));
- db=require(path.join(files,'capture-data')).augment(db);
+ db=require(path.join(files,'openspeedcam-data')).augment(db,JSON.parse(fs.readFileSync(path.join(files,'openspeedcam-central.json'),'utf8')));
+ db=require(path.join(files,'region-osm')).merge(db,require(path.join(files,'region-osm')).load(path.join(files,'moscow-osm.json')));
  const zones=JSON.parse(fs.readFileSync(path.join(files,'road-zones.json'),'utf8'));
+ // Derived fields (capture, regional merges already applied) are NOT persisted:
+ // capture-data re-derives them at activation, so the published bundle stays
+ // source facts only and within the transport size bound.
  return store.validateBundle(Object.assign({},db,{schema:1,version:version.version,generatedAt:version.generatedAt,source:db.displaySource||db.source,
   records:db.records.map(r=>Object.assign({},r,{controls:info.controls(Object.assign({},r,{officialSiteContext:null}))})),zones:zones.zones}));
 }

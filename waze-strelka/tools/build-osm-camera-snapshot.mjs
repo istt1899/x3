@@ -8,6 +8,8 @@ import {fileURLToPath} from 'node:url';
 const require=createRequire(import.meta.url);
 export const REGION_RELATION=81995;
 export const SOURCE_URL='https://download.openstreetmap.fr/extracts/russia/central_federal_district/kaluga_oblast.osm.pbf';
+/* 0.9.0: a run may target Moscow/Moscow oblast through the same pipeline. */
+export const RUNTIME={relation:REGION_RELATION,sourceUrl:SOURCE_URL,region:'RU-KLU'};
 const ENFORCEMENT={maxspeed:'speed',traffic_signals:'redlight',average_speed:'average',seatbelt:'belt',mobile_phone:'phone',stop_line:'stopline',bus_lane:'lane',pedestrian_crossing:'pedestrian'};
 const LIFECYCLE=['removed','demolished','razed','abandoned','disused','construction','proposed'];
 const CARDINAL={N:0,NNE:22.5,NE:45,ENE:67.5,E:90,ESE:112.5,SE:135,SSE:157.5,S:180,SSW:202.5,SW:225,WSW:247.5,W:270,WNW:292.5,NW:315,NNW:337.5};
@@ -47,7 +49,7 @@ export function insideBoundary(point,boundary){
         let hole=false;for(const ring of rings.slice(1)){const hit=ringHit(point,ring);if(hit==='boundary')return true;if(hit)hole=true;}if(!hole)return true;
     }return false;
 }
-export function boundaryFromElements(elements,relationId=REGION_RELATION){
+export function boundaryFromElements(elements,relationId=RUNTIME.relation){
     const relation=elements.find(e=>e.type==='relation'&&e.id===relationId);if(!relation)throw Error('Region boundary relation missing: '+relationId);
     const ways=new Map(elements.filter(e=>e.type==='way').map(e=>[e.id,e]));const nodes=new Map(elements.filter(e=>e.type==='node').map(e=>[e.id,e]));const rings=[];
     for(const role of ['outer','inner']){
@@ -84,8 +86,8 @@ export function buildSnapshot(elements,metadata={}){
     for(const list of [records,reviewCandidates,inactiveRecords,excluded])list.sort((a,b)=>a.id.localeCompare(b.id));
     const rawRelations=relations.map(r=>({id:'osm:relation:'+r.id,...objectInfo(r),rawTags:safeTags(r.tags),sourceUrl:'https://www.openstreetmap.org/relation/'+r.id,
         members:(r.members||[]).map(m=>({type:m.type,ref:m.ref,role:m.role||'',...(m.type==='node'&&position(nodeMap.get(m.ref))?{position:position(nodeMap.get(m.ref))}:{})}))}));
-    return{schema:1,kind:'osm-camera-source',source:'OpenStreetMap',region:'RU-KLU',sourceTimestamp:metadata.sourceTimestamp||null,generatedAt:metadata.generatedAt||null,inputSha256:metadata.inputSha256||null,inputMd5:metadata.inputMd5||null,
-        sourceUrl:SOURCE_URL,licence:'ODbL-1.0',licenceUrl:'https://opendatacommons.org/licenses/odbl/1-0/',attribution:'© OpenStreetMap contributors',
+    return{schema:1,kind:'osm-camera-source',source:'OpenStreetMap',region:RUNTIME.region,sourceTimestamp:metadata.sourceTimestamp||null,generatedAt:metadata.generatedAt||null,inputSha256:metadata.inputSha256||null,inputMd5:metadata.inputMd5||null,
+        sourceUrl:RUNTIME.sourceUrl,licence:'ODbL-1.0',licenceUrl:'https://opendatacommons.org/licenses/odbl/1-0/',attribution:'© OpenStreetMap contributors',
         counts:{mappedEnforcementPoints:records.length,mappedSpeedCameraPoints:records.filter(r=>r.mappedSpeedCamera).length,relationDeviceOnlyPoints:records.filter(r=>!r.mappedSpeedCamera&&r.relationIds.length).length,enforcementRelations:rawRelations.length,reviewCandidates:reviewCandidates.length,inactiveRecords:inactiveRecords.length,excludedOutsideBoundary:excluded.length},
         countUnit:'OSM source objects, not a verified count of physical operating camera complexes',boundary:boundary.properties||{},records,reviewCandidates,inactiveRecords,excluded,enforcementRelations:rawRelations};
 }
@@ -94,7 +96,7 @@ async function extract(file){
     for await(const e of createOSMStream(file,{withTags:true,withInfo:true})){
         if(e.osmosis_replication_timestamp)header=e;
         if(classifyNode(e))elements.push(e);
-        if(e.type==='relation'&&(e.id===REGION_RELATION||e.tags?.type==='enforcement')){
+        if(e.type==='relation'&&(e.id===RUNTIME.relation||e.tags?.type==='enforcement')){
             elements.push(e);for(const m of e.members||[])if(m.type==='way'&&(e.id!==REGION_RELATION||['outer','inner'].includes(m.role)))waysWanted.add(m.ref);else if(m.type==='node')nodesWanted.add(m.ref);
         }
     }
@@ -105,16 +107,19 @@ async function extract(file){
     return{elements,header};
 }
 async function main(){
-    const args=process.argv.slice(2),opts={};for(let i=0;i<args.length;i+=2){if(!['--pbf','--output-dir'].includes(args[i])||!args[i+1])throw Error('Usage: --pbf file.osm.pbf --output-dir NEW_DIRECTORY');opts[args[i]]=args[i+1];}
-    if(!opts['--pbf']||!opts['--output-dir'])throw Error('Usage: --pbf file.osm.pbf --output-dir NEW_DIRECTORY');
+    const args=process.argv.slice(2),opts={};for(let i=0;i<args.length;i+=2){if(!['--pbf','--output-dir','--relation','--source-url','--region'].includes(args[i])||!args[i+1])throw Error('Usage: --pbf file.osm.pbf --output-dir NEW_DIRECTORY [--relation ID --source-url URL --region CODE]');opts[args[i]]=args[i+1];}
+    if(!opts['--pbf']||!opts['--output-dir'])throw Error('Usage: --pbf file.osm.pbf --output-dir NEW_DIRECTORY [--relation ID --source-url URL --region CODE]');
+    if(opts['--relation'])RUNTIME.relation=Number(opts['--relation']);
+    if(opts['--source-url'])RUNTIME.sourceUrl=opts['--source-url'];
+    if(opts['--region'])RUNTIME.region=opts['--region'];
     const input=path.resolve(opts['--pbf']),out=path.resolve(opts['--output-dir']);if(!fs.lstatSync(input).isFile())throw Error('PBF must be a regular file');
     if(fs.existsSync(out)&&fs.readdirSync(out).length)throw Error('Refusing nonempty output directory');
     const sha=crypto.createHash('sha256'),md5=crypto.createHash('md5');for await(const chunk of fs.createReadStream(input)){sha.update(chunk);md5.update(chunk);}
     const{elements,header}=await extract(input),boundary=boundaryFromElements(elements),metadata={sourceTimestamp:new Date(header.osmosis_replication_timestamp*1000).toISOString(),generatedAt:new Date().toISOString(),inputSha256:sha.digest('hex'),inputMd5:md5.digest('hex'),boundary};
     const snapshot=buildSnapshot(elements,metadata);fs.mkdirSync(out,{recursive:true});
     fs.writeFileSync(path.join(out,'osm-camera-source.json'),JSON.stringify(snapshot,null,2)+'\n');fs.writeFileSync(path.join(out,'kaluga-boundary.geojson'),JSON.stringify(boundary,null,2)+'\n');
-    const outputs=['osm-camera-source.json','kaluga-boundary.geojson'].map(name=>{const b=fs.readFileSync(path.join(out,name));return{name,size:b.length,sha256:crypto.createHash('sha256').update(b).digest('hex')};});
-    const report={source:SOURCE_URL,sourceTimestamp:metadata.sourceTimestamp,inputSha256:metadata.inputSha256,inputMd5:metadata.inputMd5,counts:snapshot.counts,outputs};
+    const outputs=['osm-camera-source.json','region-boundary.geojson'].map(name=>{const b=fs.readFileSync(path.join(out,name));return{name,size:b.length,sha256:crypto.createHash('sha256').update(b).digest('hex')};});
+    const report={source:RUNTIME.sourceUrl,sourceTimestamp:metadata.sourceTimestamp,inputSha256:metadata.inputSha256,inputMd5:metadata.inputMd5,counts:snapshot.counts,outputs};
     fs.writeFileSync(path.join(out,'source-artifacts.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main().catch(e=>{console.error(e.stack);process.exitCode=1;});
