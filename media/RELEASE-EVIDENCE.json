@@ -1,6 +1,6 @@
 {
   "schema": 4,
-  "date": "2026-11-18",
+  "date": "2026-11-19",
   "repo": "istt1899/x3",
   "channel": "catalog",
   "package_release": "media-preview-0.4.5-r4",
@@ -81,24 +81,25 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "95d64c01a21aebcf7d6c6d32f8e995c864478b5b4d938787ecf71beabe4dc043"
+      "sha256": "ef021a0a2045170cf6a0bcc547df01faa938e9d66b9bbbd496c44c244941ec27"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
     }
   },
   "catalog_update": {
-    "date": "2026-11-18",
-    "reason": "Waze Strelka 0.8.7: stable card (renderer session kept across brief gaps, 0.5-5 s backoff reconnects, GPS-loss hold up to 5 s with GPS_LOST, 3 s show floor), normalized camera direction from every source with front/rear card labels and cross-road rejection (facingKnown 20->185, captureSideKnown 0->152), overspeed sound through the BMW gong with honest unconfirmed-until-played channel and new settings; other Store components untouched",
+    "date": "2026-11-19",
+    "reason": "Waze Strelka 0.9.0: Moscow + Moscow oblast cameras (OSC 6819 MOW + 5567 MOS, OSM Moscow oblast 1366, refreshed Kaluga OSC 140; 14200 records), multi-region database with per-record region and idempotent regional merge; hotfix for 0.8.7 which shipped without capture-data.js and would not start; update channel moved to istt1899/x3; other Store components untouched",
     "previous_sha256": "dd067cc012f6c1e493af33bfad1ade0d5deb26d39c0464da954e6b4343e5d60d",
-    "catalog_commit": "54407b5",
-    "package_commit": "d1b4a27cd30986af32d820876df0af476e8cd46c",
+    "catalog_commit": "e598edb",
+    "package_commit": "3024e4adb907851d759ecb4e36112c687652d6da",
     "verified_reader": {
       "anonymous_public_download": true,
       "catalog_release_equals_main": true,
-      "release_catalog_sha256": "95d64c01a21aebcf7d6c6d32f8e995c864478b5b4d938787ecf71beabe4dc043",
+      "release_catalog_sha256": "ef021a0a2045170cf6a0bcc547df01faa938e9d66b9bbbd496c44c244941ec27",
       "artifacts_sha_verified": true,
-      "note": "Verified from Windows by public HTTPS: release asset catalog.json equals main; both 0.8.7 artifacts download with matching size and SHA-256."
+      "update_channel_verified": true,
+      "note": "Verified from Windows by public HTTPS: release asset equals main catalog; both 0.9.0 packages and the 2026.11.19.1 database artifact download with matching size and SHA-256."
     },
     "preserved_components": {
       "marku_x3_coding": "0.2.0",
@@ -117,8 +118,8 @@
       "marku_x3_trips": "0.2.0"
     },
     "updated_components": {
-      "marku-kaluga-cameras": "0.8.7",
-      "marku_kaluga_cameras": "0.8.7"
+      "marku-kaluga-cameras": "0.9.0",
+      "marku_kaluga_cameras": "0.9.0"
     }
   }
 }
