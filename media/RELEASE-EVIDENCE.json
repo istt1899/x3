@@ -1,6 +1,6 @@
 {
   "schema": 4,
-  "date": "2026-11-09",
+  "date": "2026-11-18",
   "repo": "istt1899/x3",
   "channel": "catalog",
   "package_release": "media-preview-0.4.5-r4",
@@ -81,25 +81,24 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "a5b47c60f70d535d6603b1c37d671fc34d97438eb2b82ed8fe8e02a751ee406f"
+      "sha256": "c5fed7d1134776b06e094f766d9836a05569b8e2eb830b0d2fc7076496fae398"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
     }
   },
   "catalog_update": {
-    "date": "2026-11-14",
-    "reason": "Hotfix Waze Strelka app and service to 0.8.5: derive BMW navigation speed/heading from fresh ON_ROAD positions when GNSS is jammed, restoring stationary camera preview and fallback camera warnings without changing other Store components",
+    "date": "2026-11-18",
+    "reason": "Waze Strelka 0.8.6: app autostart (BMW GPS bridge lives without opening the app), nearby camera mode for zone-less records and owner cameras on cluster/HUD, richer guidance/bridge diagnostics; upstream idrive-apps 0.6.9-0.6.12 audited, ETA-card outdated-patch flag ported; GPS decoder, road zones and all other Store components untouched",
     "previous_sha256": "dd067cc012f6c1e493af33bfad1ade0d5deb26d39c0464da954e6b4343e5d60d",
-    "catalog_commit": "479ad1ea39d58f0c69d8583e5c3c82835a4fc607",
-    "package_commit": "47db6a96e28e746dab64c6c29ed2be7a70e46a1a",
+    "catalog_commit": "eded17f",
+    "package_commit": "d1a4c8f3dbc7abe3a4931cb3cdc2b5790d8d3469",
     "verified_reader": {
-      "updater_version": null,
-      "updater_commit": null,
-      "node8_fetch": false,
       "anonymous_public_download": true,
       "catalog_release_equals_main": true,
-      "note": "The previous local updater checkout and Node 8 runtime are not present in this Windows session; verified by public HTTPS catalog/main equality and artifact size/SHA-256 downloads."
+      "release_catalog_sha256": "c5fed7d1134776b06e094f766d9836a05569b8e2eb830b0d2fc7076496fae398",
+      "artifacts_sha_verified": true,
+      "note": "Verified from Windows by public HTTPS: release asset catalog.json equals main catalog.json; both 0.8.6 artifacts download with matching size and SHA-256."
     },
     "preserved_components": {
       "marku_x3_coding": "0.2.0",
@@ -118,8 +117,8 @@
       "marku_x3_trips": "0.2.0"
     },
     "updated_components": {
-      "marku-kaluga-cameras": "0.8.5",
-      "marku_kaluga_cameras": "0.8.5"
+      "marku-kaluga-cameras": "0.8.6",
+      "marku_kaluga_cameras": "0.8.6"
     }
   }
 }
