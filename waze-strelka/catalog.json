@@ -4,13 +4,13 @@
     {
       "id": "marku_kaluga_cameras",
       "kind": "app",
-      "version": "0.8.7",
+      "version": "0.9.0",
       "title": "Waze Стрелка",
       "description": "Waze on Cluster с настройками карты, HUD, CarPlay, Android Auto и дополнительным разделом камер",
       "build": "unit",
       "requires": {
         "waze-on-cluster": "0.9.14",
-        "marku-kaluga-cameras": "0.8.7",
+        "marku-kaluga-cameras": "0.9.0",
         "mgu-deploy": "0.7.11"
       },
       "uninstallable": true,
@@ -18,10 +18,10 @@
         "ID7"
       ],
       "artifact": {
-        "name": "marku_kaluga_cameras@0.8.7.tgz",
-        "size": 151070,
-        "sha256": "e1a60fb7e776f435dc2b768297aedd02bbcde9eaab176ff1a0defd5e4e07bea7",
-        "url": "https://raw.githubusercontent.com/istt1899/x3/d1b4a27cd30986af32d820876df0af476e8cd46c/marku_kaluga_cameras%400.8.7.tgz"
+        "name": "marku_kaluga_cameras@0.9.0.tgz",
+        "size": 151804,
+        "sha256": "f5d831c5aae63bbc455944a36a42f5ebdba720b8489757b6eb900c314363bb8a",
+        "url": "https://raw.githubusercontent.com/istt1899/x3/3024e4adb907851d759ecb4e36112c687652d6da/marku_kaluga_cameras%400.9.0.tgz"
       },
       "icon": "https://raw.githubusercontent.com/istt1899/x3/16e7d750a9e6545b9e62178ffb83cfc62a548423/marku_kaluga_cameras.png",
       "iconSha256": "6afaa3655ab866b5f969685340d26b8774f1f72c32e30de275623119999b0dfd"
@@ -29,7 +29,7 @@
     {
       "id": "marku-kaluga-cameras",
       "kind": "tool",
-      "version": "0.8.7",
+      "version": "0.9.0",
       "title": "Waze Strelka camera service",
       "description": "Local Kaluga OSM camera snapshot, strict GPS diagnostics and optional verified-road camera alerts",
       "optional": true,
@@ -45,10 +45,10 @@
         5000
       ],
       "artifact": {
-        "name": "marku-kaluga-cameras@0.8.7.tgz",
-        "size": 660708,
-        "sha256": "208f3a3549c45769fd2e3844253070c6c115b3b9daea5b6951179f7e4ee1c38c",
-        "url": "https://raw.githubusercontent.com/istt1899/x3/d1b4a27cd30986af32d820876df0af476e8cd46c/marku-kaluga-cameras%400.8.7.tgz"
+        "name": "marku-kaluga-cameras@0.9.0.tgz",
+        "size": 1427183,
+        "sha256": "93d7356051a0a8214cb9fa302360a4639dfe050b8b237ea051b9d927f49e8ee7",
+        "url": "https://raw.githubusercontent.com/istt1899/x3/3024e4adb907851d759ecb4e36112c687652d6da/marku-kaluga-cameras%400.9.0.tgz"
       }
     },
     {
