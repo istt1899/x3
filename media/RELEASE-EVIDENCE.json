@@ -47,7 +47,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "fab62638eb9dbff51af06e1e7a32ac8366b273d43fb80e5429d016488a779b10"
+      "sha256": "fa4a175f0102428b2e3154878ac6b99b886b4c099201ad736997deac994cd2e4"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -55,37 +55,13 @@
   },
   "catalog_update": {
     "date": "2026-11-19",
-    "reason": "Waze Strelka 0.9.0: Moscow + Moscow oblast cameras (OSC 6819 MOW + 5567 MOS, OSM Moscow oblast 1366, refreshed Kaluga OSC 140; 14200 records), multi-region database with per-record region and idempotent regional merge; hotfix for 0.8.7 which shipped without capture-data.js and would not start; update channel moved to istt1899/x3; other Store components untouched",
-    "previous_sha256": "dd067cc012f6c1e493af33bfad1ade0d5deb26d39c0464da954e6b4343e5d60d",
-    "catalog_commit": "e598edb",
-    "package_commit": "3024e4adb907851d759ecb4e36112c687652d6da",
-    "verified_reader": {
-      "anonymous_public_download": true,
-      "catalog_release_equals_main": true,
-      "release_catalog_sha256": "ef021a0a2045170cf6a0bcc547df01faa938e9d66b9bbbd496c44c244941ec27",
-      "artifacts_sha_verified": true,
-      "update_channel_verified": true,
-      "note": "Verified from Windows by public HTTPS: release asset equals main catalog; both 0.9.0 packages and the 2026.11.19.1 database artifact download with matching size and SHA-256."
-    },
-    "preserved_components": {
-      "marku_x3_coding": "0.2.0",
-      "jap_ridetube": "0.3.16",
-      "marku_vk_video": "0.1.8",
-      "marku_rutube": "0.1.8",
-      "jap-ridetube-d": "0.4.5",
-      "jap-node22": "22.23.4",
-      "cluster-render": "0.5.9",
-      "waze-on-cluster": "0.9.14",
-      "marku_x3_health": "0.2.0",
-      "marku_x3_warm": "0.2.0",
-      "marku_daily_hud": "0.2.0",
-      "marku_x3_home": "0.2.0",
-      "marku-home-bridge": "0.1.0",
-      "marku_x3_trips": "0.2.0"
-    },
+    "reason": "Waze Strelka 0.9.1 bounds HUD test confirmation and preserves the current renderer refusal in diagnostics.",
+    "previous_sha256": "fab62638eb9dbff51af06e1e7a32ac8366b273d43fb80e5429d016488a779b10",
+    "package_commit": "bfef17a70b1fe1e6270d73713969387f27dc80ee",
     "updated_components": {
-      "marku-kaluga-cameras": "0.9.0",
-      "marku_kaluga_cameras": "0.9.0"
-    }
+      "marku-kaluga-cameras": "0.9.1",
+      "marku_kaluga_cameras": "0.9.1"
+    },
+    "hardware_scope": "ID7 package. Physical HUD output on the reported X6 remains to be verified."
   }
 }
