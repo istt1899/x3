@@ -10,9 +10,9 @@ import urllib.error
 import urllib.request
 
 MEDIA = Path(__file__).resolve().parents[1]
-IDS = {'marku_vk_video', 'marku_rutube', 'jap_ridetube', 'jap-ridetube-d'}
 VERSIONS = {'marku_vk_video': '0.1.8', 'marku_rutube': '0.1.8',
-            'jap_ridetube': '0.3.16', 'jap-ridetube-d': '0.4.5'}
+            'jap_ridetube': '0.4.1', 'jap-ridetube-d': '0.4.6'}
+STANDALONE_VERSIONS = {'jap_ridetube': '0.3.16', 'jap-ridetube-d': '0.4.5'}
 
 
 def download(url, limit):
@@ -61,10 +61,10 @@ def main():
         found = {item['id']: item for item in catalog['components']}
         if len(found) != len(catalog['components']):
             raise ValueError('Duplicate component identity')
-        required = IDS if repo.endswith('/x3') else {'jap_ridetube', 'jap-ridetube-d'}
-        for component_id in required:
+        versions = VERSIONS if repo.endswith('/x3') else STANDALONE_VERSIONS
+        for component_id, version in versions.items():
             item = found[component_id]
-            if item['version'] != VERSIONS[component_id]:
+            if item['version'] != version:
                 raise ValueError('Unexpected public component version: ' + component_id)
             artifacts[item['artifact']['url']] = item['artifact']
             if component_id in {'marku_vk_video', 'marku_rutube'}:

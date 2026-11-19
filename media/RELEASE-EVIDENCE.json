@@ -3,19 +3,19 @@
   "date": "2026-11-19",
   "repo": "istt1899/x3",
   "channel": "catalog",
-  "package_release": "media-preview-0.4.5-r4",
-  "service_version": "0.4.5",
+  "package_release": "media-preview-0.4.6",
+  "service_version": "0.4.6",
   "apps_version": "0.1.8",
-  "youtube_version": "0.3.16",
-  "source_commit": "ad44500dc9de08cfd794ab68638d43f8f97e384d",
+  "youtube_version": "0.4.1",
+  "source_commit": "1371b1a0ee9aac93a6ed8ff0f50ee6fb3b76ed97",
   "preserved": {
     "coding": "0.2.0"
   },
   "artifacts": [
     {
       "name": "catalog.json",
-      "size": 31560,
-      "sha256": "36d6e46a9f11025cbb401a4b9bff218a3cfd7321f86e63d9e505c74a8ddb8432"
+      "size": 29519,
+      "sha256": "fab62638eb9dbff51af06e1e7a32ac8366b273d43fb80e5429d016488a779b10"
     },
     {
       "name": "ffmpeg-9.0.2-mgu-media-sources.tar.xz",
@@ -23,65 +23,31 @@
       "sha256": "6f164f34bdbec44d842e399815319969a0972fc534ec652cee4018ff61d23798"
     },
     {
-      "name": "jap-ridetube-d@0.4.5.tgz",
-      "size": 10664961,
-      "sha256": "8a2256f16c89adefb2f8361fc43a43a641f62dc679a418b283f1cae99980bb7f"
+      "name": "jap-ridetube-d@0.4.6.tgz",
+      "size": 10695181,
+      "sha256": "e8fa75a2ebac0addb3c7542d141eb7e4f618ddd4a95945bf0d53f59fd4d74ee5"
     },
     {
-      "name": "jap_ridetube@0.3.16.tgz",
-      "size": 1291133,
-      "sha256": "e675486d4d8bd7dcd38ddcd8158843237460fe0e29cae0d1c5edf97ade20c4c6"
-    },
-    {
-      "name": "marku_rutube@0.1.8.png",
-      "size": 1662,
-      "sha256": "7fd5f5e022633b7f66cef1a57fc40b248b3346a3f5bc29fefb75c41cb41b85ac"
-    },
-    {
-      "name": "marku_rutube@0.1.8.tgz",
-      "size": 1301727,
-      "sha256": "a5436d2744503ca49bdbc855e4ff4e9e55393ca7f6e9856d8ea1057c5c681837"
-    },
-    {
-      "name": "marku_vk_video@0.1.8.png",
-      "size": 1920,
-      "sha256": "c1fbca216dc8bd1076678272fa417c927de444121c2fe25feced24b960f6c612"
-    },
-    {
-      "name": "marku_vk_video@0.1.8.tgz",
-      "size": 1302067,
-      "sha256": "cc7a833c197cb69e78393bbfac7edfc5666fb1126e7a36005e7d307df7cd800a"
+      "name": "jap_ridetube@0.4.1.tgz",
+      "size": 3247854,
+      "sha256": "2270661998dd52b4cf97bc2e633139f211d597b46ab9b95f3b95505bbdc0a794"
     }
   ],
   "checks": {
-    "slow_120s_faststart_mp4_and_mpegts": true,
-    "mediafetch_tests": 14,
-    "audio_prefix_boundaries_and_delayed_commands": true,
-    "node8_network_and_navigation": true,
-    "legacy_daemon_unix_socket": true,
-    "provider_gateway_isolation": true,
-    "package_hashes_and_source_freshness": true,
-    "python312_mixed_helper_arguments": true,
-    "real_subprocess_negative_vk_id": true,
-    "resolve_error_state_and_deadline": true,
-    "silent_downloader_termination_and_safe_http_errors": true,
-    "live_public_vk_start": "validation/live-vk-start-0.4.5.json"
+    "ridetube_upstream_0_4_sequence_cases": 52,
+    "node8_syntax_and_gateway": true,
+    "package_hashes_and_source_freshness": true
   },
   "runtime": {
-    "linux_elf_executed": true,
-    "exact_package_evidence": "validation/linux-runtime-0.4.5.json",
-    "workflow_run": "https://github.com/istt1899/x3/actions/runs/42480669734",
     "mgu_runtime_tested": false
   },
   "not_verified": {
     "mgu_playback": true,
-    "audible_prefix_transition": true,
-    "native_bmw_internet": true,
-    "owner_private_vk_video": true
+    "owner_youtube_network_and_sign_in": true
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "ef021a0a2045170cf6a0bcc547df01faa938e9d66b9bbbd496c44c244941ec27"
+      "sha256": "fab62638eb9dbff51af06e1e7a32ac8366b273d43fb80e5429d016488a779b10"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
