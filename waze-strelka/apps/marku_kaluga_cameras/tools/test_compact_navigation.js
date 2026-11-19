@@ -108,7 +108,8 @@ let count=0;function ok(text){console.log('ok '+(++count)+' - '+text);}
     for(const scenario of ['missing','stale','future','moving','output-off']){
         h.reset();const v=state();if(scenario==='missing')v.gpsFix=null;if(scenario==='stale')v.gpsFix.motionTimeMs-=3001;
         if(scenario==='future')v.gpsFix.motionTimeMs+=501;if(scenario==='moving')v.gpsFix.speedKmh=2;if(scenario==='output-off')v.outputs={hud:false,cluster:false};
-        v.actions=policy.policies(v,v.gpsFix,Date.now());h.setState(v);app._cameraCardTarget='hud';await h.enter(N.diag);const before=commands.length;press('cameraDiagTest');
+        // Evaluate the fixture at the same instant that seeded its motion timestamp.
+        v.actions=policy.policies(v,v.gpsFix,v.observedAtMs);h.setState(v);app._cameraCardTarget='hud';await h.enter(N.diag);const before=commands.length;press('cameraDiagTest');
         assert.strictEqual(h.current(),N.diag,scenario);assert.strictEqual(commands.length,before);assert(c.cameraDiag_command.text().trim().length>0);assert(!c.cameraCardLeft.enabled);
     }
     for(const scenario of [
