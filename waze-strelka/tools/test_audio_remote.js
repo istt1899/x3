@@ -12,10 +12,14 @@ fs.mkdirSync(dir);
 const socket = process.platform === 'win32' ? '\\\\.\\pipe\\remote-audio-' + process.pid : path.join(dir, 'ctl.sock');
 const gps = new EventEmitter();
 gps.start = gps.close = function () {};
-let clock = Date.now();
-gps.current = () => ({ lat: 54, lon: 36, timeMs: clock, motionTimeMs: clock, accuracyM: 5, speedKmh: 0, headingDeg: 90 });
-gps.motionFixes = () => [{ source: 'bmw-nmea', speedKmh: 0, motionTimeMs: clock, timeMs: clock }];
-let app, states = [], buf = '';
+function stationaryFix() {
+    const now = Date.now();
+    return { speedKmh: 0, timeMs: now, motionTimeMs: now };
+}
+// Emulate a continuing stationary GPS feed while the service assembles its database.
+gps.current = () => Object.assign({ lat: 54, lon: 36, accuracyM: 5, headingDeg: 90 }, stationaryFix());
+gps.motionFixes = () => [Object.assign({ source: 'bmw-nmea' }, stationaryFix())];
+let app, client, states = [], buf = '';
 function until(fn, label) { return new Promise((resolve, reject) => { const t0 = Date.now(); (function poll() { if (fn()) return resolve(); if (Date.now() - t0 > 5000) return reject(new Error(label || 'timeout')); setTimeout(poll, 10); })(); }); }
 (async () => {
     await new Promise((resolve, reject) => {
@@ -26,7 +30,7 @@ function until(fn, label) { return new Promise((resolve, reject) => { const t0 =
             dimmer: { update: function () {}, status: function () { return 'off'; }, close: function () {} },
             onListening: resolve, onError: reject });
     });
-    const client = net.connect(socket);
+    client = net.connect(socket);
     client.setEncoding('utf8');
     client.on('data', bytes => { buf += bytes; let i; while ((i = buf.indexOf('\n')) >= 0) { const m = JSON.parse(buf.slice(0, i)); buf = buf.slice(i + 1); if (m.ev === 'status') states.push(m.state); } });
     await until(() => states.length > 0, 'first status');
@@ -52,6 +56,9 @@ function until(fn, label) { return new Promise((resolve, reject) => { const t0 =
     // Validation: garbage is rejected without touching the channel.
     assert.throws(() => app.command({ cmd: 'audio-played', seq: 'x', played: true }), /AUDIO_SEQ_INVALID/);
     assert.throws(() => app.command({ cmd: 'audio-played', seq: 5, played: 'yes' }), /AUDIO_PLAYED_INVALID/);
-    client.destroy(); app.close();
     console.log('PASS remote audio: unconfirmed start, audioRequest publication, audio-played confirmation and refusal with reason, strict validation; real control socket');
-})().catch(e => { console.error(e.stack); process.exitCode = 1; });
+})().then(close, e => { close(); console.error(e.stack); process.exitCode = 1; });
+function close() {
+    if (client) client.destroy();
+    if (app) app.close();
+}
