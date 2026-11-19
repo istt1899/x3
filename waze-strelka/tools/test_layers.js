@@ -64,9 +64,14 @@ const server=net.createServer(sock=>{
 });
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(label,check){for(let wait=0;wait<150&&!pendingError;wait++){if(check())return;await sleep(10);}if(pendingError)throw pendingError;throw new Error(label+' timed out');}
+function styleMismatch(actual,original,brightnessPct,opacityPct){
+    for(let i=0;i<actual.length;i++)if(Math.abs(actual[i]-Math.round(original[i]*(i%4===3?opacityPct:brightnessPct)/100))>1)return i;
+    return -1;
+}
 function styleMatches(actual,original,brightnessPct,opacityPct){
     assert.strictEqual(actual.length,original.length);
-    for(let i=0;i<actual.length;i++)assert(Math.abs(actual[i]-Math.round(original[i]*(i%4===3?opacityPct:brightnessPct)/100))<=1,'RGBA style mismatch at byte '+i);
+    const mismatch=styleMismatch(actual,original,brightnessPct,opacityPct);
+    assert.strictEqual(mismatch,-1,'RGBA style mismatch at byte '+mismatch);
 }
 (async()=>{
     const display=displayModule.createDisplay({socket:socketName});
@@ -161,16 +166,20 @@ function styleMatches(actual,original,brightnessPct,opacityPct){
         display.update(liveAlert,outputs,offline);
         announcedTargets='map:874x749,hud:353x203';
         const reconnectAt=wireMessages.length,reconnectFrameAt=wireFrames.length;
-        await until('resized renderer reconnect',()=>opens>opensBefore&&display.diagnostics().connection==='ready'&&
+        const expectedHud=card.card(liveAlert,'hud');
+        // The client replays the old raster first. The updated full raster can
+        // arrive after the new visible set when the renderer socket drains.
+        await until('resized renderer reconnect with updated HUD raster',()=>opens>opensBefore&&display.diagnostics().connection==='ready'&&
             display.diagnostics().hud.layout.canvas.width===353&&
             wireMessages.slice(reconnectAt).some(m=>m.op==='set'&&m.ref===hudRef&&m.visible===1)&&
-            wireFrames.slice(reconnectFrameAt).some(f=>f.ref===hudRef));
+            wireFrames.slice(reconnectFrameAt).some(f=>f.ref===hudRef)&&
+            styleMismatch(wirePixels.get(hudRef),expectedHud,30,30)===-1);
         const resumed=display.diagnostics().hud.layout,resumedWire=wireLayers.get(hudRef);
         assert.deepStrictEqual([resumedWire.x,resumedWire.y,resumedWire.w,resumedWire.h],[resumed.card.x,resumed.card.y,resumed.card.width,resumed.card.height],'reconnect uses latest offline profile with fresh target dimensions');
         assert(resumedWire.w<353,'replayed HUD card fits the narrower canvas');
         assert.strictEqual(resumed.settings.scalePct,150);assert(resumed.card.scale<1.5&&resumed.card.scale>=.75);
         assert.strictEqual(resumed.settings.x,1000);assert.strictEqual(resumed.settings.y,1000);
-        styleMatches(wirePixels.get(hudRef),card.card(liveAlert,'hud'),30,30);
+        styleMatches(wirePixels.get(hudRef),expectedHud,30,30);
         assert(wireMessages.slice(reconnectAt).filter(m=>m.op==='layer').every(m=>m.visible===0),'cached old geometry is hidden during renderer replay');
         peers.forEach(sock=>sock.write(frame({ev:'error',op:'layer',ref:hudRef,reason:'HUD_GUARD'})));
         for(let wait=0;wait<100&&display.diagnostics().hud.state!=='отказ';wait++)await sleep(10);
