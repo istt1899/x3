@@ -53,15 +53,32 @@ async function activeSocket() {
   });
   await new Promise(function (resolve, reject) { server.on('error', reject); server.listen(socket, resolve); });
   var child = launch(socket, path.join(root, 'duplicate'));
+  var refusal = /EADDRINUSE|Control path is not a socket/;
+  var deadline, detectRefusal;
   try {
-    var deadline;
-    var code = await Promise.race([child.finished, new Promise(function (_, reject) { deadline = setTimeout(function () { reject(new Error('duplicate process did not exit')); }, 3000); })]);
-    clearTimeout(deadline);
-    assert.strictEqual(code, 1); assert(/EADDRINUSE|Control path is not a socket/.test(child.output), child.output);
+    var timeout = new Promise(function (_, reject) {
+      // The daemon assembles its bundled camera data before checking the socket.
+      // Allow the production probe's startup budget, then bound shutdown separately.
+      deadline = setTimeout(function () { reject(new Error('duplicate process did not report control socket refusal')); }, 8000);
+      detectRefusal = function () {
+        if (!refusal.test(child.output)) return;
+        child.stderr.removeListener('data', detectRefusal);
+        clearTimeout(deadline);
+        deadline = setTimeout(function () { reject(new Error('duplicate process did not exit after control socket refusal')); }, 3000);
+      };
+      child.stderr.on('data', detectRefusal);
+    });
+    var code = await Promise.race([child.finished, timeout]);
+    assert.strictEqual(code, 1); assert(refusal.test(child.output), child.output);
     var state = await probe({ socket: socket, checkPermissions: false, timeoutMs: 1000 });
     assert.strictEqual(state.database.count, 150);
     console.log('PASS active socket: duplicate daemon fails visibly without removing the existing listener');
-  } finally { await stop(child); await new Promise(function (resolve) { server.close(resolve); }); }
+  } finally {
+    clearTimeout(deadline);
+    child.stderr.removeListener('data', detectRefusal);
+    await stop(child);
+    await new Promise(function (resolve) { server.close(resolve); });
+  }
 }
 async function staleSocket() {
   if (process.platform === 'win32') { console.log('SKIP real stale Unix socket on Windows (covered on Linux by this test)'); return; }
