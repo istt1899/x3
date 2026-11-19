@@ -97,7 +97,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.9.2', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.9.3', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -505,13 +505,6 @@ function start(options) {
     if(closed)throw new Error('Сервис завершает работу');
     if (!msg || typeof msg.cmd !== 'string') throw new Error('Invalid command');
     if (msg.cmd === 'status') return;
-    if (msg.cmd === 'gps-clock-confirm') {
-      if (Object.keys(msg).some(function(k){return ['cmd','requestId','targetUtcMs'].indexOf(k)<0;}) ||
-          !clock || !clock.confirm(msg.targetUtcMs)) throw new Error('Минута сверки недоступна. Сверьте указанное время с телефоном.');
-      tick(); // Changing the GPS time reference always retires the previous session.
-      commandResult(msg.cmd,'finished','Время сверено. Ожидание новых измерений GPS',state.commandResult.id);
-      return;
-    }
     if (msg.cmd === 'gps-reset') {
       if(Object.keys(msg).some(function(key){return ['cmd','requestId'].indexOf(key)<0;}))throw new Error('Неизвестное поле перезапуска GPS');
       if(!state.capabilities.gpsReset)throw new Error('Источник GPS не поддерживает явный сброс сеанса');

@@ -44,9 +44,10 @@ async function main(){
  await until(function(){return states.some(function(s){return s.clock&&s.clock.issue==='UTC_MISMATCH';});});
  await command({cmd:'gps-reset'});var cutoff=clock+500;
  clock=source+1000;app.tick(); c=app.state().clock;
- assert.strictEqual(c.issue,'RESET_BOUNDARY_FUTURE');assert.strictEqual(c.admissionAfterUtcMs,cutoff);
+ assert.strictEqual(c.issue,'SOURCE_UTC_UNKNOWN');assert.strictEqual(c.admissionAfterUtcMs,clock+500);
+ assert(c.admissionAfterUtcMs<cutoff,'Recovery to sane system UTC must automatically retire the 2179 cutoff');
  await sendNmea(packet(-160,clock).join('\r\n'));app.tick();assert.strictEqual(gps.current(clock),null);
- assert.strictEqual(app.state().clock.sourceUtcMs,clock);assert.strictEqual(app.state().clock.issue,'RESET_BOUNDARY_FUTURE');
+ assert.strictEqual(app.state().clock.sourceUtcMs,clock);assert.strictEqual(app.state().clock.issue,'NONE');
  // Negative receipt age is visible as a discontinuity, not zero.
  var receipt=clock;clock-=1000;app.tick();c=app.state().clock;
  assert.strictEqual(c.packetReceiptDeltaMs,-1000);assert.strictEqual(c.lastPacketAgeMs,null);assert.strictEqual(c.receiptClockDiscontinuity,true);

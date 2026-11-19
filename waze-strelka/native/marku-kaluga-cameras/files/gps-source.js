@@ -216,7 +216,7 @@ GpsDecoder.prototype.current = function (now) {
 function GpsProvider(options) {
   EventEmitter.call(this); this.options = options || {};
   this.referenceClock = require('./gps-utc-clock').createGpsClock({wallNow:this.options.now,
-    monotonicNow:this.options.monotonicNow, readRtc:this.options.readRtc});
+    monotonicNow:this.options.monotonicNow, readRtc:this.options.readRtc, createNetworkUtc:this.options.createNetworkUtc});
   this.now = this.referenceClock.now;
   this.decoder = new GpsDecoder(this.now); this.bmwDecoder = new GpsDecoder(this.now, 'bmw-nmea');
   var provider = this;
@@ -453,7 +453,7 @@ GpsProvider.prototype.connect = function () {
   });
 };
 GpsProvider.prototype.current = function (now) {
-  if (this.clockPriming) return null;
+  if (this.clockPriming || this.referenceClock.snapshot().referenceState === 'waiting') return null;
   var a = this.decoder.current(now), b = this.bmwDecoder.current(now), selected;
   if (!a) selected = b; else if (!b) selected = a;
   else {
@@ -467,7 +467,7 @@ GpsProvider.prototype.current = function (now) {
   return selected || (navigation && fresh(navigation.timeMs, now) ? navigation : null);
 };
 GpsProvider.prototype.motionFixes = function (now) {
-  if (this.clockPriming) return [];
+  if (this.clockPriming || this.referenceClock.snapshot().referenceState === 'waiting') return [];
   var result = [], self = this;
   [['gpsd', this.decoder], [this.decoder.nmeaSource, this.decoder],
     [this.bmwDecoder.nmeaSource, this.bmwDecoder]].forEach(function (entry) {
@@ -492,6 +492,7 @@ GpsProvider.prototype.motionFixes = function (now) {
   return result;
 };
 GpsProvider.prototype.close = function () {
+  this.referenceClock.close();
   this.closed = true; this.generation++; clearTimeout(this.retry); if (this.sock) this.sock.destroy();
   if (this.udp) { try { this.udp.close(); } catch (err) {} }
   this.sock = null; this.udp = null;

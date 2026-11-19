@@ -158,14 +158,6 @@ function oneRow(line) {
     return flat.length > ROW_CHARS ? `${flat.slice(0, ROW_CHARS - 1)}…` : flat;
 }
 
-function clockTargetText(ms) {
-    if (!Number.isFinite(ms)) return null;
-    const time = new Date(ms);
-    if (!Number.isFinite(time.getTime())) return null;
-    const iso = time.toISOString();
-    return `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)} ${iso.slice(11, 19)}`;
-}
-
 /* RHMI event values arrive as booleans, or as 1/0 on some HMIs. */
 function isTrue(raw) {
     return raw === true || raw === 'true' || raw === 1 || raw === '1';
@@ -208,7 +200,6 @@ class WazeClusterApp extends OnlineApp {
         this._logs.on('change', () => this._renderLogs());
         this._cameraState = null;
         this._cameraInfoMode = null;
-        this._cameraGpsAction = null;
         this._cameras = new CameraControl();
         this._cameras.on('change', () => { this._refreshCameraFeedback(); this._renderCameras(); this._renderHudOpacity(); this._handleAudioRequest(); });
         this._gpsBridge = new BmwGpsBridge({ builders: someipBuilders });
@@ -446,11 +437,7 @@ class WazeClusterApp extends OnlineApp {
             delete this._written['cell:'+name+':0:Value'];setImmediate(()=>this._renderOverspeedPreferences());
         }));
         this._bind('cameraGpsReset',()=>{
-            const action = this._cameraGpsAction;
-            const pending = this._cameraPending;
-            if (action && !(pending && pending.pending && pending.command === 'gps-clock-confirm')) {
-                this._cameraCommand(action);
-            }
+            if (cameraView.canResetGps(this._cameras.state)) this._cameraCommand({cmd:'gps-reset'});
         });
         this._bind('cameraResultMore', () => this._nextCameraResult());
         this._bind('cameraDiagResultMore', () => this._nextCameraResult());
@@ -970,8 +957,7 @@ class WazeClusterApp extends OnlineApp {
             'display-test-stop':'сохранение и остановка теста','card-layout':'настройка предупреждения',
             'card-layout-reset':'сброс настроек предупреждения','card-move':'положение предупреждения',
             'alert-preferences':'настройки предупреждений','overspeed-preferences':'настройки превышения',
-            'gps-reset':'сброс истории GPS; ожидайте свежие координаты',
-            'gps-clock-confirm':'сверка времени GPS по телефону'}[message.cmd]||message.cmd;
+            'gps-reset':'сброс истории GPS; ожидайте свежие координаты'}[message.cmd]||message.cmd;
         const targetName=message.target==='map'?'приборы':message.target==='hud'?'HUD':null;
         const pending={message:'Ожидание ответа: '+commandName+(targetName?' • '+targetName:''),command:message.cmd,target:message.target,requestId,pending:true};
         this._cameraFeedback=pending; this._cameraPending=pending;
@@ -1263,28 +1249,21 @@ class WazeClusterApp extends OnlineApp {
     }
 
     _renderGpsReset(state, feedback) {
-        const resetAvailable = !!(state && state.capabilities && state.capabilities.gpsReset === true);
+        const resetAvailable = cameraView.canResetGps(state);
         const reset = state && state.gpsReset || {};
         const clock = state && state.clock || {};
-        const target = clock.calibrationTargetUtcMs;
-        const utc = resetAvailable ? clockTargetText(target) : null;
-        const moscow = utc ? clockTargetText(target + 3 * 60 * 60 * 1000) : null;
-        this._cameraGpsAction = resetAvailable ? (utc ? { cmd: 'gps-clock-confirm', targetUtcMs: target } : { cmd: 'gps-reset' }) : null;
-        this._write('cameraGpsReset', utc ? `Сверить по телефону • ${utc} UTC` : 'Сбросить историю GPS');
+        const reference = cameraView.gpsClockReference(clock);
+        this._write('cameraGpsReset', 'Сбросить историю GPS');
         this._setEnabled('cameraGpsReset', resetAvailable);
         let hint = 'Для сброса истории GPS обновите сервис камер';
-        if (resetAvailable) {
-            if (utc) {
-                hint = feedback && feedback.command === 'gps-clock-confirm' && feedback.pending ? feedback.message :
-                    `На стоянке нажмите в ${moscow} МСК по часам телефона`;
-            } else if (feedback && (feedback.command === 'gps-reset' || feedback.command === 'gps-clock-confirm')) {
-                hint = feedback.message;
-            } else if (clock.referenceSource === 'rtc' || clock.referenceSource === 'phone') {
-                hint = `Опора GPS: ${cameraView.gpsClockReference(clock)}` + (state.gpsFix ? '' : ' • ожидание свежего RMC BMW');
-            } else {
-                hint = (clock.issue !== 'NONE' && clock.reason) || reset.reason || reset.message ||
-                    'После исправления даты явно сбросьте историю GPS и дождитесь свежих координат';
-            }
+        if (cameraView.gpsClockWaiting(clock)) {
+            hint = 'Автосверка GPS: ожидание независимых часов';
+        } else if (resetAvailable && feedback && feedback.command === 'gps-reset') {
+            hint = feedback.message;
+        } else if (clock.referenceState === 'ready' && reference) {
+            hint = `Опора GPS: ${reference}` + (state.gpsFix ? '' : ' • ожидание свежего RMC BMW');
+        } else if (resetAvailable) {
+            hint = reset.reason || reset.message || 'После сброса GPS дождитесь свежих координат';
         }
         this._write('cameraGpsResetHint', hint);
     }

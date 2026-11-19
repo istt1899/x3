@@ -139,26 +139,29 @@ function check(label,fn){fn();console.log('ok '+(++count)+' - '+label);}
         resetCommand();commands.length=0;const old=state();old.capabilities.gpsReset=false;apply(old);press('cameraGpsReset',true);
         assert.strictEqual(byName.cameraGpsReset.enabled,false);assert.strictEqual(commands.length,0);
     });
-    check('GPS clock calibration shows the offered UTC and Moscow dates, sends it once and preserves ordinary reset',()=>{
+    check('GPS waits for independent time automatically and ignores legacy calibration offers',()=>{
         resetCommand();commands.length=0;
-        const target = Date.UTC(2026,10,19,21,4);
-        const offered = state();
-        offered.clock = {calibrationTargetUtcMs:target};
-        apply(offered);
-        assert.strictEqual(byName.cameraGpsReset.cells['0:Text'],'Сверить по телефону • 19.11.2026 21:04:00 UTC');
-        assert.strictEqual(byName.cameraGpsResetHint.cells['0:Text'],'На стоянке нажмите в 20.11.2026 00:04:00 МСК по часам телефона');
-        assert(/GPS: нужна сверка/.test(byName.cameraStatus.cells['0:Text']));
-        assert(/На стоянке нажмите «Сверить по телефону»/.test(rows(null,offered,1)));
-        assert(!/проверьте дату BMW/.test(rows(null,offered,1)));
-        assert.strictEqual(commands.length,0);
-        offered.clock.calibrationTargetUtcMs += 60000;
+        const raw = Date.UTC(2179,5,5,21,4);
+        const waiting = state();
+        waiting.clock = {referenceState:'waiting',referenceSource:'system',referenceUtcMs:raw,
+            referenceUtc:new Date(raw).toISOString(),serviceWallMs:raw,
+            calibrationTargetUtcMs:Date.UTC(2026,10,19,21,4)};
+        apply(waiting);
+        assert.strictEqual(byName.cameraGpsReset.enabled,false);
+        assert.strictEqual(byName.cameraGpsResetHint.cells['0:Text'],'Автосверка GPS: ожидание независимых часов');
+        assert(/GPS: ожидание часов/.test(byName.cameraStatus.cells['0:Text']));
+        const report = diagnostics.clockRows(waiting);
+        assert(report[2].includes('2179-06-05T21:04:00.000Z'));
+        assert(report[8].includes('возраст неизвестно'));
+        assert.strictEqual(report[10],'Опора GPS: ожидание независимых часов • UTC не подтверждён');
+        assert(!/телефон|проверьте дату BMW/.test(rows(null,waiting,1)));
         press('cameraGpsReset');press('cameraGpsReset',true);
-        assert.strictEqual(commands.length,1);
-        const {cmd,targetUtcMs,requestId} = commands[0];
-        assert.strictEqual(cmd,'gps-clock-confirm');assert.strictEqual(targetUtcMs,target);assert(requestId);
-        assert(/сверка времени GPS/.test(byName.cameraGpsResetHint.cells['0:Text']));
-        resetCommand();commands.length=0;apply(state());
+        assert.strictEqual(commands.length,0);
+        const legacy = state();
+        legacy.clock = {calibrationTargetUtcMs:waiting.clock.calibrationTargetUtcMs};
+        apply(legacy);
         assert.strictEqual(byName.cameraGpsReset.cells['0:Text'],'Сбросить историю GPS');
+        assert.strictEqual(commands.length,0);
         press('cameraGpsReset');assert.strictEqual(commands.length,1);
         assert.strictEqual(commands[0].cmd,'gps-reset');assert(!('targetUtcMs' in commands[0]));
     });
@@ -169,8 +172,8 @@ function check(label,fn){fn();console.log('ok '+(++count)+' - '+label);}
         const raw = Date.UTC(2179,5,5,21,4);
         live.gpsFix.motionTimeMs = reference - 500;
         live.gpsInput = {rmcAdvanceAgeMs:2500,nmeaTiming:{lastRmcAgeMs:0}};
-        for (const [source,label] of [['system','системные часы'],['rtc','RTC'],['phone','телефон']]) {
-            live.clock = {referenceSource:source,referenceUtcMs:reference,referenceUtc:new Date(reference).toISOString(),
+        for (const [source,label] of [['system','системные часы'],['rtc','RTC'],['network','сетевые часы']]) {
+            live.clock = {referenceState:'ready',referenceSource:source,referenceUtcMs:reference,referenceUtc:new Date(reference).toISOString(),
                 systemWallMs:raw,serviceWallMs:raw,serviceWallUtc:new Date(raw).toISOString(),
                 sourceUtcMs:reference,sourceDeltaMs:raw-reference,issue:'UTC_MISMATCH',reason:'проверьте дату BMW'};
             apply(live);
@@ -180,10 +183,9 @@ function check(label,fn){fn();console.log('ok '+(++count)+' - '+label);}
             assert(clock[8].includes('возраст 500 мс'));
             assert.strictEqual(clock[10],`Опора GPS: ${label} • UTC 2026-11-19T21:04:00.000Z`);
             assert(rows(null,live,1).includes('RMC BMW: приём 0 мс назад • рост UTC 2500 мс назад'));
-            if (source !== 'system') {
-                assert.strictEqual(byName.cameraGpsResetHint.cells['0:Text'],`Опора GPS: ${label}`);
-                assert(!/проверьте дату BMW/.test(rows(null,live,1)));
-            }
+            assert.strictEqual(byName.cameraGpsReset.enabled,true);
+            assert.strictEqual(byName.cameraGpsResetHint.cells['0:Text'],`Опора GPS: ${label}`);
+            assert(!/проверьте дату BMW/.test(rows(null,live,1)));
         }
         const legacy = diagnostics.clockRows(state());
         assert(legacy[10].includes('не сообщается'));

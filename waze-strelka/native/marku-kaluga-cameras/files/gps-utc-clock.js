@@ -1,67 +1,111 @@
 'use strict';
-// On some head units Linux process time is centuries ahead of both iDrive
-// and GNSS. A readable RTC is optional. Never write either clock.
-var fs = require('fs');
-var createReferenceClock = require('./reference-clock').createReferenceClock;
-function readRtc() {
-  var value = fs.readFileSync('/sys/class/rtc/rtc0/since_epoch', 'utf8').trim();
-  return /^\d{10}$/.test(value) ? Number(value) * 1000 : NaN;
+
+const fs = require('fs');
+const { createNetworkUtc } = require('./network-utc');
+const MIN_UTC = Date.UTC(2020, 0, 1);
+const MAX_UTC = Date.UTC(2100, 0, 1);
+
+function plausible(utc) {
+  return Number.isSafeInteger(utc) && utc >= MIN_UTC && utc < MAX_UTC;
 }
+
+// Both kernel interfaces expose the hardware clock. Read date and time in one
+// procfs snapshot so that midnight cannot combine two different calendar days.
+function readRtc(readFile) {
+  try {
+    const seconds = readFile('/sys/class/rtc/rtc0/since_epoch', 'utf8').trim();
+    if (/^\d{10}$/.test(seconds) && plausible(Number(seconds) * 1000)) return Number(seconds) * 1000;
+  } catch (err) {}
+  try {
+    const status = readFile('/proc/driver/rtc', 'utf8');
+    const day = /^rtc_date\s*:\s*(\d{4}-\d\d-\d\d)\s*$/m.exec(status);
+    const time = /^rtc_time\s*:\s*(\d\d:\d\d:\d\d)\s*$/m.exec(status);
+    if (day && time) {
+      const stamp = day[1] + 'T' + time[1] + '.000Z';
+      const utc = Date.parse(stamp);
+      if (plausible(utc) && new Date(utc).toISOString() === stamp) return utc;
+    }
+  } catch (err) {}
+  return null;
+}
+
 function createGpsClock(options) {
   options = options || {};
-  var wall = options.wallNow || Date.now;
-  var mono = options.monotonicNow || function () { return process.uptime() * 1000; };
-  var read = options.readRtc || readRtc;
-  var phone = createReferenceClock({wallNow:wall, monotonicNow:mono});
-  var prev, edge, edges = 0, nextPoll = 0, rtc = false, lastRmc = null, advancedAt = null;
-  function clearRtc() { prev = edge = null; edges = 0; rtc = false; }
-  function sample() {
-    var m = mono(), wallMs = wall();
-    if (new Date(wallMs).getUTCFullYear() <= 2099) {
-      clearRtc(); lastRmc = advancedAt = null; nextPoll = 0; return;
-    }
-    if (prev && (m < prev.m || m - prev.m > 1800 || Math.abs((wallMs-prev.wall) - (m-prev.m)) > 250)) {
-      clearRtc(); lastRmc = advancedAt = null; nextPoll = 0;
-    }
+  const wall = options.wallNow || Date.now;
+  const mono = options.monotonicNow || (() => process.uptime() * 1000);
+  const read = options.readRtc || (() => readRtc(fs.readFileSync));
+  const openNetwork = options.createNetworkUtc || createNetworkUtc;
+  let network = null, closed = false;
+  let previous = null, edge = null, edges = 0, nextPoll = 0;
+  let lastRmc = null, advancing = false, lastSample = null, waitingSince = null;
+  let source = null, epoch = 0;
+
+  function clearRtc() { previous = edge = null; edges = 0; }
+  function closeNetwork() { if (network) network.close(); network = null; }
+  function reset() {
+    clearRtc(); closeNetwork(); nextPoll = 0; lastRmc = null; advancing = false; waitingSince = null;
+  }
+  function pollRtc(m) {
     if (m < nextPoll) return;
     nextPoll = m + 100;
-    var value;
-    try { value = read(); } catch (err) { clearRtc(); nextPoll = m + 60000; return; }
-    if (!Number.isSafeInteger(value) || value % 1000 !== 0 || value < Date.UTC(2020,0,1) || value >= Date.UTC(2100,0,1)) {
+    let value;
+    try { value = read(); } catch (err) { value = null; }
+    if (!plausible(value) || value % 1000 !== 0) {
       clearRtc(); nextPoll = m + 60000; return;
     }
-    if (prev && prev.value !== value) {
-      if (value === prev.value + 1000 && m - prev.m <= 650) {
-        var mid = (m + prev.m) / 2;
-        if (edge && Math.abs((value-edge.utc) - (mid-edge.m)) > 400) clearRtc();
-        edge = {utc:value, m:mid}; edges++;
+    if (previous && previous.value !== value) {
+      if (value === previous.value + 1000 && m - previous.m <= 650) {
+        const mid = (m + previous.m) / 2;
+        if (edge && Math.abs((value - edge.utc) - (mid - edge.m)) > 400) clearRtc();
+        edge = { utc:value, m:mid }; edges++;
       } else clearRtc();
     } else if (edge && m - edge.m > 1500) clearRtc();
-    prev = {value:value, m:m, wall:wallMs};
-    if (!rtc && edges >= 2 && advancedAt !== null && m-advancedAt <= 1500 &&
-        Math.abs((edge.utc+m-edge.m) - (lastRmc+m-advancedAt)) <= 1250) rtc = true;
+    previous = { value, m };
   }
-  var previousSource = 'system', epoch = 0;
+  function agrees(utc, m) {
+    return advancing && m - lastRmc.m <= 1500 && Math.abs(utc - (lastRmc.utc + m - lastRmc.m)) <= 1250;
+  }
   function snapshot() {
-    sample();
-    var state = phone.snapshot();
-    if (rtc) Object.assign(state,{referenceSource:'rtc',referenceUtcMs:Math.round(edge.utc + mono() - edge.m),
-      calibrationTargetUtcMs:null,referenceExpiresInMs:null});
-    if (previousSource !== state.referenceSource) { epoch++; previousSource = state.referenceSource; }
-    state.referenceEpoch = epoch;
-    return state;
-  }
-  return {
-    now:function () { return snapshot().referenceUtcMs; },
-    observeRmc:function (utc) {
-      if (Number.isFinite(utc) && (lastRmc === null || utc > lastRmc)) {
-        advancedAt = lastRmc !== null && utc-lastRmc <= 3000 ? mono() : null;
-        lastRmc = utc;
+    const m = mono(), wallMs = wall();
+    let selected = 'system', utc = wallMs;
+    if (lastSample && (wallMs >= MAX_UTC || lastSample.wall >= MAX_UTC) &&
+        (m < lastSample.m || m - lastSample.m > 5000 ||
+        Math.abs(wallMs - lastSample.wall - (m - lastSample.m)) > 250)) {
+      reset();
+      // An active source reacquired on this same tick still needs new fixes.
+      epoch++; source = 'system';
+    }
+    lastSample = { m, wall:wallMs };
+    if (!closed && wallMs >= MAX_UTC) {
+      if (waitingSince === null) waitingSince = m;
+      selected = 'waiting';
+      pollRtc(m);
+      const rtcUtc = edges >= 2 ? Math.round(edge.utc + m - edge.m) : null;
+      if (rtcUtc !== null && (source === 'rtc' || agrees(rtcUtc, m))) {
+        selected = 'rtc'; utc = rtcUtc; closeNetwork();
+      } else if (m - waitingSince >= 4000) {
+        if (!network) network = openNetwork({ wallNow:wall, monotonicNow:mono });
+        const networkUtc = network.now();
+        if (plausible(networkUtc) && (source === 'network' || agrees(networkUtc, m))) {
+          selected = 'network'; utc = networkUtc;
+        }
       }
-      phone.observeRmc(utc);
-    },
-    confirm:function (utc) { sample(); return !rtc && phone.confirm(utc); },
-    snapshot:snapshot
-  };
+    } else if (waitingSince !== null) reset();
+    if (source !== null && selected !== source) epoch++;
+    source = selected;
+    return { referenceState:source === 'waiting' ? 'waiting' : 'ready',
+      referenceSource:source === 'waiting' ? 'system' : source,
+      referenceUtcMs:utc, referenceEpoch:epoch, systemWallMs:wallMs };
+  }
+  function observeRmc(utc) {
+    if (closed || wall() < MAX_UTC || !plausible(utc)) return;
+    const m = mono();
+    if (lastRmc && utc === lastRmc.utc) return;
+    const step = lastRmc && utc - lastRmc.utc, elapsed = lastRmc && m - lastRmc.m;
+    advancing = !!lastRmc && step > 0 && step <= 3000 && elapsed >= 100 && Math.abs(step - elapsed) <= 500;
+    lastRmc = { utc, m };
+  }
+  return { now:() => snapshot().referenceUtcMs, observeRmc, snapshot,
+    close() { closed = true; reset(); } };
 }
-module.exports = {createGpsClock:createGpsClock};
+module.exports = { createGpsClock, readRtc };

@@ -34,11 +34,12 @@ function packet(utc, speedKmh, rmcPosition) {
 async function run(label, rtcOffsetMs, test) {
     const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'strelka-x6-'));
     const socket = process.platform === 'win32' ? '\\\\.\\pipe\\strelka-x6-' + process.pid + '-' + label : path.join(dir, 'ctl.sock');
-    let elapsed = 0, frozenRtc = null;
+    let elapsed = 0, frozenRtc = null, networkAvailable = false;
     const mono = () => elapsed;
     const utc = () => actualUtc + elapsed;
     const rtcNow = () => rtcOffsetMs === null ? NaN : Math.floor((utc() + rtcOffsetMs) / second) * second;
     const gps = new GpsProvider({ now: () => wrongWall + elapsed, monotonicNow: mono, nmeaPort: 0, port: 1,
+        createNetworkUtc: () => ({now: () => networkAvailable ? utc() : null, close() {}}),
         readRtc: () => frozenRtc === null ? rtcNow() : frozenRtc });
     let app, shown;
     try {
@@ -60,7 +61,7 @@ async function run(label, rtcOffsetMs, test) {
             }
         };
         const feed = (time, speedKmh = 0, position) => command('vehicle-nmea', {data: packet(time, speedKmh, position)});
-        await test({ state, command, tick, feed, utc, freezeRtc: () => { frozenRtc = rtcNow(); }, shown: () => shown });
+        await test({ state, command, tick, feed, utc, freezeRtc: () => { frozenRtc = rtcNow(); }, setNetwork: enabled => { networkAvailable = enabled; }, shown: () => shown });
     } finally {
         if (app) app.close();
         else gps.close();
@@ -146,30 +147,25 @@ async function main() {
         rejectPreview(state, command, 'STATIONARY_UNKNOWN');
     });
 
-    await run('phone', null, ({ state, command, tick, feed, utc, shown }) => {
-        assert.deepStrictEqual(state().outputs, {cluster:false, hud:false}, 'Fresh installation keeps both outputs opt-in');
+    await run('network', null, ({ state, command, tick, feed, utc, setNetwork, shown }) => {
+        assert.deepStrictEqual(state().outputs, {cluster:false, hud:false});
         command('outputs', {cluster:false, hud:true});
         const frozen = utc() - 14 * second;
-        feed(frozen, 0, ',N,,E');
-        assert.strictEqual(state().clock.calibrationTargetUtcMs, null, 'Incomplete RMC coordinates cannot suggest phone calibration');
         feed(frozen);
-        assert.strictEqual(state().clock.issue, 'UTC_MISMATCH');
         command('gps-reset');
         assert.strictEqual(state().clock.admissionAfterUtcMs, wrongWall + 500);
-        const minute = state().clock.calibrationTargetUtcMs;
-        assert.strictEqual(minute, Date.parse('2026-11-19T12:01:00.000Z'));
-        assert.throws(() => command('gps-clock-confirm', {targetUtcMs:minute + 60 * second}));
+        setNetwork(true);
         tick(16 * second);
         feed(frozen);
-        assert.strictEqual(utc(), minute);
-        command('gps-clock-confirm', {targetUtcMs:minute});
-        assert.strictEqual(state().commandResult.phase, 'finished');
-        assert.strictEqual(state().clock.referenceSource, 'phone');
-        assert.strictEqual(state().clock.referenceUtcMs, minute);
-        assert.strictEqual(state().clock.admissionAfterUtcMs, minute + 500);
+        assert.strictEqual(state().clock.referenceState, 'waiting');
+        rejectPreview(state, command, 'STATIONARY_UNKNOWN');
+        feed(utc());
+        tick(second); feed(utc());
+        assert.strictEqual(state().clock.referenceSource, 'network');
+        assert.strictEqual(state().clock.referenceUtcMs, utc());
+        assert.strictEqual(state().clock.admissionAfterUtcMs, utc() + 500);
         assert.strictEqual(state().gpsFix, null);
-        feed(frozen);
-        feed(minute);
+        assert.throws(() => command('gps-clock-confirm', {targetUtcMs:utc()}), /Unsupported command/);
         rejectPreview(state, command, 'STATIONARY_UNKNOWN');
 
         tick(second);
@@ -200,19 +196,18 @@ async function main() {
         assert.strictEqual(shown(), null);
         rejectPreview(state, command, 'STATIONARY_UNKNOWN');
 
-        tick(minute + 3599 * second - utc(), 4 * second);
-        feed(utc());
+        tick(second); feed(utc());
         command('display-test', {target:'hud'});
         assert.strictEqual(shown().test, true);
+        setNetwork(false);
         tick(second);
-        assert.strictEqual(state().clock.referenceSource, 'system');
-        assert.strictEqual(state().clock.lastDiscontinuity, 'REFERENCE_EXPIRED');
+        assert.strictEqual(state().clock.referenceState, 'waiting');
         assert.strictEqual(state().gpsFix, null);
         assert.strictEqual(state().displayTest.active, false);
         assert.strictEqual(shown(), null);
         rejectPreview(state, command, 'STATIONARY_UNKNOWN');
     });
-    console.log('PASS X6 clock mismatch, reset cutoff, RTC/RMC progression, phone confirmation and HUD safety gates');
+    console.log('PASS X6 clock mismatch, reset cutoff, RTC/RMC progression, automatic network reference and HUD safety gates');
 }
 
 main().catch(error => { console.error(error.stack); process.exitCode = 1; });

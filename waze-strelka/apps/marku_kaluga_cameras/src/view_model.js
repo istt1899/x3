@@ -164,19 +164,27 @@ function diagnostics(state) {
 }
 
 function gpsClockReference(clock) {
-    const labels = {system:'системные часы',rtc:'RTC',phone:'телефон'};
+    const labels = {system:'системные часы',rtc:'RTC',network:'сетевые часы'};
     const label = clock && labels[clock.referenceSource];
     return typeof label === 'string' ? label : null;
+}
+
+function gpsClockWaiting(clock) {
+    return !!clock && clock.referenceState === 'waiting';
+}
+
+function canResetGps(state) {
+    return !!(state && state.capabilities && state.capabilities.gpsReset === true && !gpsClockWaiting(state.clock));
 }
 
 function hubSummary(state) {
     if(!state)return 'Сервис недоступен • откройте Диагностику';
     const prefs=alertPreferences(state),test=state.displayTest||{},clock=state.clock||{};
-    const gps=Number.isFinite(clock.calibrationTargetUtcMs)?'GPS: нужна сверка':
+    const gps=gpsClockWaiting(clock)?'GPS: ожидание часов':
         clock.issue&&clock.issue!=='NONE'?'GPS: часы/UTC':state.gpsFix?'GPS: есть данные':'GPS: ожидание';
     return 'Оповещения '+(state.enabled?'вкл':'выкл')+' • '+gps+' • типы '+
         (prefs.available?prefs.enabledCount+'/11':'—')+' • тест '+(test.active?(test.target==='hud'?'HUD':'приборы'):'выкл');
 }
 
 module.exports = { model, outputCommand, diagnostics, date, distance, ALERT_TYPES, alertPreferences, hubSummary, gpsClockReference,
-    OVERSPEED_RECOMMENDED, overspeedPreferences, coverageRows, cameraFacing, captureInfo };
+    gpsClockWaiting, canResetGps, OVERSPEED_RECOMMENDED, overspeedPreferences, coverageRows, cameraFacing, captureInfo };
