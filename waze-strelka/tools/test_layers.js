@@ -160,10 +160,14 @@ function styleMatches(actual,original,brightnessPct,opacityPct){
         const offline=JSON.parse(JSON.stringify(saved));offline.hud={x:1000,y:1000,scalePct:150,brightnessPct:30,opacityPct:30};
         display.update(liveAlert,outputs,offline);
         announcedTargets='map:874x749,hud:353x203';
-        const reconnectAt=wireMessages.length;
-        await until('resized renderer reconnect',()=>opens>opensBefore&&display.diagnostics().connection==='ready'&&display.diagnostics().hud.layout.canvas.width===353&&wireLayers.get(hudRef).visible===1&&wireLayers.get(hudRef).w<353);
+        const reconnectAt=wireMessages.length,reconnectFrameAt=wireFrames.length;
+        await until('resized renderer reconnect',()=>opens>opensBefore&&display.diagnostics().connection==='ready'&&
+            display.diagnostics().hud.layout.canvas.width===353&&
+            wireMessages.slice(reconnectAt).some(m=>m.op==='set'&&m.ref===hudRef&&m.visible===1)&&
+            wireFrames.slice(reconnectFrameAt).some(f=>f.ref===hudRef));
         const resumed=display.diagnostics().hud.layout,resumedWire=wireLayers.get(hudRef);
         assert.deepStrictEqual([resumedWire.x,resumedWire.y,resumedWire.w,resumedWire.h],[resumed.card.x,resumed.card.y,resumed.card.width,resumed.card.height],'reconnect uses latest offline profile with fresh target dimensions');
+        assert(resumedWire.w<353,'replayed HUD card fits the narrower canvas');
         assert.strictEqual(resumed.settings.scalePct,150);assert(resumed.card.scale<1.5&&resumed.card.scale>=.75);
         assert.strictEqual(resumed.settings.x,1000);assert.strictEqual(resumed.settings.y,1000);
         styleMatches(wirePixels.get(hudRef),card.card(liveAlert,'hud'),30,30);
