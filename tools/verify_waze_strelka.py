@@ -5,6 +5,8 @@ import concurrent.futures
 import hashlib
 import json
 from pathlib import Path
+import time
+import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,16 +24,42 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def download(url, limit):
+def download(url, limit, timeout=30):
     require(url.startswith('https://'), 'HTTPS required')
     # Match sources.js/raw() in the actual MGU Updater. A request without its
     # Accept header can hit a different, stale cached catalog representation.
     request = urllib.request.Request(url, headers={'User-Agent': 'mgu-updater/0.8.18',
                                                  'Accept': 'application/octet-stream'})
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urllib.request.urlopen(request, timeout=timeout) as response:
         data = response.read(limit + 1)
     require(len(data) <= limit, 'Download exceeds size bound')
     return data
+
+
+def check_public_catalogs(expected):
+    pending = [
+        'https://github.com/istt1899/x3/releases/download/catalog/catalog.json',
+        'https://raw.githubusercontent.com/istt1899/x3/main/catalog.json',
+    ]
+    # The same anonymous URLs can briefly serve pre-publication bytes or a 404.
+    # Keep this window within the five-minute job, including artifact checks.
+    deadline = time.monotonic() + 180
+    while pending:
+        for url in pending.copy():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                if download(url, 256 * 1024, timeout=min(15, remaining)) == expected:
+                    pending.remove(url)
+            except urllib.error.HTTPError as error:
+                if error.code != 404:
+                    raise
+        if not pending:
+            return
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, 'Public catalog differs after retries: ' + ', '.join(pending))
+        time.sleep(min(15, remaining))
 
 
 def check_artifact(item):
@@ -74,9 +102,7 @@ def main():
     require(evidence['store_catalogs']['istt1899/x3']['sha256'] == digest(raw), 'Shared catalog evidence is stale')
     checked = []
     if args.public:
-        for url in ['https://github.com/istt1899/x3/releases/download/catalog/catalog.json',
-                    'https://raw.githubusercontent.com/istt1899/x3/main/catalog.json']:
-            require(download(url, 256 * 1024) == raw, 'Public catalog differs: ' + url)
+        check_public_catalogs(raw)
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
             checked = list(pool.map(check_artifact, [entries[key]['artifact'] for key in sorted(REQUIRED)]))
         app = entries['marku_kaluga_cameras']
