@@ -114,7 +114,7 @@ async function main() {
   assert.deepStrictEqual(run.latest().outputs, { cluster: true, hud: false }); assert(run.latest().alert.calibration);
   gps.fix.motionTimeMs = time - 3001; app.tick(); assert(!app.state().displayTest.active, 'Stale motion timestamp withdraws preview');
   run.refresh(); app.command({ cmd: 'display-test' }); app.command({ cmd: 'outputs', cluster: true, hud: false }); assert(!app.state().displayTest.active);
-  assert.throws(function () { app.command({ cmd: 'display-test', target: 'hud' }); }, /включите выбранный/);
+  assert.throws(function () { app.command({ cmd: 'display-test', target: 'hud' }); }, /Включите выход «HUD» для камер/);
   assert.throws(function () { app.command({ cmd: 'display-test', target: 'bad' }); }, /приборы или HUD/);
   app.command({ cmd: 'outputs', cluster: false, hud: false }); app.command({ cmd: 'card-layout-reset', target: 'hud' });
   assert.deepStrictEqual(app.state().cardLayout.hud, defaults.hud); assert.strictEqual(app.state().cardLayout.map.scalePct, 150);
