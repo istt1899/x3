@@ -116,7 +116,13 @@ GpsDecoder.prototype.line = function (line) {
   if (this.gst && !fresh(this.gst.received, now)) this.gst = null;
   if (kind === 'RMC') {
     var time = utc(p[9], p[1]);
+    var lat = coordinate(p[3], p[4], false), lon = coordinate(p[5], p[6], true);
+    var validCoordinates = number(lat) && number(lon);
     if (number(time)) this.lastParsedUtc = time;
+    // A plausible BMW date can suggest a time to check on an independent
+    // clock even when an earlier manual reset set the boundary to year 2179.
+    if (this.observeRmc && number(time) && validCoordinates && p[2] === 'A' &&
+        (!p[12] || ['A','D','P','R','F'].indexOf(p[12]) >= 0)) this.observeRmc(time);
     if (this.admissionAfterUtc !== null && number(time) && time <= this.admissionAfterUtc) {
       this.rmc = null; this.timing.pairReason = 'MANUAL_RESET_WAITING_SOURCE'; this.invalidate(source,'source UTC precedes manual reset boundary'); return parsed;
     }
@@ -132,8 +138,7 @@ GpsDecoder.prototype.line = function (line) {
     if (!fresh(time, now)) {
       this.rmc = null; this.timing.pairReason = 'INVALID_RMC'; this.invalidate(source, 'stale RMC UTC'); return parsed;
     }
-    var lat = coordinate(p[3], p[4], false), lon = coordinate(p[5], p[6], true);
-    if (!number(lat) || !number(lon)) {
+    if (!validCoordinates) {
       this.rmc = null; this.timing.pairReason = 'INVALID_RMC'; this.invalidate(source, 'RMC invalid coordinates'); return parsed;
     }
     this.lastRmcUtc = time;
@@ -209,8 +214,29 @@ GpsDecoder.prototype.current = function (now) {
   return best;
 };
 function GpsProvider(options) {
-  EventEmitter.call(this); this.options = options || {}; this.now = this.options.now || Date.now;
+  EventEmitter.call(this); this.options = options || {};
+  this.referenceClock = require('./gps-utc-clock').createGpsClock({wallNow:this.options.now,
+    monotonicNow:this.options.monotonicNow, readRtc:this.options.readRtc});
+  this.now = this.referenceClock.now;
   this.decoder = new GpsDecoder(this.now); this.bmwDecoder = new GpsDecoder(this.now, 'bmw-nmea');
+  var provider = this;
+  this.lastAdvancingRmc = null;
+  this.lastAdvanceAt = null;
+  this.clockPriming = false;
+  this.bmwDecoder.observeRmc = function(utc) {
+    provider.referenceClock.observeRmc(utc);
+    var now = provider.now();
+    var boundary = provider.bmwDecoder.admissionAfterUtc;
+    if (provider.clockPriming && (!fresh(utc,now) || utc <= boundary)) return;
+    if (provider.lastAdvancingRmc !== null && utc <= provider.lastAdvancingRmc) return;
+    var elapsed = provider.lastAdvanceAt === null ? 0 : now - provider.lastAdvanceAt;
+    if (provider.clockPriming && provider.lastAdvancingRmc !== null &&
+        boundary !== null && provider.lastAdvancingRmc > boundary &&
+        elapsed >= 100 && Math.abs(elapsed - (utc-provider.lastAdvancingRmc)) <= 500 &&
+        fresh(provider.lastAdvancingRmc,now)) provider.clockPriming = false;
+    provider.lastAdvancingRmc = utc;
+    provider.lastAdvanceAt = now;
+  };
   this.sock = null; this.udp = null; this.retry = null; this.closed = true;
   this.generation = 0; this.udpMessageHandler = null; this.udpErrorHandler = null;
   this.bridge = { state: 'stopped', errorCode: null, changedAt: null };
@@ -284,6 +310,8 @@ GpsProvider.prototype.inputNavigation = function (raw) {
   if (raw.headingDeg !== null && raw.headingDeg !== undefined && (!number(raw.headingDeg) || raw.headingDeg < 0 || raw.headingDeg >= 360)) { this.rejectNavigation('heading outside 0–360°'); return false; }
   if (!number(raw.timeMs) || !fresh(raw.timeMs, this.now())) { this.rejectNavigation('stale or future navigation time'); return false; }
   if (raw.timeOrigin !== 'source' && raw.timeOrigin !== 'receipt') { this.rejectNavigation('time origin is not source or receipt'); return false; }
+  if (this.bmwDecoder.admissionAfterUtc !== null && raw.timeMs <= this.bmwDecoder.admissionAfterUtc) { this.rejectNavigation('navigation time precedes manual reset'); return false; }
+  if (this.referenceClock.snapshot().referenceSource !== 'system' && raw.timeOrigin !== 'source') { this.rejectNavigation('navigation source UTC required'); return false; }
   var fix = { lat: raw.lat, lon: raw.lon,
     speedKmh: raw.speedKmh === undefined ? null : raw.speedKmh,
     headingDeg: raw.headingDeg === undefined ? null : raw.headingDeg,
@@ -332,6 +360,7 @@ GpsProvider.prototype.diagnostics = function (now) {
       admissionAfterUtcMs: number(cutoff) ? cutoff : null, admissionAfterUtc: iso(cutoff), issue: issue, reason: reason },
     gpsBridge: { state: this.bridge.state, errorCode: this.bridge.errorCode, ageMs: age(this.bridge.changedAt), reason: this.bridge.reason || null },
     gpsInput: { source: 'bmw-nmea', packets: this.input.packets, badPackets: this.input.badPackets, checksumErrors: this.input.checksumErrors,
+      rmcAdvanceAgeMs: age(this.lastAdvanceAt),
       sentences: Object.assign({}, this.input.sentences), lastPacketAgeMs: age(this.input.lastPacketAt), fixUtcAgeMs: age(this.input.fixUtc),
       sourceUtcAgeMs: this.bmwDecoder.lastParsedUtc === null ? null : now - this.bmwDecoder.lastParsedUtc,
       rejectReason: this.bmwDecoder.lastRejectReason, nmeaTiming: this.bmwDecoder.timingSnapshot(now) },
@@ -386,6 +415,8 @@ GpsProvider.prototype.bindUdpHandlers = function () {
 GpsProvider.prototype.resetEpoch = function (now) {
   if(!number(now))throw new Error('GPS_RESET_TIME_INVALID');
   this.generation++;
+  this.lastAdvancingRmc = this.lastAdvanceAt = null;
+  this.clockPriming = this.referenceClock.snapshot().referenceSource !== 'system';
   this.decoder.resetEpoch(now+500);this.bmwDecoder.resetEpoch(now+500);
   this.input.fixUtc=null;this.input.lastPacketAt=null;
   this.clearNavigation('manual GPS session reset');
@@ -422,6 +453,7 @@ GpsProvider.prototype.connect = function () {
   });
 };
 GpsProvider.prototype.current = function (now) {
+  if (this.clockPriming) return null;
   var a = this.decoder.current(now), b = this.bmwDecoder.current(now), selected;
   if (!a) selected = b; else if (!b) selected = a;
   else {
@@ -435,6 +467,7 @@ GpsProvider.prototype.current = function (now) {
   return selected || (navigation && fresh(navigation.timeMs, now) ? navigation : null);
 };
 GpsProvider.prototype.motionFixes = function (now) {
+  if (this.clockPriming) return [];
   var result = [], self = this;
   [['gpsd', this.decoder], [this.decoder.nmeaSource, this.decoder],
     [this.bmwDecoder.nmeaSource, this.bmwDecoder]].forEach(function (entry) {

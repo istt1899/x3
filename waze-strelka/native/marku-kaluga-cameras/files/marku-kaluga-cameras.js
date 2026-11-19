@@ -97,7 +97,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.9.1', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.9.2', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -167,6 +167,18 @@ function start(options) {
     port: Number(process.env.KALUGA_GPSD_PORT) || 2947, nmeaHost: process.env.KALUGA_NMEA_HOST || '127.0.0.1',
     nmeaPort: process.env.KALUGA_NMEA_PORT === '0' ? 0 : Number(process.env.KALUGA_NMEA_PORT) || 5001 });
   state.capabilities.gpsReset = typeof gps.resetEpoch === 'function';
+  var clock = gps.referenceClock;
+  var gpsNow = clock ? clock.now : function () { return Date.now(); };
+  var referenceEpoch = 0;
+  function resetGps(now) {
+    var epoch = gps.resetEpoch(now);
+    if (guidance && typeof guidance.reset === 'function') guidance.reset();
+    if (audio && typeof audio.resetEpoch === 'function') audio.resetEpoch(now);
+    state.gpsReset = Object.assign({phase:'waiting-new-fix',generation:state.gpsReset.generation+1,afterUtc:now+500},epoch||{});
+    lastGoodFix = null;
+    state.alert = null;
+    stopDisplayTest('GPS_RESET');
+  }
   function motionFixes(now) {
     if (typeof gps.motionFixes !== 'function') return null; // older injected GPS providers
     try { return gps.motionFixes(now); }
@@ -349,7 +361,7 @@ function start(options) {
     // Read the current renderer session before moving; the periodic snapshot
     // may predate a socket disconnect or a changed runtime canvas.
     tick();
-    var now = Date.now(), policy = actionsAt(now, gps.current(now)).cardMove;
+    var now = gpsNow(), policy = actionsAt(now, gps.current(now)).cardMove;
     if (!policy.allowed) throw new Error(policy.reason);
     if (state.displayTest.target && state.displayTest.target !== target) throw new Error('Включите тест того экрана, который перемещаете');
     var detail = state.rendererDetails[target], layout = detail && detail.layout, canvas = layout && layout.canvas, card = layout && layout.card;
@@ -369,7 +381,11 @@ function start(options) {
   }
   function tick() {
     if(closed)return;
-    var now = Date.now(), fix = null, gpsError = false;
+    var reference = clock && clock.snapshot(), now = reference ? reference.referenceUtcMs : gpsNow(), fix = null, gpsError = false;
+    if (reference && reference.referenceEpoch !== referenceEpoch) {
+      referenceEpoch = reference.referenceEpoch;
+      resetGps(now);
+    }
     try { fix = gps.current(now); } catch (e) { state.error = 'GPS provider: ' + e.message; gpsError = true; }
     var motions = gpsError ? [] : motionFixes(now), motion = actionPolicy.motionStatus(fix, now, motions);
     var roadBlocked = motion.conflict || motion.roadMismatch;
@@ -378,7 +394,7 @@ function start(options) {
     state.gpsFix = fix || null;
     state.gpsMotion = motion;
     if(state.gpsReset.phase==='waiting-new-fix'&&validPosition(fix,now)&&fix.timeMs>state.gpsReset.afterUtc)state.gpsReset.phase='receiving';
-    if (state.street.observedAtMs !== null && now - state.street.observedAtMs > 15000) state.street = { name: null, source: 'BMW', state: 'stale', reason: 'Название улицы BMW устарело', observedAtMs: null };
+    if (state.street.observedAtMs !== null && Date.now() - state.street.observedAtMs > 15000) state.street = { name: null, source: 'BMW', state: 'stale', reason: 'Название улицы BMW устарело', observedAtMs: null };
     state.actions = actionPolicy.policies(state, fix, now, motions);
     state.clock = clockSnapshot(now, null);
     if (typeof gps.diagnostics === 'function') {
@@ -386,6 +402,14 @@ function start(options) {
       if (state.gpsBridge) state.gpsBridge.reason = bridgeReason(state.gpsBridge);
       if (gpsDiagnostics.gpsNavigation) state.gpsNavigation = gpsDiagnostics.gpsNavigation;
       state.clock = clockSnapshot(now, gpsDiagnostics.clock);
+    }
+    if (reference) {
+      Object.assign(state.clock, reference);
+      state.clock.referenceUtc = new Date(now).toISOString();
+      state.clock.referenceUtcMs = now;
+      state.clock.serviceWallMs = reference.systemWallMs;
+      state.clock.serviceWallUtc = new Date(reference.systemWallMs).toISOString();
+      if (Number.isFinite(state.clock.sourceUtcMs)) state.clock.sourceDeltaMs = reference.systemWallMs - state.clock.sourceUtcMs;
     }
     state.gps = typeof gps.description === 'function' ? gps.description(fix, now) : !fix ? 'Нет свежих подтверждённых координат UTC (максимум 3 с)' :
       !valid ? 'Координаты есть; точность, скорость или курс не подтверждены' : 'Свежие координаты, скорость, курс и точность получены';
@@ -422,7 +446,7 @@ function start(options) {
       // Only a missing or stale fix triggers the hold: a fresh but poor fix
       // goes to guidance untouched so the normal quality gates decide.
       var anchor = lastGoodFix, age = now - anchor.timeMs;
-      if (age <= 5000 && Number.isFinite(anchor.lat) && Number.isFinite(anchor.lon)) {
+      if (age >= 0 && age <= 5000 && Number.isFinite(anchor.lat) && Number.isFinite(anchor.lon)) {
         var movedM = (Number.isFinite(anchor.speedKmh) ? anchor.speedKmh : 0) / 3.6 * (age / 1000);
         var headingRad = (Number.isFinite(anchor.headingDeg) ? anchor.headingDeg : 0) * Math.PI / 180;
         evalFix = { lat: anchor.lat + movedM * Math.cos(headingRad) / 111320,
@@ -481,14 +505,17 @@ function start(options) {
     if(closed)throw new Error('Сервис завершает работу');
     if (!msg || typeof msg.cmd !== 'string') throw new Error('Invalid command');
     if (msg.cmd === 'status') return;
+    if (msg.cmd === 'gps-clock-confirm') {
+      if (Object.keys(msg).some(function(k){return ['cmd','requestId','targetUtcMs'].indexOf(k)<0;}) ||
+          !clock || !clock.confirm(msg.targetUtcMs)) throw new Error('Минута сверки недоступна. Сверьте указанное время с телефоном.');
+      tick(); // Changing the GPS time reference always retires the previous session.
+      commandResult(msg.cmd,'finished','Время сверено. Ожидание новых измерений GPS',state.commandResult.id);
+      return;
+    }
     if (msg.cmd === 'gps-reset') {
       if(Object.keys(msg).some(function(key){return ['cmd','requestId'].indexOf(key)<0;}))throw new Error('Неизвестное поле перезапуска GPS');
       if(!state.capabilities.gpsReset)throw new Error('Источник GPS не поддерживает явный сброс сеанса');
-      var resetAt=Date.now(),resetState=gps.resetEpoch(resetAt);
-      if(guidance&&typeof guidance.reset==='function')guidance.reset();
-      if(audio&&typeof audio.resetEpoch==='function')audio.resetEpoch(resetAt);
-      state.gpsReset=Object.assign({phase:'waiting-new-fix',generation:state.gpsReset.generation+1,afterUtc:resetAt+500},resetState||{});
-      state.alert=null;stopDisplayTest('GPS_RESET');tick();
+      resetGps(gpsNow());tick();
       commandResult(msg.cmd,'finished','История GPS очищена; ожидание новых координат UTC',state.commandResult.id);return;
     }
     if (msg.cmd === 'display-test-stop') {
@@ -497,7 +524,8 @@ function start(options) {
       return;
     }
     if (msg.cmd === 'display-test' || msg.cmd === 'calibration-test') {
-      var now = Date.now(); state.actions = actionsAt(now, gps.current(now));
+      tick();
+      var now = gpsNow(); state.actions = actionsAt(now, gps.current(now));
       var policy = state.actions[msg.cmd === 'display-test' ? 'displayTest' : 'calibrationTest'];
       if(!policy.allowed)throw new Error(policy.reason);
       var target = msg.target === undefined ? null : cardLayout.validateTarget(msg.target);
@@ -520,7 +548,7 @@ function start(options) {
     if (msg.cmd === 'audio-test') {
       tick();if(!state.actions.audioTest.allowed)throw new Error(state.actions.audioTest.reason);
       var audioRequestId=state.commandResult.id;
-      audio.test(Date.now()).then(function(){if(!closed){if(state.commandResult && state.commandResult.id===audioRequestId)commandResult(msg.cmd,'played','Воспроизведение сигнала подтверждено',audioRequestId);tick();}},
+      audio.test(gpsNow()).then(function(){if(!closed){if(state.commandResult && state.commandResult.id===audioRequestId)commandResult(msg.cmd,'played','Воспроизведение сигнала подтверждено',audioRequestId);tick();}},
         function(error){if(!closed){if(state.commandResult && state.commandResult.id===audioRequestId)commandResult(msg.cmd,'error',error.message,audioRequestId);tick();}});return;
     }
     if (msg.cmd === 'audio-played') {
@@ -582,7 +610,7 @@ function start(options) {
       if (!Number.isInteger(msg.percent) || msg.percent < 10 || msg.percent > 100) throw new Error('HUD opacity requires an integer from 10 to 100');
       next.hudOpacityPct = msg.percent;
     } else if (['card-layout','card-layout-reset','card-move'].indexOf(msg.cmd) >= 0) {
-      var now = Date.now(), cardPolicy = actionsAt(now, gps.current(now)).cardLayout;
+      var now = gpsNow(), cardPolicy = actionsAt(now, gps.current(now)).cardLayout;
       if(!cardPolicy.allowed)throw new Error(cardPolicy.reason);
       var cardTarget = cardLayout.validateTarget(msg.target);
       if (msg.cmd === 'card-layout-reset') next.cardLayout[cardTarget] = cardLayout.defaultLayouts()[cardTarget];

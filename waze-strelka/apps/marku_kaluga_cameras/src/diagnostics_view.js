@@ -86,10 +86,21 @@ function capture(state, version, now) {
 function clockRows(state) {
     const s=state||{},clock=s.clock||{},app=s.appClock||{},fix=s.gpsFix||{},input=s.gpsInput||{};
     const motionUtc=Number.isFinite(fix.motionTimeMs)?fix.motionTimeMs:fix.timeMs;
-    const motionAge=Number.isFinite(clock.serviceWallMs)&&Number.isFinite(motionUtc)?clock.serviceWallMs-motionUtc:null;
+    const referenceMs=Number.isFinite(clock.referenceUtcMs)?clock.referenceUtcMs:clock.serviceWallMs;
+    const motionAge=Number.isFinite(referenceMs)&&Number.isFinite(motionUtc)?referenceMs-motionUtc:null;
     const ms=value=>Number.isFinite(value)?(value>0?'+':'')+value+' мс':'неизвестно';
+    const age=(value,suffix)=>Number.isFinite(value)&&value>=0?value+' мс'+(suffix||''):'неизвестно';
     const flag=value=>value===true?'да':value===false?'нет':'неизвестно';
     const knownUtc=(text,value)=>typeof text==='string'&&text?text:Number.isFinite(value)?utc(value):'неизвестно';
+    const reference=cameraView.gpsClockReference(clock);
+    const hasPhoneTarget=Number.isFinite(clock.calibrationTargetUtcMs);
+    const independentReference=clock.referenceSource==='rtc'||clock.referenceSource==='phone';
+    const clockCause={UTC_MISMATCH:'UTC RMC BMW расходится с опорой GPS или данные устарели',
+        RESET_BOUNDARY_FUTURE:'Граница сброса GPS позже текущей опоры'};
+    const reason=(hasPhoneTarget||independentReference)&&clockCause[clock.issue]||clock.reason;
+    const nextStep=hasPhoneTarget?'На стоянке нажмите «Сверить по телефону» в указанный момент':
+        independentReference?'После смены опоры GPS требуется свежая серия BMW RMC':
+            'При расхождении проверьте дату BMW; после исправления явно сбросьте историю GPS и дождитесь свежей серии';
     return ['Отказ/статус: '+clean(action(s,'displayTest').code)+' • часы '+clean(clock.issue),
         'Часы приложения: '+knownUtc(app.wallUtc,app.wallMs),
         'Часы сервиса: '+knownUtc(clock.serviceWallUtc,clock.serviceWallMs),
@@ -99,15 +110,16 @@ function clockRows(state) {
         'Пакет: возраст '+(Number.isFinite(clock.lastPacketAgeMs)?clock.lastPacketAgeMs+' мс':'неизвестно')+
             ' • receipt Δ '+ms(clock.packetReceiptDeltaMs),
         'Разрыв часов приёма: '+flag(clock.receiptClockDiscontinuity),
-        'Скорость: '+clean(fix.speedKmh)+' км/ч • возраст '+(Number.isFinite(motionAge)&&motionAge>=0?motionAge+' мс':'неизвестно'),
+        'Скорость: '+clean(fix.speedKmh)+' км/ч • возраст '+age(motionAge),
         'Сброс GPS: '+clean((s.gpsReset||{}).phase),
-        'Причина часов: '+clean(clock.reason),
+        'Опора GPS: '+(reference||'не сообщается')+' • UTC '+knownUtc(clock.referenceUtc,clock.referenceUtcMs),
+        'RMC BMW: приём '+age((input.nmeaTiming||{}).lastRmcAgeMs,' назад')+' • рост UTC '+age(input.rmcAdvanceAgeMs,' назад'),
+        'Причина часов: '+clean(reason),
         'Причина теста: '+clean(action(s,'displayTest').reason),
         'Отказ GPS: '+clean(input.rejectReason),
         'Откат часов приложения замечен: '+flag(app.clockDiscontinuity),
-        'При расхождении проверьте дату BMW; после исправления явно сбросьте историю GPS и дождитесь свежей серии',
-        'Тест: скорость не выше 1 км/ч, свежесть 3 с, будущее до +500 мс; точность 15 м нужна дорожным предупреждениям',
-        'Приложение не устанавливает, какие часы истинные'];
+        nextStep,
+        'Тест: скорость не выше 1 км/ч, свежесть 3 с, будущее до +500 мс; точность 15 м нужна дорожным предупреждениям'];
 }
 function parts(text) {
     let remaining = clean(text), rows = [];

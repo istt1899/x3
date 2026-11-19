@@ -139,6 +139,56 @@ function check(label,fn){fn();console.log('ok '+(++count)+' - '+label);}
         resetCommand();commands.length=0;const old=state();old.capabilities.gpsReset=false;apply(old);press('cameraGpsReset',true);
         assert.strictEqual(byName.cameraGpsReset.enabled,false);assert.strictEqual(commands.length,0);
     });
+    check('GPS clock calibration shows the offered UTC and Moscow dates, sends it once and preserves ordinary reset',()=>{
+        resetCommand();commands.length=0;
+        const target = Date.UTC(2026,10,19,21,4);
+        const offered = state();
+        offered.clock = {calibrationTargetUtcMs:target};
+        apply(offered);
+        assert.strictEqual(byName.cameraGpsReset.cells['0:Text'],'Сверить по телефону • 19.11.2026 21:04:00 UTC');
+        assert.strictEqual(byName.cameraGpsResetHint.cells['0:Text'],'На стоянке нажмите в 20.11.2026 00:04:00 МСК по часам телефона');
+        assert(/GPS: нужна сверка/.test(byName.cameraStatus.cells['0:Text']));
+        assert(/На стоянке нажмите «Сверить по телефону»/.test(rows(null,offered,1)));
+        assert(!/проверьте дату BMW/.test(rows(null,offered,1)));
+        assert.strictEqual(commands.length,0);
+        offered.clock.calibrationTargetUtcMs += 60000;
+        press('cameraGpsReset');press('cameraGpsReset',true);
+        assert.strictEqual(commands.length,1);
+        const {cmd,targetUtcMs,requestId} = commands[0];
+        assert.strictEqual(cmd,'gps-clock-confirm');assert.strictEqual(targetUtcMs,target);assert(requestId);
+        assert(/сверка времени GPS/.test(byName.cameraGpsResetHint.cells['0:Text']));
+        resetCommand();commands.length=0;apply(state());
+        assert.strictEqual(byName.cameraGpsReset.cells['0:Text'],'Сбросить историю GPS');
+        press('cameraGpsReset');assert.strictEqual(commands.length,1);
+        assert.strictEqual(commands[0].cmd,'gps-reset');assert(!('targetUtcMs' in commands[0]));
+    });
+    check('GPS report keeps raw clocks and distinguishes active UTC, last RMC receipt and last RMC progress',()=>{
+        resetCommand();
+        const live = state();
+        const reference = Date.UTC(2026,10,19,21,4);
+        const raw = Date.UTC(2179,5,5,21,4);
+        live.gpsFix.motionTimeMs = reference - 500;
+        live.gpsInput = {rmcAdvanceAgeMs:2500,nmeaTiming:{lastRmcAgeMs:0}};
+        for (const [source,label] of [['system','системные часы'],['rtc','RTC'],['phone','телефон']]) {
+            live.clock = {referenceSource:source,referenceUtcMs:reference,referenceUtc:new Date(reference).toISOString(),
+                systemWallMs:raw,serviceWallMs:raw,serviceWallUtc:new Date(raw).toISOString(),
+                sourceUtcMs:reference,sourceDeltaMs:raw-reference,issue:'UTC_MISMATCH',reason:'проверьте дату BMW'};
+            apply(live);
+            const clock = diagnostics.clockRows(live);
+            assert(clock[2].includes('2179-06-05T21:04:00.000Z'));
+            assert(clock[4].includes(String(raw-reference)));
+            assert(clock[8].includes('возраст 500 мс'));
+            assert.strictEqual(clock[10],`Опора GPS: ${label} • UTC 2026-11-19T21:04:00.000Z`);
+            assert(rows(null,live,1).includes('RMC BMW: приём 0 мс назад • рост UTC 2500 мс назад'));
+            if (source !== 'system') {
+                assert.strictEqual(byName.cameraGpsResetHint.cells['0:Text'],`Опора GPS: ${label}`);
+                assert(!/проверьте дату BMW/.test(rows(null,live,1)));
+            }
+        }
+        const legacy = diagnostics.clockRows(state());
+        assert(legacy[10].includes('не сообщается'));
+        assert(legacy[11].includes('приём неизвестно • рост UTC неизвестно'));
+    });
     resetCommand();const live=state(),snapshot=diagnostics.capture(live,manifest.version,2000);
     live.overspeedPreferences.soundOffsetKmh=1;live.speedWarning.reason='GPS_STALE';live.speedWarning.nested.marker='changed';live.nearest.cameraFacing.bearingsDeg[0]=20;
     check('frozen six-page diagnostic preserves precise policy, audio outcome, reset and source-facing evidence',()=>{

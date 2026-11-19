@@ -51,6 +51,11 @@ published.components.forEach((c) => {
     if (c.kind === 'tool') {
         const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'component.json'), 'utf8'));
         result = sandbox.validateTool(c.artifact.name, dir, manifest);
+        ['reference-clock.js', 'gps-utc-clock.js'].forEach((file) => {
+            assert(members.some((member) => member.name === 'files/' + file), 'Missing packaged module ' + file);
+        });
+        const service = require(path.join(dir, 'files', 'marku-kaluga-cameras.js'));
+        assert.strictEqual(typeof service.start, 'function');
         assert.strictEqual(manifest.internet, true);
         assert.deepStrictEqual(manifest.uids, [5000]);
         assert(/User=hmi_5000(?:\r?\n|$)/.test(fs.readFileSync(path.join(dir, 'units', 'marku-kaluga-cameras.service'), 'utf8')));
