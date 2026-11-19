@@ -97,7 +97,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.9.0', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.9.1', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -287,9 +287,62 @@ function start(options) {
   }
   function nextSettings() { return { enabled: settings.enabled, outputs: Object.assign({}, settings.outputs), hudOpacityPct: settings.hudOpacityPct, cardLayout: cardLayout.normalizeLayouts(settings.cardLayout), alertPreferences: alertPreferences.normalize(settings.alertPreferences), overspeedPreferences: warningPolicy.normalize(settings.overspeedPreferences) }; }
   function testTargetEnabled(target) { return target === 'hud' ? settings.outputs.hud : target === 'map' ? settings.outputs.cluster : settings.outputs.hud || settings.outputs.cluster; }
+  var previewRequest = null;
+  var monotonicNow = options.monotonicNow || function() { return process.uptime() * 1000; };
+  function finishPreview(phase, message) {
+    if (!previewRequest) return;
+    var result = Object.assign({}, previewRequest.result, { phase: phase, message: message.slice(0, 300), timeMs: Date.now() });
+    previewRequest = null;
+    state.displayTest.result = result;
+    if (state.commandResult && state.commandResult.id === result.id) state.commandResult = result;
+  }
   function stopDisplayTest(reason) {
+    finishPreview('unconfirmed', 'Тест завершён: ' + reason);
     state.displayTest.active = false; state.displayTest.pinned = false; state.displayTest.untilMs = 0;
     state.displayTest.stoppedReason = reason;
+  }
+  function updateDisplay(alert, outputs) {
+    if (!display) return;
+    try {
+      display.update(alert, outputs, settings.cardLayout);
+      state.renderer = display.status();
+      state.rendererDetails = typeof display.diagnostics === 'function' ? display.diagnostics() : {};
+    } catch (e) {
+      state.renderer = 'error: ' + e.message;
+      state.rendererDetails = {};
+      state.error = 'Display: ' + e.message;
+    }
+  }
+  function settlePreview() {
+    var details = state.rendererDetails || {}, connected = details.connection === 'ready';
+    var targets = state.displayTest.target ? [state.displayTest.target] :
+      ['map', 'hud'].filter(testTargetEnabled);
+    var results = targets.map(function(target) {
+      var item = connected && details[target], label = target === 'map' ? 'Приборы' : 'HUD';
+      var reason = item && (item.targetReason || item.reason);
+      if (!connected) return { pending: true, message: label + ' — ожидание подключения renderer' };
+      if (item && (item.disabled || item.target === 'unavailable' || item.state === 'отказ' ||
+          item.state === 'error' || item.reason === 'CANVAS_TOO_SMALL')) {
+        return { refused: true, message: label + ' — ' + (reason || 'вывод недоступен') };
+      }
+      var showing = item && item.state === 'shown' && (item.target === 'shown' || item.target === 'lingering');
+      if (showing && item.rendering === 'verified')
+        return { verified: true, message: label + ' — renderer подписан на сцену. Проверьте изображение' };
+      if (showing && item.rendering === 'unobservable')
+        return { message: label + ' — подписку renderer нельзя проверить. Проверьте изображение' };
+      return { pending: true, message: label + ' — ' + (reason || item && item.target || 'ожидание подтверждения') };
+    });
+    var failed = results.some(function(result) { return result.refused; });
+    var pending = !results.length || results.some(function(result) { return result.pending; });
+    if (pending && !failed && monotonicNow() < previewRequest.deadline) return false;
+    var message = results.map(function(result) { return result.message; }).join(' • ');
+    if (failed || pending) {
+      finishPreview(failed ? 'error' : 'unconfirmed', failed ? message : 'Время ожидания истекло. ' + message);
+      stopDisplayTest(failed ? 'RENDERER_REFUSED' : 'RENDERER_TIMEOUT');
+      return true;
+    }
+    finishPreview(results.every(function(result) { return result.verified; }) ? 'shown' : 'unconfirmed', message);
+    return false;
   }
   function movedProfile(target, direction) {
     if (['up', 'down', 'left', 'right'].indexOf(direction) < 0) throw new Error('Выберите направление перемещения карточки');
@@ -408,44 +461,11 @@ function start(options) {
     if (state.displayTest.active && (!state.actions.displayTest.allowed || !testTargetEnabled(state.displayTest.target))) stopDisplayTest(!state.actions.displayTest.allowed ? state.actions.displayTest.code : 'OUTPUTS_OFF');
     var displayAlert = state.displayTest.active ? { id: '__display_test__', test: true, title: 'ТЕСТ УВЕДОМЛЕНИЯ',
       description: 'Проверка приборов и HUD', controls: ['redlight','speed'], distanceM: 150, roadConfirmed: true, limitKmh: 60, speedKmh: fix && fix.speedKmh, confidence: 'test', calibration: !!state.displayTest.calibration } : state.alert;
-    if (display) {
-      var displayOutputs = state.displayTest.active && state.displayTest.target ? {
-        cluster: state.displayTest.target === 'map' && settings.outputs.cluster, hud: state.displayTest.target === 'hud' && settings.outputs.hud
-      } : settings.outputs;
-      try { display.update(displayAlert, displayOutputs, settings.cardLayout); state.renderer = display.status();
-        state.rendererDetails = typeof display.diagnostics === 'function' ? display.diagnostics() : {}; }
-      catch (e) { state.renderer = 'error: ' + e.message; state.error = 'Display: ' + e.message; }
-    }
-    if (state.commandResult && ['display-test','calibration-test'].indexOf(state.commandResult.command) >= 0 && state.commandResult.phase === 'requested') {
-      var details = state.rendererDetails || {}, results = [], selected = 0, settled = true, verifiedAll = true, failed = false;
-      [['map',settings.outputs.cluster],['hud',settings.outputs.hud]].forEach(function(pair) {
-        if(state.displayTest.target && pair[0] !== state.displayTest.target)return;
-        if(!pair[1])return;
-        selected++;
-        var item = details[pair[0]], label = pair[0] === 'map' ? 'Приборы' : 'HUD';
-        var refused = item && (item.state === 'отказ' || item.state === 'error' ||
-          item.reason === 'CANVAS_UNKNOWN' || item.reason === 'CANVAS_TOO_SMALL' || item.disabled);
-        var targetShown = item && (item.target === 'shown' || item.target === 'lingering');
-        var verified = !refused && item && item.state === 'shown' && targetShown && item.rendering === 'verified';
-        var unobservable = !refused && item && item.state === 'shown' && targetShown && item.rendering === 'unobservable';
-        if(!verified && !refused && !unobservable)settled=false;
-        if(!verified)verifiedAll=false;
-        if(refused)failed=true;
-        var message = refused ? 'отказ ' + (item.reason || item.targetReason || 'вывод недоступен') :
-          verified ? 'renderer подписан на сцену; физическая видимость не подтверждена' :
-          unobservable ? 'подписку renderer нельзя проверить; проверьте изображение в автомобиле' :
-          item && item.state === 'shown' && !targetShown ? 'цель ' + (item.target || 'неизвестна') + '; ожидание показа' :
-          item && item.state === 'shown' && item.rendering === 'checking' ? 'renderer пока не подписан; идёт проверка' :
-          item && item.state === 'shown' && item.rendering === 'none' ? 'подписка renderer пока не подтверждена' :
-          item && item.state === 'shown' ? 'renderer не сообщил статус подписки; ожидание' :
-          'ожидание подтверждения' + (item && (item.reason || item.targetReason) ? ' (' + (item.reason || item.targetReason) + ')' : '');
-        results.push(label + ': ' + message);
-      });
-      if(failed || (selected && settled) || !state.displayTest.active) commandResult(state.commandResult.command,
-        failed ? 'error' : selected && verifiedAll ? 'shown' : 'unconfirmed',
-        results.join('; ') + (!state.displayTest.active && !(selected && verifiedAll) ? '; тест завершён без подтверждения подписки renderer' : ''),
-        state.commandResult.id);
-    }
+    var displayOutputs = state.displayTest.active && state.displayTest.target ? {
+      cluster: state.displayTest.target === 'map' && settings.outputs.cluster, hud: state.displayTest.target === 'hud' && settings.outputs.hud
+    } : settings.outputs;
+    updateDisplay(displayAlert, displayOutputs);
+    if (previewRequest && state.displayTest.active && settlePreview()) updateDisplay(state.alert, settings.outputs);
     if (audio) { audio.configure(settings.overspeedPreferences); audio.update(state.alert, fix, now); var audioState = audio.status();
       if(state.audio && state.audio.probeState)audioState.probeState=state.audio.probeState;
       state.audio=audioState;
@@ -481,7 +501,9 @@ function start(options) {
       var policy = state.actions[msg.cmd === 'display-test' ? 'displayTest' : 'calibrationTest'];
       if(!policy.allowed)throw new Error(policy.reason);
       var target = msg.target === undefined ? null : cardLayout.validateTarget(msg.target);
-      if(!testTargetEnabled(target))throw new Error('Для теста включите выбранный экран');
+      if(!testTargetEnabled(target))throw new Error('Включите выход «' + (target === 'hud' ? 'HUD' : 'Приборы') + '» для камер');
+      previewRequest = { result: state.commandResult, deadline: monotonicNow() + 10000 };
+      state.displayTest.result = state.commandResult;
       state.displayTest.calibration = msg.cmd === 'calibration-test';
       state.displayTest.active = true; state.displayTest.pinned = true; state.displayTest.target = target; state.displayTest.stoppedReason = null;
       state.displayTest.untilMs = 0; tick(); return;

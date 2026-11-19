@@ -1123,8 +1123,11 @@ class WazeClusterApp extends OnlineApp {
     }
 
     _refreshCameraFeedback() {
-        const pending=this._cameraPending, result=(this._cameras.state||{}).commandResult;
+        const pending=this._cameraPending;
         if(!pending)return;
+        const state=this._cameras.state||{}, preview=(state.displayTest||{}).result;
+        const result=preview&&preview.requestId===pending.requestId&&preview.command===pending.command?
+            preview:state.commandResult;
         if(this._cameras.commandError&&this._cameras.commandErrorRequestId===pending.requestId){
             this._cameraFeedback={message:'Ошибка: '+this._cameras.commandError,requestId:pending.requestId,
                 command:pending.command,target:pending.target,phase:'error'};

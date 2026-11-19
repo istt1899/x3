@@ -10,9 +10,9 @@ const details={connection:'ready',map:null,hud:null};
 const display={update:()=>{},status:()=>'ready',diagnostics:()=>JSON.parse(JSON.stringify(details)),close:()=>{}};
 
 async function main(){
- let app;
+ let app, monotonicMs=0;
  try{
-  await new Promise((resolve,reject)=>{app=service.start({dataDir:dir,socket,gps,
+  await new Promise((resolve,reject)=>{app=service.start({dataDir:dir,socket,gps,monotonicNow:()=>monotonicMs,
    guidance:{evaluate:()=>null},display,dimmer:{update:()=>{},status:()=>'off',close:()=>{}},
    storeFactory:options=>({current:()=>options.initial,status:()=>({phase:'idle'}),close:()=>{}}),
    onListening:resolve,onError:reject});});
@@ -50,6 +50,7 @@ async function main(){
   details.map={state:'shown',target:'shown',rendering:'unobservable'};
   start('render-unobservable');
   expect('render-unobservable','unconfirmed');
+  assert(app.state().displayTest.pinned,'an unobservable scene remains available for visual calibration');
 
   details.map={state:'shown',target:'shown'};
   start('render-missing');
@@ -69,6 +70,34 @@ async function main(){
   if(app.state().displayTest.active)app.command({cmd:'display-test-stop'});
   app.command({cmd:'outputs',cluster:true,hud:true});
   details.map={state:'shown',target:'shown',rendering:'verified'};
+  details.hud={state:'ожидание',target:'unavailable',targetReason:'HUD_SLOT_UNAVAILABLE',rendering:'none'};
+  start('hud-unavailable','hud');
+  assert(expect('hud-unavailable','error').message.includes('HUD_SLOT_UNAVAILABLE'));
+  assert(!app.state().displayTest.active);
+
+  details.connection='disconnected';
+  details.hud={state:'ожидание',target:'unavailable',disabled:true,rendering:'none'};
+  start('hud-disconnected','hud');
+  expect('hud-disconnected','requested');
+  monotonicMs+=9999;
+  app.tick();
+  expect('hud-disconnected','requested');
+  monotonicMs++;
+  app.tick();
+  assert(expect('hud-disconnected','unconfirmed').message.includes('подключения'));
+  assert(!app.state().displayTest.active);
+
+  details.connection='ready';
+  details.hud={state:'ожидание',target:'waiting',rendering:'none'};
+  start('hud-independent','hud');
+  app.command({cmd:'hud-opacity',percent:60,requestId:'other-command'});
+  details.hud={state:'ожидание',target:'unavailable',targetReason:'HUD_LOCKED',disabled:true};
+  app.tick();
+  assert.strictEqual(app.state().commandResult.requestId,'other-command');
+  assert.strictEqual(app.state().displayTest.result.requestId,'hud-independent');
+  assert.strictEqual(app.state().displayTest.result.phase,'error');
+  assert(!app.state().displayTest.active);
+
   details.hud={state:'shown',target:'shown',rendering:'checking'};
   app.command({cmd:'display-test',requestId:'render-both'});
   expect('render-both','requested');

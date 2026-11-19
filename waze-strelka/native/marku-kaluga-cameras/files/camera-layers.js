@@ -127,7 +127,7 @@ function createDisplay(options){
                 // rectangle must not replay before a new target hello.
                 if(layers[n])client.set(layers[n],{visible:false});
                 states[n]=Object.assign({},states[n],{state:'нет связи',reason:'RENDERER_DISCONNECTED',
-                    target:null,holder:null,targetReason:null,rendering:null,retryInMs:null});
+                    target:null,holder:null,targetReason:null,rendering:null,retryInMs:null,disabled:false,guideDisabled:false});
             }});
             client.on('refused',(op,ref,reason)=>{if(client===session)for(const n of targets)if(!ref||layers[n]===ref)states[n]=Object.assign({},states[n],{state:'отказ',reason:String(reason||op||'unknown').slice(0,120)});});
             client.connect();
@@ -148,7 +148,7 @@ function createDisplay(options){
     },status:function(){return client?Object.keys(states).map(k=>k+' '+states[k].state+(states[k].reason?' '+states[k].reason:'')).join(', '):'Ожидание подтверждённого предупреждения';},
     diagnostics:function(){return Object.assign(JSON.parse(JSON.stringify(states)), {
         connection: client && client.ready ? 'ready' : 'disconnected',
-        backend: client && client.backend || null,
+        backend: client && client.ready && client.backend || null,
         version: client && client.ready && client.version || null,
         versionReported: !!(client && client.ready && client.version),
         reconnects: client ? client.reconnects : 0,

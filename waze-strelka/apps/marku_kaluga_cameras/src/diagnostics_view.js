@@ -62,7 +62,7 @@ function values(state, version, frozen) {
         outputs:'Выходы: приборы ' + on(o.cluster) + ' • HUD ' + on(o.hud), map:'Приборы: '+layer('map'), hud:'HUD: '+layer('hud'),
         test:'Тест вывода: ' + (s.displayTest && s.displayTest.active ? s.displayTest.pinned?
             'закреплён • '+(s.displayTest.target==='hud'?'HUD':s.displayTest.target==='map'?'приборы':'цель неизвестна'):
-            'идёт • ТЕСТ на 5 секунд' : 'не запущен'),
+            'идёт' : clean((s.displayTest||{}).stoppedReason || 'не запущен')),
         dimmer:'Прозрачность карты: ' + n(Number.isFinite(s.hudOpacityPct)?100-s.hudOpacityPct:null,0) + ' %',
         database:'База: ' + clean((s.database||{}).source) + ' • ' + clean((s.database||{}).count) + ' объектов',
         error:'Ошибка: ' + error.slice(0,60), errorMore:error.length>60?'Продолжение: '+error.slice(60,120):'Продолжение ошибки: —'
@@ -234,6 +234,7 @@ function reportPage(report, live, version, pageIndex, blockIndex, localResult, c
                 'Кандидат '+(i+1)+': '+clean(v.id)+' • '+n(v.distanceM,0)+' м • '+clean(v.reason)+
                     ' • фильтр '+(typeof v.filterMatched==='boolean'?(v.filterMatched?'да':'нет'):'не сообщается'))),
         [existing.outputs,renderTarget('map'),renderingRow('map'),renderTarget('hud'),renderingRow('hud'),
+            'Последняя проверка: '+clean(((s.displayTest||{}).result||{}).message),
             'Renderer: '+(r.versionReported===false?'версия renderer не сообщается протоколом':
                 layout.rendererVersion||r.version?'версия '+clean(layout.rendererVersion||r.version):'версия renderer не сообщается протоколом'),
             'Соединение renderer: '+clean(r.connection||layout.connection||'неизвестно')+
