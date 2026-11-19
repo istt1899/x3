@@ -1,8 +1,8 @@
 {
   "id": "jap_ridetube",
   "title": "RideTube",
-  "description": "Video in the car: an unofficial client for YouTube. Your Home, Subscriptions and Watch later (signed in on the car), search, channels and chapters; the sound through the car's media player, the picture only while parked (a podcast view while driving). Needs the jap-ridetube-d tool.",
-  "version": "0.3.16",
+  "description": "Video in the car: an unofficial client for YouTube. Your Home, Subscriptions, Watch later, History and playlists (signed in on the car), search, channels and chapters; the sound through the car's media player, the picture only while parked (a podcast view while driving). Needs the jap-ridetube-d tool.",
+  "version": "0.4.1",
   "license": "GPL-3.0-or-later",
   "vendor": "custom",
   "loggingId": "OAA6",
@@ -13,6 +13,10 @@
     },
     "de.bmw.infotainment.vehicle.CDS": {
       "statusBattery2": "rs"
+    },
+    "de.bmw.infotainment.controlelements.SteeringWheelPushButton": {
+      "statusSearchSwitch1": "rs",
+      "_optional": "the steering wheel's next / previous"
     }
   },
   "screens": [
@@ -21,6 +25,7 @@
       "kind": "canvas",
       "title": "RideTube",
       "hmi": false,
+      "fill": true,
       "bg": "#0f0f0f",
       "buttons": [
         [
@@ -72,6 +77,11 @@
         ],
         [
           "button",
+          "BTN_CLOSE",
+          "Close video"
+        ],
+        [
+          "button",
           "BTN_RESULTS",
           "Results"
         ],
@@ -89,6 +99,16 @@
           "button",
           "BTN_WL",
           "Watch later"
+        ],
+        [
+          "button",
+          "BTN_PL",
+          "Playlists"
+        ],
+        [
+          "button",
+          "BTN_HIST",
+          "History"
         ],
         [
           "button",
@@ -124,6 +144,16 @@
           "button",
           "BTN_ACCOUNT",
           "Sign in"
+        ],
+        [
+          "button",
+          "BTN_HEALTH",
+          "Health check"
+        ],
+        [
+          "button",
+          "BTN_LOGS",
+          "Send logs to the developer"
         ],
         [
           "text",
@@ -202,6 +232,30 @@
   ],
   "settings": [
     {
+      "key": "language",
+      "label": "Language",
+      "type": "choice",
+      "default": "auto",
+      "options": [
+        [
+          "auto",
+          "Auto"
+        ],
+        [
+          "en",
+          "English"
+        ],
+        [
+          "ru",
+          "Русский"
+        ],
+        [
+          "zh-CN",
+          "中文"
+        ]
+      ]
+    },
+    {
       "key": "fill",
       "label": "Fill the screen (crops the video; off: black side bars)",
       "type": "bool",
@@ -241,6 +295,12 @@
     {
       "key": "members",
       "label": "Show members-only videos",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "shorts",
+      "label": "Show Shorts",
       "type": "bool",
       "default": false
     },

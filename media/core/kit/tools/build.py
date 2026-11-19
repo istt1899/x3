@@ -17,7 +17,7 @@ import gzip, json, os, re, shutil, sys, tarfile, tempfile, uuid
 from xml.sax.saxutils import escape
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pack_data  # noqa: E402
-from localize import unicode_resources, localize_spec, load_locale, languages, credit, credit_name
+from localize import unicode_resources, localize_spec, load_locale, languages, credit, credit_name, hmi_tables
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -414,6 +414,7 @@ def build(app_id, language='en', source_only=False):
     unicode_resources(uidesc, strings, language)
     for lang, tbl in spec.get('strings', {}).items():
         strings.update(tbl)
+    tables = hmi_tables(strings, language, LANGS)
 
     # --- source/ (the npm package) ---
     pkg = {
@@ -472,12 +473,8 @@ def build(app_id, language='en', source_only=False):
             shutil.copytree(p, os.path.join(src, 'javascript', 'kit', f))
         else:
             shutil.copy(p, os.path.join(src, 'javascript', 'kit', f))
-    if language != 'ru':
-        for name in ('ru.json', 'ru.tsv'):
-            p = os.path.join(src, 'javascript', 'kit', 'locales', name)
-            if os.path.exists(p):
-                os.remove(p)
-    if language == 'ru':
+    # every catalog stays in the package: the app's Language setting switches between them at run time (i18n.js)
+    if language == 'ru' and os.path.exists(os.path.join(KIT, 'localization', 'fonts', 'cyrillic-ru.json')):
         shutil.copy(os.path.join(KIT, 'localization', 'fonts', 'cyrillic-ru.json'),
                     os.path.join(src, 'javascript', 'kit', 'fonts', 'cyrillic.json'))
     if language == 'zh-CN':
@@ -485,6 +482,14 @@ def build(app_id, language='en', source_only=False):
         if app_id == 'dtc_scanner':
             shutil.copy(os.path.join(KIT, 'localization', 'fonts', 'diagnostic-zh-CN.json'),
                         os.path.join(src, 'javascript', 'kit', 'fonts', 'cjk.json'))
+    if app_id == 'jap_ridetube':   # its Language setting offers Chinese in every build: the UI atlas and the title font
+        for source, target in (('ridetube-zh-CN.json', 'cjk.json'), ('cjk-titles.json', 'cjk-titles.json')):
+            with open(os.path.join(KIT, 'localization', 'fonts', source), encoding='utf-8') as f:
+                atlas = json.load(f)
+            # sizes over 4096 rows never ship: mgu-render refuses them (kit/runtime/fonts.js skips them too)
+            atlas['sizes'] = [s for s in atlas['sizes'] if s['atlasH'] <= 4096]
+            with open(os.path.join(src, 'javascript', 'kit', 'fonts', target), 'w', encoding='utf-8') as f:
+                json.dump(atlas, f, ensure_ascii=False, separators=(',', ':'))
     if credit(language):
         # The translation credit in the installed entry code, as plain comments.
         entry = os.path.join(src, 'javascript', 'app.js')
@@ -499,6 +504,8 @@ def build(app_id, language='en', source_only=False):
     locale = {'language': language, 'strings': load_locale(language)}
     if credit(language):
         locale['credit'] = credit(language)['corner']
+    # the corner credit of each catalog the package carries, drawn while that language is chosen (credits.js)
+    locale['credits'] = {tag: credit(tag)['corner'] for tag in languages() if credit(tag)}
     json.dump(locale, open(os.path.join(src, 'javascript', 'kit', 'locale.json'), 'w', encoding='utf-8', newline='\n'), ensure_ascii=False)
     if not source_only:
         shutil.copy(os.path.join(SDK, 'index.js'), os.path.join(src, 'node_modules', 'oap-sdk', 'index.js'))
@@ -533,7 +540,7 @@ def build(app_id, language='en', source_only=False):
     open(os.path.join(pr, 'uiDescriptions', 'ID7', 'application.xml'), 'w', encoding='utf-8', newline='\n').write(xml)
     json.dump(uidesc, open(os.path.join(pr, 'uiDescriptions', 'ID7', 'uiDescription.json'), 'w', encoding='utf-8', newline='\n'), indent=1)
     for lang in LANGS:
-        json.dump(strings, open(os.path.join(pr, 'variantGroups', 'Common', 'texts', lang + '.json'), 'w', encoding='utf-8', newline='\n'), ensure_ascii=False)
+        json.dump(tables[lang], open(os.path.join(pr, 'variantGroups', 'Common', 'texts', lang + '.json'), 'w', encoding='utf-8', newline='\n'), ensure_ascii=False)
     make_icon(spec, os.path.join(pr, 'variantGroups', 'Common', 'images', icon))
 
     ir = os.path.join(stage, 'rhmiData')
@@ -550,7 +557,7 @@ def build(app_id, language='en', source_only=False):
     open(os.path.join(ir, 'uiDescription', 'application.xml'), 'w', encoding='utf-8', newline='\n').write(xml)
     json.dump(uidesc, open(os.path.join(ir, 'uiDescription', 'uiDescription.json'), 'w', encoding='utf-8', newline='\n'), indent=1)
     for lang in LANGS:
-        json.dump(strings, open(os.path.join(ir, 'strings', lang + '.json'), 'w', encoding='utf-8', newline='\n'), ensure_ascii=False)
+        json.dump(tables[lang], open(os.path.join(ir, 'strings', lang + '.json'), 'w', encoding='utf-8', newline='\n'), ensure_ascii=False)
     shutil.copy(os.path.join(pr, 'variantGroups', 'Common', 'images', icon), os.path.join(ir, 'resources', icon))
     if spec.get('startWidget'):
         info = build_start_widget(spec, app_id, os.path.join(ir, 'resources', icon), os.path.join(stage, 'rhmiDataStartWidget'))

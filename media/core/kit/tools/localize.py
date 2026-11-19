@@ -1,4 +1,4 @@
-"""Fixed-language packages. Add a locales/<tag>.json catalog to build another language."""
+"""Localized packages. Add a locales/<tag>.json catalog to build another language, or to offer it at run time."""
 # Translation by: 抖音 小白科技杂物社 / BiliBili 小白151 / GitHub JackieZ123430
 import copy
 import json
@@ -49,6 +49,8 @@ def localize_spec(spec, language):
     s = copy.deepcopy(spec)
     s['version'] = package_version(s['version'], language)
     s['title'] = text(s['title'], words)
+    if language != 'en' and 'description' in s:
+        s['description'] = text(s['description'], words)
     for screen in s.get('screens', []):
         if 'title' in screen:
             screen['title'] = text(screen['title'], words)
@@ -93,3 +95,22 @@ def unicode_resources(ui, strings, language='en'):
         strings['SID_CN_DYNAMIC_%04d' % n] = ''
     if len(strings) > 1024:
         raise ValueError('HMI string bundle exceeds the verified 1024-resource budget')
+
+
+# the HMI's string tables a catalog fills in an English build (the SDK picks the table of the car's language)
+HMI_LANGUAGES = {'ru': ['ru_RU'], 'zh-CN': ['zh_CN']}
+
+
+def hmi_tables(strings, language, langs):
+    """One HMI string table per car language: the build's own everywhere; an English build also gives each car
+    language a catalog covers its translation (ru_RU from ru.json), so menus and settings show in the car's language."""
+    tables = {lang: strings for lang in langs}
+    if language == 'en':
+        for tag, hmis in HMI_LANGUAGES.items():
+            if tag in languages():
+                words = load_locale(tag)
+                table = {key: text(value, words) for key, value in strings.items()}
+                for hmi in hmis:
+                    if hmi in tables:
+                        tables[hmi] = table
+    return tables

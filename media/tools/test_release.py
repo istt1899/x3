@@ -72,6 +72,8 @@ with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as arc
         current = MEDIA / item['path']
         if item['path'] in ('LICENSE', 'THIRD_PARTY_LICENSES'):
             current = MEDIA / 'core' / item['path']
+        if item['path'] == 'core/native/jap-ridetube-d/oapgen.js':
+            current = MEDIA / 'core/kit/tools/oapgen/gen.js'
         if item['path'] == 'runtime/test_cluster_socket.js':
             current = MEDIA / 'service/test_cluster_socket.js'
         if current.is_file():
@@ -80,7 +82,8 @@ with tarfile.open(OUT / components['jap-ridetube-d']['artifact']['name']) as arc
             assert item['path'] in ('core/native/jap-ridetube-d/ytdec', 'core/native/jap-ridetube-d/ytdlp.pyz',
                                     'runtime/ffmpeg') # external pinned binaries are verified below
     assert set(archive.getnames()) == expected
-    for name in ('LICENSE', 'THIRD_PARTY_LICENSES', 'runtime/LICENSE.ffmpeg', 'runtime/LICENSE.musl',
+    for name in ('core/native/jap-ridetube-d/health.js', 'core/native/jap-ridetube-d/oapgen.js',
+                 'LICENSE', 'THIRD_PARTY_LICENSES', 'runtime/LICENSE.ffmpeg', 'runtime/LICENSE.musl',
                  'runtime/NOTICE.ffmpeg', 'runtime/LICENSE.certifi', 'runtime/test-fixtures/sample.mp4',
                  'runtime/test-fixtures/sample.ts'):
         assert 'files/' + name in expected

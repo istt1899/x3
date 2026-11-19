@@ -61,4 +61,4 @@ function main(argv) {
 }
 
 if (require.main === module) main(process.argv.slice(2));
-module.exports = { main };
+module.exports = { main, load };   // load: jap-ridetube-d (shipped as oapgen.js) runs the generator itself

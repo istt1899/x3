@@ -34,6 +34,9 @@ function video(item) {
     const result = { id: String(item.id), title: String(item.title || item.id).slice(0, 400),
         channel: String(item.channel || '').slice(0, 200),
         duration_s: Number(item.duration_s) > 0 ? Number(item.duration_s) : null };
+    if (item.short === true) result.short = true;
+    if (item.live === true) result.live = true;
+    if (Number.isFinite(item.at) && item.at > 0) result.at = item.at;
     if (Array.isArray(item.meta)) result.meta = item.meta.slice(0, 4).map((s) => String(s).slice(0, 150));
     return result;
 }
@@ -152,7 +155,7 @@ class Gateway {
     connect(providerId, socket) {
         if (this.closed || !this.providers[providerId]) { socket.destroy(); return null; }
         // Video stays off until the app has supplied its parked/visibility decision.
-        const session = { id: ++this.nextSession, providerId, socket, closed: false, videoOn: false };
+        const session = { id: ++this.nextSession, providerId, socket, closed: false, videoOn: false, locale: {} };
         this.clients.set(session.id, session);
         socket.setEncoding('utf8');
         let buffer = '';
@@ -234,17 +237,30 @@ class Gateway {
             });
         }
         if (cmd === 'status') { this._status(session); return; }
+        const reply = (event) => { if (currentAuth()) this._send(session, event); };
+        if (cmd === 'hello') {
+            if (provider.hello) provider.hello(message, reply, session.locale);
+            return;
+        }
+        if (cmd === 'health' && provider.health || cmd === 'send_logs' && provider.sendLogs) {
+            const details = { audio: this.player.engine && this.player.engine.audio,
+                socket: this.socketPaths[session.providerId], socketGid: this.sockGid };
+            return cmd === 'health' ? provider.health(reply, details) : provider.sendLogs(message.app, reply, details);
+        }
+        if (cmd === 'related' && provider.related) return provider.related(message.id, reply, session.locale);
+        if (cmd === 'playlists' && provider.playlists) return provider.playlists(reply);
+        if (cmd === 'playlist' && provider.playlist) return provider.playlist(message.id, reply);
         if (cmd === 'search') {
             const q = String(message.q || '').trim().slice(0, 200);
             if (!q) throw new Error('empty search');
-            const result = await provider.search(q, ctx);
+            const result = await provider.search(q, ctx, reply, session.locale);
             if (currentAuth() && result !== undefined) this._send(session, { ev: 'results', q, items: videos(result.items || result) });
             return;
         }
         if (cmd === 'feed') {
             const which = String(message.which || 'home');
             if (!/^[A-Za-z0-9_-]{1,40}$/.test(which) || typeof provider.feed !== 'function') throw new Error('feed unavailable');
-            const result = await provider.feed(which, ctx);
+            const result = await provider.feed(which, ctx, reply, session.locale);
             if (currentAuth() && result !== undefined) {
                 const event = { ev: 'feed', which, items: videos(result.items || result) };
                 if (Array.isArray(result.shelves)) event.shelves = result.shelves.slice(0, 8).map((s) => ({ title: String(s.title || '').slice(0, 200), items: videos(s.items) }));
@@ -554,7 +570,7 @@ class DaemonPlayer {
         mkdir(context.cacheDir, 0o711);
         this.emit = emit;
         // Invalidate an old play/requality continuation awaiting audio release.
-        d.playIntent = (d.playIntent || 0) + 1;
+        d.restart = null;
         d.gen++;
         d.opts.cacheDir = context.cacheDir;
         d.opts.fetcher = context.fetcher.slice();
@@ -589,6 +605,7 @@ class DaemonPlayer {
         }
         if (cmd === 'fill') {
             const current = d.cur, on = !!message.on;
+            if (d.restart) d.restart.fill = on;
             if (!current || current.fill === on) return;
             current.fill = on;
             const child = d.child, gen = d.gen;
@@ -622,7 +639,14 @@ function createYouTubeProvider(options) {
         id: 'youtube', daemon,
         context: { cacheDir: daemon.opts.cacheDir, stateDir: daemon.opts.stateDir },
         attach: (emit) => { publish = emit; },
-        search: (q) => daemon.search(q), feed: (which) => daemon.account.feed(which),
+        search: (q, ctx, reply, locale) => daemon.search(q, reply, locale),
+        feed: (which, ctx, reply, locale) => daemon.account.feed(which, reply, locale),
+        hello: (message, reply, locale) => daemon.hello(message, reply, locale),
+        health: (reply, details) => daemon.health(reply, details),
+        related: (id, reply, locale) => daemon.related(id, reply, locale),
+        playlists: (reply) => daemon.account.playlists(reply),
+        playlist: (id, reply) => daemon.account.playlist(id, reply),
+        sendLogs: (app, reply, details) => daemon.sendLogs(app, reply, details),
         auth: () => daemon.account.start(), status: () => daemon.account.status(), signOut: () => daemon.account.signOut(),
         thumb: (id) => daemon.thumb(id),
         positions: () => { daemon.pos = null; daemon.sendPositions(); },

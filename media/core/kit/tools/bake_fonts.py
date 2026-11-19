@@ -9,8 +9,16 @@ ox/oy = glyph bitmap offset from (pen x, baseline y).
 Needs Pillow and the Ubuntu font family (free): Ubuntu 24.04's fonts-ubuntu, or FONTDIR=<dir> with
 Ubuntu[wdth,wght].ttf. Without them on this machine, the same environment in Docker:
   docker run --rm -v "$PWD":/w -w /w ubuntu:24.04 sh -c 'apt-get update -qq && apt-get install -y -qq fonts-ubuntu python3-pil >/dev/null && python3 kit/tools/bake_fonts.py'
+
+  python3 kit/tools/bake_fonts.py --cyrillic   # only the Cyrillic companions (<family>_cyr.json), below
+
+Cyrillic companions: fonts.js draws a string holding Cyrillic (video titles, channel names) with <family>_cyr,
+the same weight, sizes and characters as its family (all of TEXT: a mixed title keeps its é, đ, ł), plus the
+Cyrillic letters. They are baked on their own so the main atlases stay as they are: atlases are shared between apps
+by family and size, and a rebake with another Pillow or FreeType moves every glyph by a pixel or two. Each has a
+cacheKey (its own content's hash).
 """
-import base64, json, os, sys, zlib
+import base64, hashlib, json, os, sys, zlib
 from PIL import Image, ImageDraw, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -31,6 +39,14 @@ FAMILIES = {
     'light': ('Ubuntu[wdth,wght].ttf', (85, 300), [(32, TEXT), (64, TEXT), (110, DIGITS)]),
     'gear':  ('Ubuntu[wdth,wght].ttf', (75, 700), [(200, GEAR), (300, GEAR)]),
 }
+
+# Cyrillic: Russian, Ukrainian, Belarusian, Bulgarian, Serbian and Macedonian (U+0400-U+045F), Ґ ґ, and the
+# letters Kazakh, Uzbek, Tatar, Bashkir, Kyrgyz and Mongolian add, and № (« » are in TEXT). A companion is its
+# family's sizes, each with that size's characters plus these, so a whole mixed title draws from one atlas
+# ("Café — Кофе", "Đorđe / Ђорђе") at the size asked: the digit-only sizes (num 64-150, light 110) too (units: км/ч).
+CYR_LETTERS = '№' + ''.join(chr(c) for c in list(range(0x400, 0x460)) + [0x490, 0x491, 0x492, 0x493, 0x496, 0x497, 0x49a, 0x49b,
+    0x4a2, 0x4a3, 0x4ae, 0x4af, 0x4b0, 0x4b1, 0x4b2, 0x4b3, 0x4b6, 0x4b7, 0x4ba, 0x4bb, 0x4d8, 0x4d9, 0x4e8, 0x4e9])
+CYRILLIC = ['label', 'bold', 'num', 'light']     # the families with a <family>_cyr companion (not gear: digits only)
 
 
 def load(fname, var, size):
@@ -84,8 +100,25 @@ def bake(fname, var, size, charset):
             'alpha': base64.b64encode(zlib.compress(atlas.tobytes(), 9)).decode(), 'glyphs': glyphs}
 
 
+def bake_cyrillic():
+    for base in CYRILLIC:
+        name, (fname, var, sizes) = base + '_cyr', FAMILIES[base]
+        baked = [bake(fname, var, s, cs + CYR_LETTERS) for s, cs in sizes]
+        sizes = [s for s, _ in sizes]
+        tall = [b['size'] for b in baked if b['atlasH'] > 2048]
+        if tall:
+            raise SystemExit(f'{name}: the {tall} px atlas is over 2048 px tall')
+        key = hashlib.sha256(json.dumps(baked, separators=(',', ':')).encode()).hexdigest()[:16]
+        data = {'family': name, 'source': fname, 'cacheKey': key, 'sizes': baked}
+        p = os.path.join(OUT, name + '.json')
+        json.dump(data, open(p, 'w', encoding='utf-8', newline='\n'), separators=(',', ':'))
+        print(f'{name}: {sizes} -> {os.path.getsize(p) // 1024} KiB, {[b["atlasH"] for b in baked]} px tall')
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
+    if '--cyrillic' in sys.argv[1:]:
+        return bake_cyrillic()
     for fam, (fname, var, sizes) in FAMILIES.items():
         data = {'family': fam, 'source': fname, 'sizes': [bake(fname, var, s, cs) for s, cs in sizes]}
         p = os.path.join(OUT, fam + '.json')

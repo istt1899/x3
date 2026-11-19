@@ -1,9 +1,12 @@
 'use strict';
 // Local display translation only. Never use this on signal names, IDs or stored settings.
+const fs = require('fs');
+const path = require('path');
 const locale = require('./locale.json');
-const dict = locale.strings || {};
-const language = locale.language || 'en';
-const localizedValues = new Set(Object.values(dict));
+const dict = Object.assign({}, locale.strings || {});   // changed in place by setLanguage (callers keep this object)
+const BAKED = locale.language || 'en';
+let language = BAKED;
+let localizedValues, folded, phrases, pattern;
 const cache = new Map();
 function getLanguage() { return language; }
 // Plural forms live in the locale catalogs: "fault|faults<TAB>ошибка|ошибки|ошибок".
@@ -28,11 +31,38 @@ function plural(n, one, other, lang) {
     const forms = dict[key].split('|'), rule = PLURAL_RULES[lng] || PLURAL_RULES.en;
     return forms[Math.min(rule(n), forms.length - 1)];
 }
-const folded = Object.create(null);
-Object.keys(dict).forEach((key) => { folded[key.toLowerCase()] = dict[key]; });
 const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const phrases = Object.keys(dict).filter((s) => s.length >= 4 && s.indexOf('|') < 0).sort((a, b) => b.length - a.length);
-const pattern = new RegExp('(^|[^A-Za-z0-9_./])(' + phrases.map(escape).join('|') + ')(?=$|[^A-Za-z0-9_./])', 'gi');
+function index() {
+    localizedValues = new Set(Object.values(dict));
+    folded = Object.create(null);
+    Object.keys(dict).forEach((key) => { folded[key.toLowerCase()] = dict[key]; });
+    phrases = Object.keys(dict).filter((s) => s.length >= 4 && s.indexOf('|') < 0).sort((a, b) => b.length - a.length);
+    pattern = new RegExp('(^|[^A-Za-z0-9_./])(' + phrases.map(escape).join('|') + ')(?=$|[^A-Za-z0-9_./])', 'gi');
+    cache.clear();
+}
+index();
+/** The catalogs a package carries (locales/<tag>.json), English always. */
+function languages() {
+    let tags = [];
+    try { tags = fs.readdirSync(path.join(__dirname, 'locales')).filter((f) => /^[a-z]{2}(-[A-Z]{2})?\.json$/.test(f)).map((f) => f.slice(0, -5)); } catch (e) { /* none */ }
+    return ['en'].concat(tags.filter((x) => x !== 'en'), tags.indexOf(BAKED) < 0 && BAKED !== 'en' ? [BAKED] : []);
+}
+/** Switch the display language at run time (a Language setting): the baked locale.json, locales/<lang>.json, or
+ *  English. Unknown or unreadable: nothing changes, false. */
+function setLanguage(lang) {
+    if (lang === language) return true;
+    let strings = null;
+    if (lang === 'en') strings = {};
+    else if (lang === BAKED) strings = locale.strings || {};
+    else if (languages().indexOf(lang) >= 0) {
+        try { strings = JSON.parse(fs.readFileSync(path.join(__dirname, 'locales', lang + '.json'), 'utf8')); } catch (e) { return false; }
+    } else return false;
+    Object.keys(dict).forEach((k) => { delete dict[k]; });
+    Object.assign(dict, strings);
+    language = lang;
+    index();
+    return true;
+}
 function t(value) {
     const s = String(value == null ? '' : value);
     if (language === 'en') return s;
@@ -58,4 +88,4 @@ function t(value) {
     cache.set(s, out);
     return out;
 }
-module.exports = { t, plural, PLURAL_RULES, dict, getLanguage };
+module.exports = { t, plural, PLURAL_RULES, dict, getLanguage, setLanguage, languages, BAKED };

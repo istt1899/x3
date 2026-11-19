@@ -15,9 +15,9 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[2]
 MEDIA = ROOT / 'media'
 OUT = MEDIA / 'dist/release'
-VERSION = '0.4.5'
-YOUTUBE_VERSION = '0.3.16'
-RELEASE_TAG = 'media-preview-0.4.5-r4'
+VERSION = '0.4.6'
+YOUTUBE_VERSION = '0.4.1'
+RELEASE_TAG = 'media-preview-0.4.6'
 BASE_SHA = '984429e16be494d8e17e53f2606c7aaf38ea5ea049e86046f4aafe8cebf7bb75'
 
 
@@ -47,8 +47,9 @@ def service(base, ffmpeg, source_bundle):
             binaries['core/native/jap-ridetube-d/' + name] = old.extractfile('files/' + name).read()
     files = {}
     core = MEDIA / 'core/native/jap-ridetube-d'
-    for file in [core / n for n in ['ytd.js', 'proxy.js', 'thumb.js', 'ytfetch.py', 'network_native.js', 'network_native.py', 'vendor/jpeg-js/decoder.js', 'vendor/jpeg-js/LICENSE']]:
+    for file in [core / n for n in ['ytd.js', 'health.js', 'proxy.js', 'thumb.js', 'ytfetch.py', 'network_native.js', 'network_native.py', 'vendor/jpeg-js/decoder.js', 'vendor/jpeg-js/LICENSE']]:
         files['core/native/jap-ridetube-d/' + file.relative_to(core).as_posix()] = (file.read_bytes(), 0o644)
+    files['core/native/jap-ridetube-d/oapgen.js'] = ((MEDIA / 'core/kit/tools/oapgen/gen.js').read_bytes(), 0o644)
     for directory in ['service', 'providers']:
         for file in (MEDIA / directory).glob('*'):
             if file.is_file() and file.suffix in ('.py', '.js', '.sh') and not file.name.startswith('test_'):

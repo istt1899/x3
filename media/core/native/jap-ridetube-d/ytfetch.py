@@ -4,14 +4,16 @@
   ytfetch.py fetch <id> <dir> --cache-dir <d> [--height 720] [--node P] [--lease P] [--pyz P]
   ytfetch.py extract <id> <info.json> --cache-dir <d> [...]
   ytfetch.py serve --cache-dir <d> [...]
-  ytfetch.py check [<id>] --cache-dir <d> [--uid N] [--node P] [--lease P] [--pyz P]
+  ytfetch.py check [<id>] --cache-dir <d> [--uid N] [--node P] [--lease P] [--pyz P] [--json]
+  ytfetch.py request --cache-dir <d> [--lease P]      (one request as JSON on stdin, see request_cmd)
 
 fetch writes <dir>/meta.json, audio.m4a, video.h264 (+ .part while running) and index.bin, and prints
 one JSON event per line on stdout: meta, audio, audio_head, audio_ready, video, done | error (then exit 1).
 audio_head {ms, bytes}: <dir>/audio.head.m4a is a complete MP4 of the audio's first ms, before audio.m4a.
 fetch --info <f>: the extraction extract wrote there (if fresh), not a new one: ~2.5 s less on the car.
 serve: loads yt-dlp (~1.2 s on the car), prints {"ev":"warm"}, then runs the one argv list read from stdin.
-check is the owner's self-test, run as root over ssh (it drops to the fetch uid itself).
+check is the owner's self-test, run as root over ssh (it drops to the fetch uid itself). check --json: only its
+fast probes (yt-dlp, DNS, TLS), one JSON line each: the daemon's health command runs it as the fetch uid.
 """
 import argparse
 import copy
@@ -47,9 +49,25 @@ HEAD_MIN_MS = 60000  # audio.head.m4a covers at least this, and 1.5x the rest's 
 
 
 def video_fmt(h):
+    # https only: an HLS (m3u8) pick needs ffmpeg, which the head unit doesn't have
     lo = h * 9 // 10
-    return (f'bv[vcodec^=avc1][height<={h}][height>={lo}][fps<=30]'
-            f'/bv[vcodec^=avc1][height<={h}][fps<=30]/bv[vcodec^=avc1][height<={h}]')
+    v = 'bv[vcodec^=avc1][protocol=https]'
+    return f'{v}[height<={h}][height>={lo}][fps<=30]/{v}[height<={h}][fps<=30]/{v}[height<={h}]'
+
+
+LIVE = ('is_live', 'is_upcoming', 'post_live')  # YouTube offers these as HLS only, until the live is processed
+
+
+def unplayable(info):
+    """Why this video can't be played, shown to the user as is; None when it can."""
+    if info.get('is_live') or info.get('live_status') in LIVE:
+        return "Live videos can't be played yet"
+    fs = info.get('formats') or []
+    if not any((f.get('vcodec') or '').startswith('avc1') for f in fs):
+        return 'no avc1 video'
+    if not any((f.get('vcodec') or '').startswith('avc1') and f.get('protocol') in (None, 'https') for f in fs):
+        return "This video is only offered as a stream RideTube can't play yet"
+    return None
 
 
 # ---------------------------------------------------------------- events
@@ -65,6 +83,20 @@ def emit(**kw):
             _out.flush()
         except OSError:
             os._exit(1)  # the daemon is gone
+
+
+def clock_wrong(e):
+    """The user's message when TLS fails because the head unit's clock is off (YouTube's certificate is newer than
+    the clock, or the clock is past it); None for any other error."""
+    t = str(getattr(e, 'verify_message', '') or e)
+    if 'certificate is not yet valid' not in t and 'certificate has expired' not in t:
+        return None
+    return "Wrong head unit clock (" + time.strftime('%Y-%m-%d', time.gmtime()) + "): set the car's date and time"
+
+
+def tls_ctx():
+    """Validate the HTTPS peer with the MGU's CA bundle or the platform defaults."""
+    return ssl.create_default_context(cafile=CA if os.path.isfile(CA) else None)
 
 
 def fail(msg):
@@ -435,7 +467,41 @@ def full(t, flags, *parts):
 MATRIX = struct.pack('>9I', 0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000)
 
 
-def flat_moov(ts, stsd, durs, sizes, chunks, offsets):
+# The car's media player is given only the file (MediaPlayer.playFile has no other argument), so the cluster shows
+# what the file says: iTunes-style tags in moov/udta/meta/ilst, as music players read them. Without them it shows
+# "unknown title" and "unknown artist".
+def tags_udta(title=None, artist=None, cover=None):
+    """moov's udta with the title (©nam), the artist (©ART) and a JPEG or PNG cover (covr); b'' when none."""
+    def text(t, s):
+        return box(t, box(b'data', struct.pack('>II', 1, 0), str(s)[:255].encode('utf-8')))  # 1: UTF-8
+    items = [text(t, s) for t, s in ((b'\xa9nam', title), (b'\xa9ART', artist)) if s]
+    if cover:
+        kind = 14 if cover[:8] == b'\x89PNG\r\n\x1a\n' else 13  # 13: JPEG, 14: PNG
+        items.append(box(b'covr', box(b'data', struct.pack('>II', kind, 0), cover)))
+    if not items:
+        return b''
+    hdlr = full(b'hdlr', 0, b'\0' * 4, b'mdir', b'appl', b'\0' * 8, b'\0')
+    return box(b'udta', full(b'meta', 0, hdlr, box(b'ilst', *items)))
+
+
+COVER_URL = 'https://i.ytimg.com/vi/{}/mqdefault.jpg'  # 320x180: the whole picture, no letterbox bars
+COVER_MAX = 256 * 1024
+
+
+def fetch_cover(vid, ctx=None, timeout=5):
+    """The video's thumbnail as JPEG bytes for the cover tag, or None (no picture is no failure)."""
+    try:
+        with urllib.request.urlopen(COVER_URL.format(vid), timeout=timeout, context=ctx) as r:
+            data = r.read(COVER_MAX + 1)
+    except (OSError, http.client.HTTPException, ValueError) as e:
+        if hasattr(e, 'close'):
+            e.close()  # an HTTPError holds its response open
+        print(f'cover: {e}', file=sys.stderr, flush=True)
+        return None
+    return data if 0 < len(data) <= COVER_MAX and data[:2] == b'\xff\xd8' else None
+
+
+def flat_moov(ts, stsd, durs, sizes, chunks, offsets, udta=b''):
     stts, run = [], None
     for d in durs:
         if run and run[1] == d:
@@ -461,13 +527,13 @@ def flat_moov(ts, stsd, durs, sizes, chunks, offsets):
                 struct.pack('>HHHH', 0, 0, 0x0100, 0), MATRIX, b'\0' * 8)
     mvhd = full(b'mvhd', 0, struct.pack('>IIIIIH', 0, 0, ts, total, 0x10000, 0x0100), b'\0' * 10,
                 MATRIX, b'\0' * 24, struct.pack('>I', 2))
-    return box(b'moov', mvhd, box(b'trak', tkhd, mdia))
+    return box(b'moov', mvhd, box(b'trak', tkhd, mdia), udta)
 
 
-def flatten_m4a(src, dst, limit=None):
+def flatten_m4a(src, dst, limit=None, udta=b''):
     """Rewrite a fragmented (DASH) m4a as ftyp+moov+mdat; edit lists are dropped. Returns (dst size, ms).
     limit: only src[:limit] is written yet (the rest may be zeros): the samples entirely inside it; a plain
-    MP4 then gives None (it cannot be cut)."""
+    MP4 then gives None (it cannot be cut). udta: tags_udta's box, in the moov (a plain MP4 is copied as it is)."""
     with open(src, 'rb') as f:
         top, limit_ = [], os.fstat(f.fileno()).st_size if limit is None else limit
         while True:
@@ -516,13 +582,13 @@ def flatten_m4a(src, dst, limit=None):
             raise ValueError('audio: no samples')
         ftyp = box(b'ftyp', b'M4A ', struct.pack('>I', 0x200), b'M4A isomiso2')
         n = len(chunks)
-        head = len(ftyp) + len(flat_moov(tk['ts'], tk['stsd'], durs, sizes, chunks, [0] * n)) + 8
+        head = len(ftyp) + len(flat_moov(tk['ts'], tk['stsd'], durs, sizes, chunks, [0] * n, udta)) + 8
         offsets, o, i = [], head, 0
         for _, k in chunks:
             offsets.append(o)
             o += sum(sizes[i:i + k])
             i += k
-        moov2 = flat_moov(tk['ts'], tk['stsd'], durs, sizes, chunks, offsets)
+        moov2 = flat_moov(tk['ts'], tk['stsd'], durs, sizes, chunks, offsets, udta)
         if o - head + 8 > 0xffffffff:
             raise ValueError('audio: over 4 GB')
         with open(dst, 'wb') as g:
@@ -777,8 +843,7 @@ def load_ytdlp(pyz, cache_dir):
         certifi.where = lambda: CA
         certifi.contents = lambda: open(CA, encoding='ascii').read()
         sys.modules['certifi'] = certifi
-    else:
-        os.environ['TMPDIR'] = cache_dir
+    os.environ['TMPDIR'] = cache_dir
     import yt_dlp
     no_captions(yt_dlp)
     return yt_dlp
@@ -851,15 +916,29 @@ def load_info(path, vid):
     return None
 
 
+def info_dir(path):
+    """extract's folder (cache/ytdlp/info): made and pruned here, as the fetch uid (the daemon, root, never
+    writes below the fetch uid's folders)."""
+    d = os.path.dirname(path)
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    for n in os.listdir(d):
+        try:
+            if time.time() - os.lstat(os.path.join(d, n)).st_mtime > INFO_MAX_S:
+                os.unlink(os.path.join(d, n))
+        except OSError:
+            pass
+
+
 def extract_cmd(a):
     if not ID_RE.match(a.id):
         fail('bad id')
+    info_dir(a.dir)
     install_dns(a.lease)
     yt_dlp = load_ytdlp(a.pyz, a.cache_dir)
     try:
         info = extract(yt_dlp, a, 'https://www.youtube.com/watch?v=' + a.id)
     except Exception as e:  # noqa: BLE001
-        fail(f'extract: {e}')
+        fail(clock_wrong(e) or f'extract: {e}')
     tmp = a.dir + '.tmp'
     with open(tmp, 'w') as f:
         json.dump(yt_dlp.YoutubeDL.sanitize_info(info), f)
@@ -868,9 +947,10 @@ def extract_cmd(a):
     return 0
 
 
-def audio_ranged(a, ya, info, meta):
+def audio_ranged(a, ya, info, meta, udta=lambda: b''):
     """The audio format yt-dlp picks, fetched with ranged_get; audio.head.m4a + audio_head once the prefix
-    covers max(HEAD_MIN_MS, 1.5x the rest's estimated time). None when the format is not plain https with a size."""
+    covers max(HEAD_MIN_MS, 1.5x the rest's estimated time). None when the format is not plain https with a size.
+    udta(): the tags for the head (as far as known when it is written)."""
     f = ya.process_ie_result(copy.deepcopy(info), download=False)
     f = (f.get('requested_downloads') or [f])[0]
     total = f.get('filesize')
@@ -893,7 +973,7 @@ def audio_ranged(a, ya, info, meta):
         rate = done / max(time.monotonic() - t0, 0.1)
         need = max(HEAD_MIN_MS, 1500 * (total - done) / rate)
         try:
-            r = flatten_m4a(src, head_part, limit=prefix)
+            r = flatten_m4a(src, head_part, limit=prefix, udta=udta())
         except (ValueError, struct.error, OSError) as e:
             print(f'head at {prefix}: {e}', file=sys.stderr, flush=True)
             gate.set()
@@ -908,7 +988,7 @@ def audio_ranged(a, ya, info, meta):
             gate.set()
             emit(ev='audio_head', ms=r[1], bytes=r[0])
 
-    ctx = ssl.create_default_context(cafile=CA if os.path.isfile(CA) else None)
+    ctx = tls_ctx()
     try:
         ranged_get(f['url'], f.get('http_headers') or {}, src, total, on_chunk, conns=AUDIO_CONNS, first=AUDIO_FIRST,
                    chunk=AUDIO_CHUNK, ctx=ctx, gate=gate, opener=url_opener(ctx, a.proxy))
@@ -945,7 +1025,7 @@ def fetch(a):
     try:
         info = info or extract(yt_dlp, a, url)
     except Exception as e:  # noqa: BLE001 - any yt-dlp failure is reported to the daemon
-        fail(f'extract: {e}')
+        fail(clock_wrong(e) or f'extract: {e}')
     meta = {'id': a.id, 'title': info.get('title'), 'channel': info.get('channel') or info.get('uploader'),
             'duration_s': info.get('duration'),
             'chapters': [[int((c.get('start_time') or 0) * 1000), str(c.get('title') or '')[:80]]
@@ -954,21 +1034,35 @@ def fetch(a):
         json.dump(meta, f)
     os.replace(os.path.join(a.dir, 'meta.json.tmp'), os.path.join(a.dir, 'meta.json'))
     emit(ev='meta', title=meta['title'], duration_s=meta['duration_s'], chapters=meta['chapters'])
-    if not any((x.get('vcodec') or '').startswith('avc1') for x in info.get('formats') or []):
-        fail('no avc1 video')
+    why = unplayable(info)
+    if why:
+        fail(why)
+    # the tags the car's player shows (title, channel, the thumbnail as cover): the cover fetched alongside, so
+    # playback never waits for it; the head gets what is there when it is written, audio.m4a waits up to 5 s
+    art = {'cover': None}
+
+    def cover():
+        art['cover'] = fetch_cover(a.id, tls_ctx())
+
+    tc = threading.Thread(target=cover, daemon=True)
+    tc.start()
+
+    def udta():
+        return tags_udta(meta['title'], meta['channel'], art['cover'])
 
     def audio():
         try:
             src = None
             try:
-                src = audio_ranged(a, ya, info, meta)
+                src = audio_ranged(a, ya, info, meta, udta)
             except Exception as e:  # noqa: BLE001 - yt-dlp's own download, as before 0.2.1
                 print(f'ranged audio failed, yt-dlp downloads it: {e}', file=sys.stderr, flush=True)
             if src is None:
                 r = ya.process_ie_result(copy.deepcopy(info), download=True)
                 src = r['requested_downloads'][0]['filepath']
             part = os.path.join(a.dir, 'audio.m4a.part')
-            n, _ = flatten_m4a(src, part)
+            tc.join(timeout=5)
+            n, _ = flatten_m4a(src, part, udta=udta())
             os.replace(part, os.path.join(a.dir, 'audio.m4a'))
             os.remove(src)
             done_a['ok'] = True
@@ -1039,11 +1133,14 @@ def check(a):
         if uid is None:
             with open('/var/opt/jap-ridetube-d/state/uids.json') as f:
                 uid = int(json.load(f)['fetch'])
-        os.makedirs(work, exist_ok=True)
-        os.chown(work, uid, uid)
+        if not a.json:
+            os.makedirs(work, exist_ok=True)
+            os.chown(work, uid, uid)
         os.setgroups([])
         os.setgid(uid)
         os.setuid(uid)
+    if a.json:
+        return check_json(a)
     os.makedirs(work, exist_ok=True)
     ok_all = []
 
@@ -1065,7 +1162,9 @@ def check(a):
         check_proxy(a, line)
     t = time.monotonic()
     try:
-        ctx = ssl.create_default_context(cafile=CA if os.path.isfile(CA) else None)
+        import ssl
+        import urllib.request
+        ctx = tls_ctx()
         with urllib.request.urlopen('https://www.youtube.com/robots.txt', context=ctx, timeout=10) as r:
             line('tls robots.txt', r.status == 200, t, f'HTTP {r.status} {len(r.read())} B', required=not a.proxy)
     except Exception as e:  # noqa: BLE001
@@ -1130,6 +1229,100 @@ def check(a):
     return 0 if all(ok_all) else 1
 
 
+def _why(e):
+    """An exception as one of a few fixed phrases (health.js shows only these): resolve_a's errors name the DNS server."""
+    if isinstance(e, urllib.error.URLError) and isinstance(e.reason, BaseException):
+        e = e.reason
+    if isinstance(e, urllib.error.HTTPError):
+        return f'HTTP {e.code}'
+    if isinstance(e, ssl.SSLCertVerificationError):
+        return 'wrong clock: ' + time.strftime('%Y-%m-%d', time.gmtime()) if clock_wrong(e) else 'certificate not trusted'
+    for kind, phrase in ((ssl.SSLError, 'TLS error'), ((socket.timeout, TimeoutError), 'timed out'),
+                         (socket.gaierror, 'name not resolved'), (ConnectionRefusedError, 'connection refused'),
+                         (ConnectionResetError, 'connection reset'), (ImportError, 'not found')):
+        if isinstance(e, kind):
+            return phrase
+    import errno
+    return {errno.ENETUNREACH: 'network unreachable', errno.EHOSTUNREACH: 'no route to host'}.get(getattr(e, 'errno', None), 'failed')
+
+
+def check_json(a):
+    """check --json: the daemon's health probes only (yt-dlp loads, DNS, TLS to YouTube), no extract, no fetch, no
+    file written. One JSON line each, flushed as it is known: {"ev":"check","name","ok","s","info"} (+ "version",
+    "servers"), then {"ev":"done","ok"}. No address in any line: the daemon shows them on the car's screen."""
+    ok_all = []
+
+    def line(name, ok, t0, info, **kw):
+        ok_all.append(bool(ok))
+        print(json.dumps(dict(ev='check', name=name, ok=bool(ok), s=round(time.monotonic() - t0, 2), info=info, **kw)),
+              flush=True)
+
+    t = time.monotonic()
+    try:
+        load_ytdlp(a.pyz, a.cache_dir)
+        from yt_dlp.version import __version__ as v
+        line('ytdlp', True, t, 'loaded', version=v)
+    except Exception as e:  # noqa: BLE001
+        line('ytdlp', False, t, _why(e))
+    t = time.monotonic()
+    servers = install_dns(a.lease)
+    resolved = False
+    try:
+        if a.proxy:
+            line('dns', True, t, 'DNS handled by proxy')
+        else:
+            socket.getaddrinfo('www.youtube.com', 443)
+            line('dns', bool(servers), t, 'resolved' if servers else 'no uplink lease', servers=len(servers))
+        resolved = True
+    except OSError as e:
+        line('dns', False, t, _why(e), servers=len(servers))
+    t = time.monotonic()
+    if not resolved:
+        line('tls', False, t, 'skipped: no DNS')
+    else:
+        try:
+            ctx = tls_ctx()
+            with url_opener(ctx, a.proxy).open('https://www.youtube.com/robots.txt', timeout=5) as r:
+                line('tls', r.status == 200, t, f'HTTP {r.status}')
+        except Exception as e:  # noqa: BLE001
+            line('tls', False, t, _why(e))
+    print(json.dumps({'ev': 'done', 'ok': all(ok_all)}), flush=True)
+    return 0 if all(ok_all) else 1
+
+
+REQUEST_MAX = 8 << 20
+
+
+def request_cmd():
+    """request: one verified HTTP request as the fetch user. {method, url, headers, body (JSON or
+    null), timeoutMs} on stdin; {status, body (utf8)} or {error} on stdout. No redirects, 8 MiB at most, plain http
+    only to this machine (the tests' fake relay)."""
+    try:
+        q = json.loads(sys.stdin.read())
+        u = urllib.parse.urlsplit(str(q['url']))
+        loop = u.scheme == 'http' and u.hostname in ('127.0.0.1', 'localhost')
+        if u.scheme != 'https' and not loop:
+            raise ValueError('https only')
+        body = None if q.get('body') is None else json.dumps(q['body'], separators=(',', ':'), ensure_ascii=False).encode()
+        h = dict(q.get('headers') or {})
+        if body is not None:
+            h['Content-Type'] = 'application/json'
+        timeout = (q.get('timeoutMs') or 10000) / 1000
+        c = (http.client.HTTPConnection(u.hostname, u.port, timeout=timeout) if loop
+             else http.client.HTTPSConnection(u.hostname, u.port, timeout=timeout, context=tls_ctx()))
+        c.request(str(q.get('method') or 'GET'), (u.path or '/') + ('?' + u.query if u.query else ''), body=body, headers=h)
+        r = c.getresponse()
+        data = r.read(REQUEST_MAX + 1)
+        if len(data) > REQUEST_MAX:
+            raise ValueError('answer too big')
+        out = {'status': r.status, 'body': data.decode('utf-8', 'replace')}
+    except Exception as e:  # noqa: BLE001 - every failure is the daemon's error text
+        out = {'error': clock_wrong(e) or str(e)[:300] or type(e).__name__}
+    sys.stdout.buffer.write(json.dumps(out, ensure_ascii=False).encode('utf-8'))
+    sys.stdout.flush()
+    return 0
+
+
 def validate(index_path, h264_path):
     """mgyi.validate's rules; returns the record count."""
     with open(index_path, 'rb') as f:
@@ -1146,7 +1339,7 @@ def validate(index_path, h264_path):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('cmd', choices=('fetch', 'extract', 'serve', 'check'))
+    ap.add_argument('cmd', choices=('fetch', 'extract', 'serve', 'check', 'request'))
     ap.add_argument('id', nargs='?')
     ap.add_argument('dir', nargs='?')
     ap.add_argument('--cache-dir', required=True)
@@ -1156,10 +1349,14 @@ def main(argv=None):
     ap.add_argument('--pyz')
     ap.add_argument('--uid', type=int)
     ap.add_argument('--info')
+    ap.add_argument('--json', action='store_true', help='check: the health probes only, as JSON lines')
     ap.add_argument('--proxy-file', dest='proxy_file',
                     help='daemon-written 0600 JSON {"url": ...}; ranged audio and yt-dlp go through it')
     a = ap.parse_intermixed_args(argv)
     a.proxy = proxy_from_file(a.proxy_file)
+    if a.cmd == 'request':
+        install_dns(a.lease)
+        return request_cmd()
     if a.cmd == 'check':
         return check(a)
     if a.cmd == 'serve':

@@ -24,8 +24,22 @@ const SOURCE_ID = 1046, SINK_ID = 1024;
 const MEDIA_FILES = ['audio.m4a', 'index.bin', 'video.h264'];
 function headName(n) { return n ? 'audio.head.' + n + '.m4a' : 'audio.head.m4a'; }
 const CACHE_INTERNAL = ['ytdlp', 'ytc', 'jobs', 'runtime-tools', 'thumbs', 'ytfetch-check', 'youtube', 'vk', 'rutube', 'network-builtin'];
+// a video's folder: BMW's media engine (its own uid, no capabilities) opens audio.m4a in it, so it must be able to
+// pass through; no read bit, so nobody lists it (and the cache above is 0711: the video ids aren't listed either)
+const VIDEO_DIR_MODE = 0o711;
 // thumb.rgba length -> [w, h]: 160x90 in caches from older proxies, 320x180 since 0.1.6
 const THUMB_SIZES = { 57600: [160, 90], 230400: [320, 180] };
+const VERSION = '0.4.6';   // component.json's (test_ytd.js checks): sent with a log report
+// the day this build was released (UTC), bumped with VERSION at each release (tools/release.py refuses one in the
+// future). An older clock warns the driver because valid TLS certificates can appear not yet valid.
+const BUILT = '2026-11-19';
+// what `hello` says this build answers for real. The frozen names: health, related, hist (feed hist|liked), ytdlp,
+// remote, proxy, stream. A package adds its name here (through the integrator) once its command works
+const CAPS = ['related', 'hist', 'health', 'playlists'];
+const LANG_RE = /^[a-z]{2}$/, REGION_RE = /^[A-Z]{2}$/;   // hello's lang ("ru") and region ("RU")
+// the log relay (send_logs posts <REPORT_URL>/v1/report): the only place reports go. MGU_YT_REPORT_URL or opts.reportUrl override it
+const REPORT_URL = null;
+const RING_MAX = 1500, REPORT_MAX = 200 * 1024, OS_MAX = 2048; // log lines kept for a report; its log and os caps (bytes)
 
 function defaults() {
     const env = process.env;
@@ -33,6 +47,13 @@ function defaults() {
     return {
         someip: env.MGU_YT_SOMEIP || '/usr/lib/someip.node',
         srcGen: env.MGU_YT_SRCGEN || '/usr/lib/oap-mainapp/src-gen',
+        // where a service MainApp's src-gen lacks is described from (Audio.descriptions): the unit's SOME/IP catalog, the
+        // firmware's own generator (inside AppManagement.js), and kit/tools/oapgen/gen.js (shipped as oapgen.js) to load it
+        catalog: env.MGU_YT_CATALOG || '/etc/oap/someip/someip-interfaces.json',
+        appMgmt: '/usr/lib/oap-mainapp/src/AppManagement/AppManagement.js',
+        oapgen: path.join(here, 'oapgen.js'),
+        someipGenCmd: [process.execPath, __filename, '--someip-gen'],
+        someipRetryMs: 5000, // the SOME/IP services not up yet (boot): tried again after this
         ytdec: env.MGU_YT_YTDEC || path.join(here, 'ytdec'),
         cacheDir: env.MGU_YT_CACHE || '/var/opt/jap-ridetube-d/cache',
         logDir: env.MGU_YT_LOGDIR || '/var/opt/jap-ridetube-d/log',
@@ -47,16 +68,19 @@ function defaults() {
         // an admin-written {"url": "http://user:pass@host:port"} (0600 root). When it parses, all
         // of the service's YouTube traffic goes through it and the uplink preflight is skipped.
         proxyFile: env.MGU_YT_PROXY || '/var/opt/jap-ridetube-d/state/proxy.json',
+        reportUrl: env.MGU_YT_REPORT_URL || REPORT_URL,
+        reportTimeoutMs: 30000,
         ytRequest: null,     // null: each request in a child as the fetch uid (fetchRequest)
         // the fetch uid's pick (pickFetchUid) and the helper it runs
         stateDir: env.MGU_YT_STATE || '/var/opt/jap-ridetube-d/state',
         etcDir: '/etc',
         oapRoot: '/var/opt/public/oap',
+        mgrUid: 12201,       // MainApp's uid: its registry must be owned by it (or root)
         toolRoot: '/var/opt',
         procDir: '/proc',
         mainapps: MAINAPPS,
         fetchCmd: [process.execPath, '--max-http-header-size=65536', __filename, '--fetch'],
-        fetcher: ['/var/opt/mgu-python/current/bin/python3', path.join(here, 'ytfetch.py')],
+        fetcher: ['/var/opt/mgu-python/current/bin/python3', '-I', path.join(here, 'ytfetch.py')],
         thumbCmd: ['/var/opt/jap-node22/current/bin/node', path.join(here, 'thumb.js')],
         startVideoMs: 6000,  // video fetched ahead before playback starts (later the buffering pause covers a slow link)
         fetchRetryMs: [3000, 8000], // a fetch failing before playback (the network): tried again after these waits
@@ -69,6 +93,8 @@ function defaults() {
         skip: ['sponsor', 'selfpromo', 'interaction', 'intro'], // SponsorBlock categories skipped (the play's own `skip` wins)
         sbCategories: ['sponsor', 'selfpromo', 'interaction', 'intro', 'outro', 'music_offtopic'], // looked up, sent in extras  // a prefetched stream lookup is used this long (ytfetch: 30 min, URLs: ~6 h)
         headMarginMs: 1500,  // on the head file: wait for audio.m4a this close to the head's end
+        audioRetryMs: 1000,  // the audio start (connect + playFile) failed: tried once more after this
+        underrunWaitMs: 500, // the player ran dry (underrun): started again at the clock after this
         thumbMax: 150,
         ytTimeoutMs: 10000,
         authTimeoutMs: 25000, // the TV page is large and may be slow over the car's uplink
@@ -94,7 +120,12 @@ function qualityHeight(q, lease) {
 // members-only (or members-first) videos: a badge somewhere in the tile, its shape unknown (no capture) - matched on the text
 // shortcut: a JSON scan of the tile, swap for the badge's field once a real members tile is captured
 const isMembers = (t) => /BADGE_STYLE_TYPE_MEMBERS|"Members (only|first)"/i.test(JSON.stringify(t));
-const PERMANENT_RE = /unavailable|private|removed|terminated|copyright|members|age|confirm your age|not available in your country/i;
+// live now or upcoming (a premiere): the overlay's style (LIVE / UPCOMING) or its English text, a lockup's LIVE badge, a
+// LIVE_NOW line badge; never a length
+// shortcut: the values are YouTube's live enums from its other clients, no TVHTML5 live capture in test/; check on the first one
+const LIVE_VALUES = ['LIVE', 'UPCOMING', 'THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE', 'BADGE_STYLE_TYPE_LIVE_NOW'];
+const isLive = (marks, duration) => duration === null && marks.some((x) => LIVE_VALUES.indexOf(x) >= 0);
+const PERMANENT_RE = /unavailable|private|removed|terminated|copyright|members|age|confirm your age|not available in your country|can't be played|can't play|head unit clock/i;
 function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 function withTimeout(p, ms, what) {
     return new Promise(function (resolve, reject) {
@@ -102,6 +133,8 @@ function withTimeout(p, ms, what) {
         p.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
     });
 }
+// root-owned trees only: a fetch-uid folder goes through Daemon.rmTree (a symlink swapped in between lstat and
+// readdir would point root elsewhere)
 function rmrf(p) {
     let st;
     try { st = fs.lstatSync(p); } catch (e) { return; }
@@ -119,9 +152,30 @@ function mkdirp(p) {
 }
 
 // ---------------------------------------------------------------- playback cache (no downloads: a played video goes)
+// a file in a folder the fetch uid owns, read by root: no symlink (last component), only a regular file (a FIFO would
+// block root, a device feed it forever), ok(size) true; read from that fd. null on anything else (treated as missing)
+function readFetchFile(f, ok) {
+    let fd = null;
+    try {
+        fd = fs.openSync(f, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+        const st = fs.fstatSync(fd);
+        if (!st.isFile() || !ok(st.size)) return null;
+        const b = Buffer.alloc(st.size);
+        let n = 0, r = 1;
+        while (n < b.length && r > 0) { r = fs.readSync(fd, b, n, b.length - n, n); n += r; }
+        return n === b.length ? b : null;
+    } catch (e) {
+        return null;
+    } finally {
+        if (fd !== null) { try { fs.closeSync(fd); } catch (e) { /* closed */ } }
+    }
+}
+const META_MAX = 64 << 10;
 function readMeta(dir, id) {
     try {
-        const m = JSON.parse(fs.readFileSync(path.join(dir, 'meta.json'), 'utf8')); // ytfetch writes it
+        const b = readFetchFile(path.join(dir, 'meta.json'), (n) => n <= META_MAX); // ytfetch writes it
+        if (!b) throw new Error('no meta');
+        const m = JSON.parse(b.toString('utf8'));
         return { id: id, title: m.title || id, channel: m.channel || '', duration_s: m.duration_s || null };
     } catch (e) { return { id: id, title: id, channel: '', duration_s: null }; }
 }
@@ -156,17 +210,25 @@ function listCache(cacheDir, idRe) {
     out.sort(function (a, b) { return b.mtime - a.mtime; });
     return out;
 }
-// Keep the `keep` most recent ids (dir mtime); never the protected ones (playing/preparing).
-function pruneCache(cacheDir, keep, protect, log, idRe) {
+// SponsorBlock answers, cache/.sb/<id>.json: root's (0700), never in a video's folder, which the fetch uid owns
+const SB_DIR = '.sb';
+// Keep the `keep` most recent ids (dir mtime); never the protected ones (playing/preparing). rm: how a folder
+// goes (the daemon's rmTree; rmrf by default). .sb/<id>.json (SponsorBlock, root's) goes with its video's folder.
+function pruneCache(cacheDir, keep, protect, log, idRe, rm) {
     const items = listCache(cacheDir, idRe);
     const removed = [];
     let kept = 0;
     items.forEach(function (it) {
         if (protect.indexOf(it.id) >= 0) { kept++; return; }
         if (kept < keep) { kept++; return; }
-        try { rmrf(path.join(cacheDir, it.id)); removed.push(it.id); } catch (e) { log('lru: ' + it.id + ': ' + e.message); }
+        try { (rm || rmrf)(path.join(cacheDir, it.id)); removed.push(it.id); } catch (e) { log('lru: ' + it.id + ': ' + e.message); }
     });
     if (removed.length) log('lru removed ' + removed.join(','));
+    const sb = path.join(cacheDir, SB_DIR);
+    list(sb).forEach(function (n) {
+        const id = n.replace(/\.json$/, '');
+        if (protect.indexOf(id) < 0 && !fs.existsSync(path.join(cacheDir, id))) { try { fs.unlinkSync(path.join(sb, n)); } catch (e) { /* gone */ } }
+    });
     return removed;
 }
 
@@ -182,6 +244,7 @@ const lines = (f) => { try { return fs.readFileSync(f, 'utf8').split('\n'); } ca
 const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return null; } };
 const list = (d) => { try { return fs.readdirSync(d); } catch (e) { return []; } };
 const isId = (n) => n > 0 && n === Math.floor(n);
+const inRanges = (cfg, u) => !!cfg && cfg.ranges.some((r) => u >= r.min && u <= r.max);
 
 // MainApp's app uid ranges [{min,max}] and own uids, from the config of the MainApp the unit runs; null unknown
 function mainappRanges(o) {
@@ -242,7 +305,7 @@ function pickFetchUid(o) {
     const kept = Number(saved[role]);
     const reserved = Number(saved[role === 'builtin' ? 'fetch' : 'builtin']);
     const cfg = mainappRanges(o);
-    const inRange = (u) => !!cfg && cfg.ranges.some((r) => u >= r.min && u <= r.max);
+    const inRange = (u) => inRanges(cfg, u);
     let uid = null;
     if (isId(kept) && kept !== reserved && !takenIds(o, cfg, false)[kept] && !inRange(kept)) uid = kept;
     else if (cfg) {
@@ -312,13 +375,16 @@ function fetchRequest(o, uid, req, proxyUrl) {
 // Tokens live in accountFile (0600, written atomically) and never cross the ctl socket or the log.
 const YT = 'https://www.youtube.com';
 const TV_UA = 'Mozilla/5.0 (Linux; Tizen 2.4.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/2.4.0 TV Safari/538.1';
-const TV_CLIENT = { clientName: 'TVHTML5', clientVersion: '7.20261102.18.00', hl: 'en' };
+const TV_CLIENT = { clientName: 'TVHTML5', clientVersion: '7.20261103.19.00', hl: 'en' };
+
+// TV_CLIENT in hello's language and region (feeds, search, related); English and no region when the app sent none
+function tvClient(hl, gl) { return Object.assign({}, TV_CLIENT, hl ? { hl: hl } : {}, gl ? { gl: gl } : {}); }
 const CRED_RE = /clientId:"([-\w]+\.apps\.googleusercontent\.com)",\n?[$\w]+:"([-\w]+)"/;
 const TV_VERSION_RE = /(?:clientVersion:"|INNERTUBE_CLIENT_VERSION\\?":\\?")(7\.\d{8}\.\d+\.\d+)/;
 const SCOPE = 'http://gdata.youtube.com https://www.googleapis.com/auth/youtube-paid-content';
 const TOKEN_URL = YT + '/o/oauth2/token';
-const FEEDS = { home: 'FEwhat_to_watch', subs: 'FEsubscriptions', wl: 'VLWL' };
-const FEED_MAX = 50;
+const FEEDS = { home: 'FEwhat_to_watch', subs: 'FEsubscriptions', wl: 'VLWL', hist: 'FEhistory', liked: 'VLLL' };
+const FEED_MAX = 100;   // a feed's, channel's, playlist's, search's or related list's videos (a full feed line stays far under the app's 1 MiB)
 
 // method, url, headers, body (object or null) -> {status, body (utf8)}.
 // OAuth accepts form fields; InnerTube uses JSON. No redirects on these URLs.
@@ -379,12 +445,15 @@ function ytRequest(method, url, headers, body, timeoutMs, lookup, via, native) {
 const runsText = (x) => (!x ? '' : typeof x.simpleText === 'string' ? x.simpleText
     : Array.isArray(x.runs) ? x.runs.map((r) => (r && r.text) || '').join('') : '');
 function hms(s) { return /^\d+(:\d{1,2}){1,2}$/.test(s) ? s.split(':').reduce((a, p) => a * 60 + Number(p), 0) : null; }
-// One TVHTML5 tileRenderer -> {id,title,channel,duration_s,meta}, or null when it is not a video
-// (shorts, channels, playlists). meta: the texts of the second line, without its "•" and badges ("4K").
+// One TVHTML5 tileRenderer -> {id,title,channel,duration_s,meta}, or null when it is not a video (channels,
+// playlists). A short (reelWatchEndpoint) is a video with short:true: the app decides whether it shows them. A live
+// stream or an upcoming premiere (isLive) has live:true and no length.
+// meta: the texts of the second line, without its "•" and badges ("4K").
 function tileItem(t) {
-    const ep = t.onSelectCommand && t.onSelectCommand.watchEndpoint;
+    const sel = t.onSelectCommand || {}, short = t.contentType === 'TILE_CONTENT_TYPE_SHORTS';
+    const ep = short ? sel.reelWatchEndpoint : sel.watchEndpoint;
     const id = t.contentId || (ep && ep.videoId);
-    if (t.contentType !== 'TILE_CONTENT_TYPE_VIDEO' || !ID_RE.test(String(id))) return null;
+    if ((t.contentType !== 'TILE_CONTENT_TYPE_VIDEO' && !short) || !ID_RE.test(String(id))) return null;
     const m = (t.metadata && t.metadata.tileMetadataRenderer) || {};
     const lines = (Array.isArray(m.lines) ? m.lines : []).map((l) => ((l && l.lineRenderer && l.lineRenderer.items) || [])
         .map((i) => runsText(i && i.lineItemRenderer && i.lineItemRenderer.text)));
@@ -393,26 +462,34 @@ function tileItem(t) {
     const rp = ovs.map((x) => x && x.thumbnailOverlayResumePlaybackRenderer).filter(Boolean)[0];   // the account's own progress
     const it = { id: id, title: runsText(m.title) || id, channel: (lines[0] || []).join(''), duration_s: hms(runsText(ov && ov.text)),
         meta: (lines[1] || []).filter((x) => x && x.trim() !== '\u2022') };
+    if (short) it.short = true;
     if (rp && rp.percentDurationWatched > 0) it.watched_pct = Math.min(100, Number(rp.percentDurationWatched) || 0);
     if (ep && ep.startTimeSeconds > 0) it.start_s = Number(ep.startTimeSeconds);
     if (isMembers(t)) it.members = true;
+    const badges = [].concat.apply([], (Array.isArray(m.lines) ? m.lines : []).map((l) => ((l && l.lineRenderer && l.lineRenderer.items) || [])
+        .map((i) => { const b = i && i.lineItemRenderer && i.lineItemRenderer.badge; return b && b.metadataBadgeRenderer && b.metadataBadgeRenderer.style; })));
+    if (isLive([ov && ov.style, runsText(ov && ov.text).toUpperCase()].concat(badges), it.duration_s)) it.live = true;
     return it;
 }
 // One TVHTML5 lockupViewModel (search answers, 2026-11) -> the same, or null when not a video: playlists
-// (contentId a list) and channels (no watchEndpoint). meta: the second metadata row, without badges.
+// (contentId a list) and channels (no watchEndpoint). A short (LOCKUP_CONTENT_TYPE_SHORT, a reelWatchEndpoint) has
+// short:true, a live one live:true. meta: the second metadata row, without badges.
 function lockupItem(l) {
     const cc = l.rendererContext && l.rendererContext.commandContext;
-    const cmd = cc && cc.onTap && cc.onTap.innertubeCommand;
-    const id = cmd && cmd.watchEndpoint && cmd.watchEndpoint.videoId;
+    const cmd = (cc && cc.onTap && cc.onTap.innertubeCommand) || {};
+    const ep = cmd.watchEndpoint || cmd.reelWatchEndpoint, id = ep && ep.videoId;
     if (!ID_RE.test(String(id)) || id !== l.contentId) return null;
     const m = (l.metadata && l.metadata.lockupMetadataViewModel) || {};
     const cm = m.metadata && m.metadata.contentMetadataViewModel;
     const rows = ((cm && cm.metadataRows) || []).map((r) => ((r && r.metadataParts) || []).map((x) => (x && x.text && x.text.content) || '').filter(Boolean));
     const tv = (l.contentImage && l.contentImage.thumbnailViewModel) || {};
     const ov = (tv.overlays || []).map((x) => x && x.thumbnailBottomOverlayViewModel).filter(Boolean)[0];
-    const len = ((ov && ov.badges) || []).map((x) => x && x.thumbnailBadgeViewModel && x.thumbnailBadgeViewModel.text).filter(Boolean)[0];
+    const bvs = ((ov && ov.badges) || []).map((x) => x && x.thumbnailBadgeViewModel).filter(Boolean);
+    const len = bvs.map((b) => b.text).filter(Boolean)[0];
     const it = { id: id, title: (m.title && m.title.content) || id, channel: (rows[0] || []).join(''), duration_s: hms(String(len)), meta: rows[1] || [] };
+    if (!cmd.watchEndpoint) it.short = true;
     if (isMembers(l)) it.members = true;
+    if (isLive([].concat.apply([], bvs.map((b) => [b.badgeStyle, String(b.text || '').toUpperCase()])), it.duration_s)) it.live = true;
     return it;
 }
 // every video tile (or lockup) under o, in page order, each id once
@@ -478,11 +555,107 @@ function channelTiles(root) {
     return out;
 }
 
+// The TV app's Playlists page (FEplaylist_aggregation) -> the account's playlists [{id, title, count, meta, thumb}], each once, page order.
+// A tileRenderer (TILE_CONTENT_TYPE_PLAYLIST) or a lockupViewModel (LOCKUP_CONTENT_TYPE_PLAYLIST). id: the playlist's
+// (its browse id without "VL"); count: the "N videos" text, null when none; meta: the other texts ("Private", "Updated
+// today"); thumb: the video whose picture the tile shows (thumb{id} makes it), null when none. Watch later is skipped:
+// the app has it as a page of its own.
+const PL_RE = /^[\w-]{2,64}$/;
+const isPl = (x) => typeof x === 'string' && PL_RE.test(x);
+function playlistTiles(root) {
+    const out = [], seen = { WL: true };
+    const plId = (c) => {
+        const be = c && c.browseEndpoint, wp = c && (c.watchPlaylistEndpoint || c.watchEndpoint);
+        if (be && /^VL[\w-]{2,64}$/.test(String(be.browseId))) return be.browseId.slice(2);
+        return (wp && wp.playlistId) || null;
+    };
+    const vidOf = (url) => { const m = /\/vi(?:_webp)?\/([\w-]{11})\//.exec(String(url || '')); return m ? m[1] : null; };
+    const firstVid = (o) => {                      // the first thumbnail URL under o that names a video
+        let v = null;
+        (function walk(x) {
+            if (v || !x || typeof x !== 'object') return;
+            if (typeof x.url === 'string') v = vidOf(x.url);
+            Object.keys(x).forEach((k) => walk(x[k]));
+        })(o);
+        return v;
+    };
+    const add = (id, title, texts, thumb) => {
+        if (!isPl(id) || seen[id]) return;
+        seen[id] = true;
+        const COUNT = /^(?:([\d.,\s]+)|no)\s+videos?$/i, n = texts.map((s) => COUNT.exec(s.trim())).filter(Boolean)[0];
+        out.push({ id: id, title: title || id, count: n ? Number((n[1] || '0').replace(/[^\d]/g, '')) : null,
+            meta: texts.filter((s) => s && s.trim() !== '•' && !COUNT.test(s.trim())), thumb: thumb || null });
+    };
+    (function walk(o) {
+        if (!o || typeof o !== 'object') return;
+        const t = o.tileRenderer, l = o.lockupViewModel;
+        if (t && typeof t === 'object' && /PLAYLIST/.test(String(t.contentType))) {
+            const m = (t.metadata && t.metadata.tileMetadataRenderer) || {};
+            const texts = [].concat(...(Array.isArray(m.lines) ? m.lines : []).map((x) => ((x && x.lineRenderer && x.lineRenderer.items) || [])
+                .map((i) => runsText(i && i.lineItemRenderer && i.lineItemRenderer.text))));
+            const ov = ((t.header && t.header.tileHeaderRenderer && t.header.tileHeaderRenderer.thumbnailOverlays) || [])
+                .map((x) => runsText(x && x.thumbnailOverlayTimeStatusRenderer && x.thumbnailOverlayTimeStatusRenderer.text)).filter(Boolean);
+            const ep = t.onSelectCommand || {};
+            add(plId(ep) || t.contentId, runsText(m.title), ov.concat(texts).filter(Boolean),
+                (ep.watchEndpoint && ID_RE.test(String(ep.watchEndpoint.videoId)) && ep.watchEndpoint.videoId) || firstVid(t.header));
+            return;
+        }
+        if (l && typeof l === 'object' && /PLAYLIST/.test(String(l.contentType))) {
+            const m = (l.metadata && l.metadata.lockupMetadataViewModel) || {};
+            const cm = m.metadata && m.metadata.contentMetadataViewModel;
+            const texts = [].concat(...((cm && cm.metadataRows) || []).map((r) => ((r && r.metadataParts) || []).map((x) => (x && x.text && x.text.content) || '')));
+            const badges = [];
+            (function walk(x) {
+                if (!x || typeof x !== 'object') return;
+                if (x.thumbnailBadgeViewModel && typeof x.thumbnailBadgeViewModel.text === 'string') badges.push(x.thumbnailBadgeViewModel.text);
+                Object.keys(x).forEach((k) => walk(x[k]));
+            })(l.contentImage);
+            const cc = l.rendererContext && l.rendererContext.commandContext, cmd = (cc && cc.onTap && cc.onTap.innertubeCommand) || {};
+            add(plId(cmd) || l.contentId, m.title && m.title.content, badges.concat(texts).filter(Boolean), firstVid(l.contentImage));
+            return;
+        }
+        Object.keys(o).forEach((k) => walk(o[k]));
+    })(root);
+    return out;
+}
+// A playlist page's name (its header: TVHTML5's entityMetadataRenderer, 2026-11), or ''
+function playlistTitle(root) {
+    let t = '';
+    (function walk(o) {
+        if (t || !o || typeof o !== 'object') return;
+        const h = o.entityMetadataRenderer || o.playlistHeaderRenderer || o.pageHeaderViewModel;
+        if (h) { t = runsText(h.title) || (h.title && h.title.dynamicTextViewModel && h.title.dynamicTextViewModel.text && h.title.dynamicTextViewModel.text.content) || ''; if (t) return; }
+        Object.keys(o).forEach((k) => walk(o[k]));
+    })(root);
+    return t;
+}
+// playlist/get_add_to_playlist (the Save to playlist list: the playlists the account owns) -> as playlistTiles, with
+// no count; meta: its privacy ("Private"); thumb: the video its picture shows, when it names one. Watch later skipped.
+function addToPlaylistItems(root) {
+    const out = [], seen = { WL: true };
+    (function walk(o) {
+        if (!o || typeof o !== 'object') return;
+        const p = o.playlistAddToOptionRenderer;
+        if (p && typeof p === 'object') {
+            const id = p.playlistId;
+            if (!isPl(id) || seen[id]) return;
+            seen[id] = true;
+            const pv = String(p.privacy || ''), m = /\/vi(?:_webp)?\/([\w-]{11})\//.exec(JSON.stringify(p.thumbnailRenderer || {}));
+            out.push({ id: id, title: runsText(p.title) || id, count: null, meta: pv ? [pv.charAt(0) + pv.slice(1).toLowerCase()] : [], thumb: m ? m[1] : null });
+            return;
+        }
+        Object.keys(o).forEach((k) => walk(o[k]));
+    })(root);
+    return out;
+}
+
 // emit(o): to the app. Every method answers with an event and never rejects (a rejection would be a fault).
-function Account(opts, emit) {
+// client(): the InnerTube client of this connection's language (tvClient); TV_CLIENT when not given
+function Account(opts, emit, client) {
     this.opts = opts;
     this.log = opts.log;
     this.emit = emit;
+    this.client = client || (() => TV_CLIENT);
     this.pending = null;     // the device code shown: {cid, sec, device, code, url, interval, expires, timer}
     this.starting = false;
     this.refreshing = null;
@@ -668,33 +841,41 @@ Account.prototype.refresh = async function (a, out) {
     if (j.error === 'invalid_grant') { this.drop('invalid_grant'); throw out; } // revoked or expired: sign in again
     throw new Error('refresh: ' + (j.error || r.status));
 };
-Account.prototype.browse = function (browseId, token) {
-    return this.json('POST', YT + '/youtubei/v1/browse', { context: { client: this.client() }, browseId: browseId }, { Authorization: 'Bearer ' + token });
+Account.prototype.browse = function (browseId, token, client) {
+    return this.json('POST', YT + '/youtubei/v1/browse', { context: { client: client || this.client() }, browseId: browseId }, { Authorization: 'Bearer ' + token });
 };
-// `feed` {which: home|subs|wl} -> feed{which, items, shelves} or feed{which, error}
-Account.prototype.feed = function (which) {
+// `feed` {which: home|subs|wl|hist|liked} -> feed{which, items, shelves} or feed{which, error}; hist is the account's
+// watch history (FEhistory), liked its Liked videos (VLLL). Signed out: error 'signed out', as every feed
+Account.prototype.feed = function (which, emit, locale) {
     which = String(which);
-    if (typeof FEEDS[which] !== 'string') { this.emit({ ev: 'feed', which: which, error: 'unknown feed' }); return Promise.resolve(); }
-    if (!this.feeding[which]) {
-        const done = () => { delete this.feeding[which]; };
-        this.feeding[which] = this.loadFeed(which);
-        this.feeding[which].then(done, done);
+    const reply = emit || this.emit;
+    if (typeof FEEDS[which] !== 'string') {
+        reply({ ev: 'feed', which: which, error: 'unknown feed' });
+        return Promise.resolve();
     }
-    return this.feeding[which];
+    const client = locale ? tvClient(locale.lang, locale.region) : this.client();
+    const key = [this.gen, which, client.hl, client.gl].join('/');
+    if (!this.feeding[key]) {
+        const done = () => { delete this.feeding[key]; };
+        const request = this.feeding[key] = this.loadFeed(which, client);
+        request.then(done, done);
+        if (!emit) request.then(reply);
+    }
+    if (emit) return this.feeding[key].then(reply);
+    return this.feeding[key].then(() => undefined);
 };
-Account.prototype.loadFeed = async function (which) {
+Account.prototype.loadFeed = async function (which, client) {
     const g = this.gen;
     try {
-        let r = await this.browse(FEEDS[which], await this.token(false));
-        if (r.status === 401) r = await this.browse(FEEDS[which], await this.token(true)); // the token died early
+        let r = await this.browse(FEEDS[which], await this.token(false), client);
+        if (r.status === 401) r = await this.browse(FEEDS[which], await this.token(true), client);
         if (g !== this.gen) throw Object.assign(new Error('signed out'), { signedOut: true });
         if (r.status !== 200 || !r.j) throw new Error('browse ' + r.status);
-        this.emit({ ev: 'feed', which: which, items: feedItems(r.j).slice(0, FEED_MAX), shelves: feedShelves(r.j) });
+        return { ev: 'feed', which: which, items: feedItems(r.j).slice(0, FEED_MAX), shelves: feedShelves(r.j) };
     } catch (e) {
         if (!e.signedOut) this.log('feed ' + which + ': ' + e.message);
-        this.emit({ ev: 'feed', which: which, error: e.signedOut ? 'signed out' : e.noUid ? e.message : 'feed offline' });
+        return { ev: 'feed', which: which, error: e.signedOut ? 'signed out' : e.noUid ? e.message : 'feed offline' };
     }
-    return undefined;
 };
 // `channels` -> channels{items:[{id,title,handle}]} or channels{error}; the list is kept 10 min
 // `channel` {id} -> channel{id, items, shelves} (its page: Videos, Popular...) or channel{id, error}
@@ -703,20 +884,57 @@ Account.prototype.channel = function (id) {
     if (!CHAN_RE.test(String(id))) { this.emit({ ev: 'channel', id: String(id), error: 'bad channel' }); return Promise.resolve(); }
     return this.browseEv({ ev: 'channel', id: id }, id, (j) => ({ items: feedItems(j).slice(0, FEED_MAX), shelves: feedShelves(j) }), 0);
 };
-Account.prototype.browseEv = async function (head, browseId, parse, keepMs) {
+// `playlists` -> playlists{items:[{id,title,count,meta,thumb}]} or playlists{error}, never kept. The TV Playlists page;
+// when it refuses (seen 2026-11: 404 for an account a while, then 200) or lists none (a page we no longer read:
+// every account has Liked videos at least), the Save to playlist list (no counts). That one failing after the
+// page's 200: the page's (empty) answer.
+// `playlist` {id} -> playlist{id, title, items} (its videos, at most FEED_MAX) or playlist{id, error}
+const ANY_VIDEO = 'jNQXAC9IVRw';   // get_add_to_playlist lists the playlists for a video; any public one does
+Account.prototype.playlists = async function (emit) {
+    emit = emit || this.emit;
+    const g = this.gen, call = async (fn) => {
+        let r = await fn(await this.token(false));
+        if (r.status === 401) r = await fn(await this.token(true));
+        if (g !== this.gen) throw Object.assign(new Error('signed out'), { signedOut: true });
+        return r;
+    };
+    try {
+        const r = await call((tok) => this.browse('FEplaylist_aggregation', tok, TV_CLIENT));   // English: playlistTiles reads "N videos"
+        let items = r.status === 200 && r.j ? playlistTiles(r.j) : null;
+        if (!items || !items.length) {
+            const q = await call((tok) => this.json('POST', YT + '/youtubei/v1/playlist/get_add_to_playlist',
+                { context: { client: TV_CLIENT }, videoIds: [ANY_VIDEO] }, { Authorization: 'Bearer ' + tok }));
+            if (q.status === 200 && q.j) items = addToPlaylistItems(q.j);
+            else if (!items) throw new Error('playlists ' + r.status + ', save list ' + q.status);
+            else this.log('playlists: none on the page, save list ' + q.status);
+        }
+        emit({ ev: 'playlists', items: items });
+    } catch (e) {
+        if (!e.signedOut) this.log('playlists: ' + e.message);
+        emit({ ev: 'playlists', error: e.signedOut ? 'signed out' : e.noUid ? e.message : 'feed offline' });
+    }
+    return undefined;
+};
+Account.prototype.playlist = function (id, emit) {
+    emit = emit || this.emit;
+    if (!isPl(id)) { emit({ ev: 'playlist', id: String(id), error: 'bad playlist' }); return Promise.resolve(); }
+    return this.browseEv({ ev: 'playlist', id: id }, 'VL' + id, (j) => ({ title: playlistTitle(j), items: feedItems(j).slice(0, FEED_MAX) }), 0, emit);
+};
+Account.prototype.browseEv = async function (head, browseId, parse, keepMs, emit) {
+    emit = emit || this.emit;
     const g = this.gen, c = this.kept || (this.kept = {}), k = c[browseId];
     try {
-        if (k && keepMs && Date.now() - k.t < keepMs && k.g === g) { this.emit(Object.assign({}, head, k.v)); return undefined; }
+        if (k && keepMs && Date.now() - k.t < keepMs && k.g === g) { emit(Object.assign({}, head, k.v)); return undefined; }
         let r = await this.browse(browseId, await this.token(false));
         if (r.status === 401) r = await this.browse(browseId, await this.token(true));
         if (g !== this.gen) throw Object.assign(new Error('signed out'), { signedOut: true });
         if (r.status !== 200 || !r.j) throw new Error('browse ' + r.status);
         const v = parse(r.j);
         if (keepMs) c[browseId] = { t: Date.now(), g: g, v: v };
-        this.emit(Object.assign({}, head, v));
+        emit(Object.assign({}, head, v));
     } catch (e) {
         if (!e.signedOut) this.log(head.ev + ': ' + e.message);
-        this.emit(Object.assign({}, head, { error: e.signedOut ? 'signed out' : e.noUid ? e.message : 'feed offline' }));
+        emit(Object.assign({}, head, { error: e.signedOut ? 'signed out' : e.noUid ? e.message : 'feed offline' }));
     }
     return undefined;
 };
@@ -726,26 +944,219 @@ Account.prototype.close = function () {
 };
 
 // ---------------------------------------------------------------- audio: BMW MediaPlayer
+// The player's own reading of the item playing (currentItemMetadata: newer firmware's MediaPlayer has it, read-only;
+// the older OAP one has only playFile/setTime). Logged, to see whether it found the tags ytfetch writes into the
+// file - what the cluster and the media screen show. Keys come as names or as their numbers. Text values are logged
+// as their length only: titles and channels must not reach the log a report sends (redactLog matches them whole).
+const META_KEYS = { 3: 'TITLE', 5: 'ARTIST', 7: 'ALBUM', 17: 'COVER_FILE', 44: 'LENGTH' };
+function metadataLine(v) {
+    const out = [];
+    (Array.isArray(v) ? v : []).forEach((e) => {
+        const k = e && (typeof e.key === 'number' ? META_KEYS[e.key] : e.key);
+        if (!k || ['TITLE', 'ARTIST', 'ALBUM', 'COVER_FILE', 'LENGTH'].indexOf(k) < 0) return;
+        const x = (e.value && typeof e.value === 'object') ? e.value : { v: e.value };
+        const val = x.stringValue !== undefined ? x.stringValue : x.numeric !== undefined ? x.numeric : Object.keys(x).map((n) => x[n])[0];
+        out.push(k + (typeof val === 'string' ? '(' + val.length + ' chars)' : '=' + String(val)));
+    });
+    return out.length ? out.join(' ') : 'no title, artist, album or cover';
+}
+// The two SOME/IP services' descriptions (the JSON someip.buildProxy takes). Per service, the first source that has it:
+// 1. 'MainApp': MainApp's src-gen, made from MainApp's own manifest when MainApp was built (2021 MainApps list neither
+//    service: their src-gen has no such file);
+// 2. 'catalog': made at start from the unit's catalog (/etc/oap/someip/someip-interfaces.json) by the firmware's own
+//    generator, the way MainApp's installer makes an app's someipInterfaces/ (kit/tools/oapgen/gen.js loads it; in a
+//    child, ytd.js --someip-gen: the catalog is 5 MB of JSON). The catalog is searched by service id, its name may differ;
+// 3. 'built-in': BUILTIN below.
+const IFACES = [
+    { key: 'CommandControl', id: 'org.genivi.am.commandinterface.CommandControl', serviceId: 0xB020, inst: '1',
+        proxy: { instances: '1', attributes: { listOfMainConnections: 'rs' }, methods: ['connect', 'disconnect'] },
+        uses: { methods: ['connect', 'disconnect'], fields: ['listOfMainConnections'], events: [] } },
+    { key: 'MediaPlayer', id: 'de.bmw.infotainment.entertainment.mediaplayer.MediaPlayer', serviceId: 0xB042, inst: 'OapGenericMedia', proxy: '*',
+        uses: { methods: ['sendButtonEvent', 'playFile', 'setTime'], fields: ['playerState', 'currentItemTime'], events: ['playbackErrorEvent'] } }
+];
+// what a description lacks of our instance and of what this file calls, subscribes to or reads ([]: usable)
+function lacking(d, i) {
+    if (!d || typeof d !== 'object') return ['everything'];
+    const out = d.instances && typeof d.instances[i.inst] === 'number' ? [] : ['instance ' + i.inst];
+    Object.keys(i.uses).forEach((kind) => i.uses[kind].forEach((n) => { if (!(d[kind] && d[kind][n])) out.push(n); }));
+    return out;
+}
+const usable = (d, i) => lacking(d, i).length === 0;
+// Last resort, used only when MainApp's src-gen and the catalog both lack a service: our own minimal description of the
+// two services as our P18_23w44 unit (MainApp 8.3.2) has them, limited to what this file uses (the enums it decodes in
+// full, the button enum to the three it sends). Ids, versions or instances may differ on other firmware: then the
+// service never answers, and Audio.why says the car does not offer it.
+const seqEnum = (names) => ({ t: 'Enum', w: 1, e: names.split(' ').reduce((o, n, i) => { o[n] = i; return o; }, {}) });
+const named = (n, t) => Object.assign({ n: n }, t);
+const struct = function () { return { t: 'Struct', e: Array.prototype.slice.call(arguments) }; };
+const u16 = (n) => ({ n: n, t: 'UInt16' }), u32 = (n) => ({ n: n, t: 'UInt32' });
+function builtin(key) {
+    const amError = () => named('amError', seqEnum('E_OK E_UNKNOWN E_OUT_OF_RANGE E_NOT_USED E_DATABASE_ERROR E_ALREADY_EXISTS E_NO_CHANGE E_NOT_POSSIBLE E_NON_EXISTENT E_ABORTED E_WRONG_FORMAT E_MAX'));
+    const ent = () => struct(named('EntError', seqEnum('OK GENERAL_ERROR BAD_ARGUMENT NOT_SUPPORTED NOT_AVAILABLE DESTINATION_FULL NOT_BOOKMARKABLE NOT_ENOUGH_SIMILAR_MUSIC METADATA_PROVIDER_OUT_OF_DATE MAX_NUMBER_DOWNLOADS_REACHED')));
+    const rel = (o) => Object.assign(o, { reliable: true });
+    if (key === 'CommandControl') {
+        return { name: 'CommandControl', serviceId: 0xB020, version: { major: 1, minor: 1 }, instances: { 1: 1 },
+            methods: {
+                connect: { id: 1, schema: struct(u16('sourceID'), u16('sinkID')), retSchema: struct(u16('mainConnectionID'), amError()) },
+                disconnect: { id: 2, schema: struct(u16('mainConnectionID')), retSchema: struct(amError()) }
+            },
+            fields: { listOfMainConnections: { schema: { n: 'am_MainConnection_L', t: 'ArrayD', nl: 0, xl: 100,
+                e: struct(u16('mainConnectionID'), u16('sourceID'), u16('sinkID'), { n: 'delay', t: 'Int16' },
+                    named('connectionState', seqEnum('CS_UNKNOWN CS_CONNECTING CS_CONNECTED CS_DISCONNECTING CS_DISCONNECTED CS_SUSPENDED CS_MAX'))) },
+            getter: { id: 22 }, event: { id: 32769, groups: [1] } } },
+            events: {},
+            eventGroups: { fields: { 32769: [1] }, events: {} } };
+    }
+    return { name: 'MediaPlayer', serviceId: 0xB042, version: { major: 2, minor: 0 }, instances: { OapGenericMedia: 40 },
+        methods: {
+            sendButtonEvent: rel({ id: 257, schema: struct(named('button', { t: 'Enum', w: 1, e: { PLAY: 0, PAUSE: 1, STOP: 2 } }), named('action', seqEnum('PRESS RELEASE'))), retSchema: ent() }),
+            playFile: rel({ id: 258, schema: struct({ n: 'path', t: 'Utf16D', bo: true }, u32('languageCode')), retSchema: ent() }),
+            setTime: rel({ id: 264, schema: struct(u32('newTimeElapsed')), retSchema: ent() })
+        },
+        fields: {
+            playerState: { schema: seqEnum('PLAYER_STATE_UNKNOWN PLAYER_STATE_PLAY PLAYER_STATE_STOP PLAYER_STATE_PAUSE PLAYER_STATE_FAST_FORWARD PLAYER_STATE_FAST_BACKWARD'),
+                getter: rel({ id: 1 }), event: rel({ id: 32769, groups: [1] }) },
+            currentItemTime: { schema: struct(u32('elapsed'), u32('total')), getter: rel({ id: 15 }), event: rel({ id: 32783, groups: [1] }) }
+        },
+        events: { playbackErrorEvent: rel({ id: 33025, groups: [101],
+            schema: struct(named('event', seqEnum('NO_ERROR ITEM_UNPLAYABLE ITEM_CORRUPTED ITEM_CHANGE_DELAYED ITEM_NO_DATA NO_NETWORK DRM PLAYLIST_EMPTY ITEM_BUFFER_UNDERRUN'))) }) },
+        eventGroups: { fields: { 32769: [1], 32783: [1] }, events: { 33025: [101] } } };
+}
+// os-release's VERSION ("P18_23w44.2-1-3"), for the line saying this car's software lacks the services
+function osVersion(etcDir) {
+    const m = /^VERSION="?([\w.-]{1,40})"?\s*$/m.exec(String(lines(path.join(etcDir, 'os-release')).join('\n')));
+    return m ? m[1] : 'unknown';
+}
+// "v8.3.2-pr-847.1" (the v: a four-part version would read as an IP address to redactLog and health.clean)
+function mainappVersion(srcGen) {
+    const dir = path.dirname(srcGen);
+    const v = (readJson(path.join(dir, 'package.json')) || {}).version || (readJson(path.join(dir, 'manifest.json')) || {}).version;
+    return typeof v === 'string' && /^[\w.+-]{1,40}$/.test(v) ? 'v' + v : 'unknown';
+}
+const hex = (n) => (typeof n === 'number' ? '0x' + n.toString(16).toUpperCase() : '?');
+const ver = (v) => (v && v.major !== undefined ? 'v' + v.major + '.' + v.minor : 'v?');
+const instText = (m) => (m && typeof m === 'object' ? Object.keys(m).map((k) => k + '=' + m[k]).join(' ') : 'none');
+// ytd.js --someip-gen <catalog> <out.json> <oapgen.js> <keys JSON> (root, OAP_APPMGMT: the generator's bundle): what the
+// catalog says of the two services (names and ids only) and, for the keys asked, their descriptions -> out.json
+function someipGen(catalog, out, oapgen, keys) {
+    const r = { info: {}, descs: {} };
+    try {
+        const db = JSON.parse(fs.readFileSync(catalog, 'utf8'));
+        const ifs = db.interfaces || {}, manifest = { proxies: {} };
+        r.db = String(db.version);
+        IFACES.forEach((i) => {
+            const name = Object.keys(ifs).filter((n) => ifs[n] && ifs[n].serviceId === i.serviceId)[0];
+            if (!name) return;
+            r.info[i.key] = { name: name, serviceId: i.serviceId, version: ifs[name].version, instances: (db.instanceIDs || {})[name] || null };
+            if (keys.indexOf(i.key) >= 0) manifest.proxies[name] = i.proxy;
+        });
+        if (Object.keys(manifest.proxies).length) {
+            const gen = require(oapgen).load('IFConfigGenerator').generate(db, manifest);
+            IFACES.forEach((i) => { if (r.info[i.key] && manifest.proxies[r.info[i.key].name]) r.descs[i.key] = gen[r.info[i.key].name] || null; });
+        }
+    } catch (e) { r.error = String(e && e.message || e).slice(0, 200); }
+    fs.writeFileSync(out, JSON.stringify(r), { mode: 0o600 });
+}
+
 function Audio(opts, handlers) {
     this.opts = opts;
     this.h = handlers; // {time(v), state(v), error(v)}
     this.cc = null;
     this.mp = null;
     this.connId = null;
+    this.descP = null;     // the descriptions, found once (descriptions)
+    this.from = null;      // {CommandControl, MediaPlayer}: 'MainApp' | 'catalog' | 'built-in'
+    this.diag = [];        // what the report says of the services: the lines logged once
+    this.unsupported = null; // the line saying this car lacks the services (why), while it does
 }
+// -> {CommandControl, MediaPlayer}: each from the first source that has it; once a daemon, never rejects
+Audio.prototype.descriptions = function () {
+    if (!this.descP) this.descP = this.resolve();
+    return this.descP;
+};
+Audio.prototype.resolve = async function () {
+    const o = this.opts, out = {}, from = {};
+    const missing = IFACES.filter((i) => {
+        const d = readJson(path.join(o.srcGen, i.id.replace(/\./g, '_') + '.json'));
+        if (!d) return true;
+        out[i.key] = d;
+        from[i.key] = 'MainApp';
+        return false;
+    });
+    const hasCatalog = fs.existsSync(o.catalog);
+    const cat = missing.length && hasCatalog ? await this.fromCatalog(missing.map((i) => i.key)) : null;
+    missing.forEach((i) => {
+        const d = cat && cat.descs && cat.descs[i.key];
+        if (usable(d, i)) { out[i.key] = d; from[i.key] = 'catalog'; } else { out[i.key] = builtin(i.key); from[i.key] = 'built-in'; }
+    });
+    this.from = from;
+    const diag = IFACES.map((i) => 'someip: ' + i.key + ' from ' + from[i.key]);
+    diag.push('someip: MainApp ' + mainappVersion(o.srcGen) + ', catalog ' + (!hasCatalog ? 'missing' : !cat ? 'present, not needed'
+        : (cat.db ? 'db v' + cat.db : 'not read') + (cat.error ? ', ' + cat.error : '')));
+    if (cat && cat.info) {
+        IFACES.forEach((i) => {
+            const x = cat.info[i.key];
+            diag.push('someip: catalog ' + i.key + ' ' + (!x ? 'none with service id ' + hex(i.serviceId) : (x.name === i.id ? '' : 'named ' + x.name + ' ') + hex(x.serviceId) +
+                ' ' + ver(x.version) + ' instances ' + instText(x.instances)));
+        });
+    }
+    // what goes to buildProxy, whatever its source (a src-gen file is used unchecked, as before)
+    IFACES.forEach((i) => {
+        const d = out[i.key] || {}, miss = lacking(d, i);
+        diag.push('someip: in use ' + i.key + ' ' + hex(d.serviceId) + ' ' + ver(d.version) + ' ' + i.inst + '=' +
+            (d.instances && d.instances[i.inst] !== undefined ? d.instances[i.inst] : 'none') + (miss.length ? ', lacks ' + miss.join(' ') : ''));
+    });
+    this.diag = diag;
+    diag.forEach((l) => o.log(l));
+    return out;
+};
+// the catalog route (child: ytd.js --someip-gen), into the root-only state folder, made again at each start (a firmware
+// update changes the catalog) -> its out.json, or {error}
+Audio.prototype.fromCatalog = function (keys) {
+    const o = this.opts, f = path.join(o.stateDir, 'someip.json');
+    return new Promise((resolve) => {
+        try {
+            if (!fs.existsSync(o.stateDir)) { mkdirp(path.dirname(o.stateDir)); fs.mkdirSync(o.stateDir, 0o700); }
+            try { fs.unlinkSync(f); } catch (e) { /* none yet */ }
+        } catch (e) { return resolve({ error: 'state dir: ' + e.message }); }
+        return cp.execFile(o.someipGenCmd[0], o.someipGenCmd.slice(1).concat([o.catalog, f, o.oapgen, JSON.stringify(keys)]),
+            { timeout: 60000, cwd: '/', env: { OAP_APPMGMT: o.appMgmt }, maxBuffer: 64 << 10 }, (e, stdout, stderr) => {
+                const r = readJson(f);
+                if (r) return resolve(r);
+                const last = String(stderr || '').trim().split('\n').pop();
+                return resolve({ error: e && e.killed ? 'generator: no answer in 60 s' : 'generator: ' + (last || (e && e.message) || 'no result').slice(0, 200) });
+            });
+    });
+};
+// a failed start -> the reason logged: with a built-in description, the car most likely lacks the service
+Audio.prototype.why = function (e) {
+    const f = this.from || {};
+    const guess = IFACES.some((i) => f[i.key] === 'built-in');
+    this.unsupported = guess ? 'This car\'s software (' + osVersion(this.opts.etcDir) + ') does not offer the audio connection RideTube uses' : null;
+    return this.unsupported ? this.unsupported + ' (' + e.message + ')' : e.message;
+};
+// "CommandControl from catalog, MediaPlayer from MainApp; MainApp v8.3.2-pr-847.1" (the health check's audio row), '' before
+Audio.prototype.sources = function () {
+    if (!this.from) return '';
+    return IFACES.map((i) => i.key + ' from ' + this.from[i.key]).join(', ') + '; MainApp ' + mainappVersion(this.opts.srcGen);
+};
 Audio.prototype.init = async function () {
     if (this.cc && this.mp) return;
     const someip = typeof this.opts.someip === 'string' ? require(this.opts.someip) : this.opts.someip;
-    const cfg = (f) => JSON.parse(fs.readFileSync(path.join(this.opts.srcGen, f), 'utf8'));
-    const cc = await someip.buildProxy(cfg('org_genivi_am_commandinterface_CommandControl.json'), '1');
+    const d = await this.descriptions();
+    const cc = await someip.buildProxy(d.CommandControl, IFACES[0].inst);
     await cc.init();
-    const mp = await someip.buildProxy(cfg('de_bmw_infotainment_entertainment_mediaplayer_MediaPlayer.json'), 'OapGenericMedia');
+    const mp = await someip.buildProxy(d.MediaPlayer, IFACES[1].inst);
     await mp.init();
     const h = this.h;
     const safe = (fn) => (v) => { try { fn(v); } catch (e) { this.opts.log('someip handler: ' + (e && e.stack || e)); } };
     mp.subscribe({ name: 'playerState', onReceive: safe(h.state) });
     mp.subscribe({ name: 'currentItemTime', onReceive: safe(h.time) });
     mp.subscribe({ name: 'playbackErrorEvent', onReceive: safe(h.error) });
+    try {
+        const r = mp.subscribe({ name: 'currentItemMetadata', onReceive: safe((v) => this.opts.log('player metadata: ' + metadataLine(v))) });
+        if (r && typeof r.catch === 'function') r.catch(() => {});
+    } catch (e) { /* not in this firmware's MediaPlayer */ }
     this.cc = cc;
     this.mp = mp;
 };
@@ -799,9 +1210,11 @@ Audio.prototype.button = function (b) {
     return this.mp.callMethod('sendButtonEvent', { button: b, action: 'PRESS' }, 3000)
         .catch((e) => this.opts.log(b + ' failed: ' + e));
 };
+// setTime(0) is ignored by the car's player (seen on the car: back to the start, the sound plays on where it was and
+// the picture follows it back a second later), so the start is asked as 1 ms
 Audio.prototype.seek = function (ms) {
     if (!this.mp) return Promise.resolve();
-    return this.mp.callMethod('setTime', { newTimeElapsed: ms }, 3000).catch((e) => this.opts.log('setTime failed: ' + e));
+    return this.mp.callMethod('setTime', { newTimeElapsed: Math.max(1, Math.round(ms)) }, 3000).catch((e) => this.opts.log('setTime failed: ' + e));
 };
 // Every exit path ends here. Safe to call twice.
 Audio.prototype.release = async function () {
@@ -819,10 +1232,85 @@ Audio.prototype.release = async function () {
     }
 };
 
+// ---------------------------------------------------------------- log reports: what leaves the car (send_logs)
+// text -> the same text with nothing that names the account, the car, the user or what was watched. k: what the daemon
+// knows {secrets, titles, ids: {id: 'v'|'p'|'c'}}; salt: one report's, so a video keeps one tag (v#1a2b) in it, and
+// reports can't be matched to each other. Node 8: no lookbehind, no named groups, no replaceAll.
+function redactLog(text, k, salt, cacheDir) {
+    const tag = (kind, id) => kind + '#' + crypto.createHash('sha256').update(salt + id).digest('hex').slice(0, 4);
+    const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const longest = (a, min) => a.filter((x, i) => typeof x === 'string' && x.length >= min && a.indexOf(x) === i).sort((x, y) => y.length - x.length);
+    let s = String(text);
+    // what the daemon knows, word for word (min lengths: a short value would shred ordinary words)
+    longest(k.secrets || [], 6).forEach((x) => { s = s.split(x).join('[secret]'); });
+    longest(k.titles || [], 6).forEach((x) => { s = s.split(x).join('[title]'); });
+    const ids = k.ids || {};
+    longest(Object.keys(ids), 10).forEach((x) => { s = s.split(x).join(tag(ids[x], x)); });
+    // tokens, cookies, e-mails
+    s = s.replace(/\b(Bearer|OAuth)\s+[\w.~+\/-]+=*/gi, '$1 [secret]')
+        .replace(/\bya29\.[\w.-]+/g, '[secret]').replace(/\b1\/\/[\w.-]{20,}/g, '[secret]')
+        .replace(/\b((?:access_token|refresh_token|device_code|user_code|client_secret|id_token)["']?\s*[:=]\s*["']?)[^"'&\s,;}]+/gi, '$1[secret]')
+        .replace(/\b(Set-Cookie|Cookie)\b\s*[:=].*/gi, '$1: [secret]')
+        .replace(/\b(SAPISID|APISID|HSID|SSID|SID|LOGIN_INFO|VISITOR_INFO1_LIVE|YSC|__Secure-[\w-]+)=[^;\s"']+/g, '$1=[secret]')
+        .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, '[email]');
+    // a URL: its scheme and host only (googlevideo URLs carry ip= and signatures; paths carry ids)
+    s = s.replace(/\b([a-z][a-z0-9+.-]*:\/\/)(?:[^\/\s"'<>@]*@)?([^\/\s"'<>?#]+)[^\s"'<>]*/gi, '$1$2')
+        // a path with a query and no scheme (urllib3's "with url: /videoplayback?...&ip=..."), a lone ip= value
+        .replace(/\/[^\s"'()<>?]*\?[^\s"'()<>]+/g, '/[path]').replace(/\bip=[^&\s"'()]+/gi, 'ip=[ip]');
+    // ids by their context: a cache path, the log lines that name one, yt-dlp's "[youtube] <id>:", JSON keys
+    if (cacheDir) {
+        s = s.replace(new RegExp(esc(cacheDir) + '([^\\s"\']*)', 'g'),
+            (x, rest) => cacheDir + rest.replace(/\/([\w-]{11})(?=[\/.]|$)/g, (y, id) => '/' + tag('v', id)));
+    }
+    s = s.replace(/((?:\bv=|\bwatch\/|\/vi\/|youtu\.be\/|\/shorts\/|\/embed\/|\[youtube\]\s+|\b(?:fetch|thumb|prefetch|play|lru:)\s+|"(?:id|videoId|video_id)"\s*:\s*"))([\w-]{11})(?![\w-])/g,
+        (x, pre, id) => pre + tag('v', id))
+        .replace(/(lru removed )([\w#,-]+)/g, (x, pre, l) => pre + l.split(',').map((id) => (ID_RE.test(id) ? tag('v', id) : id)).join(','))
+        .replace(/((?:\blist=|"playlistId"\s*:\s*"))([\w-]{2,64})/g, (x, pre, id) => pre + tag('p', id))
+        .replace(/\bUC[\w-]{22}(?![\w-])/g, (id) => tag('c', id));
+    // the car's VIN (17 characters, a letter among them), public IP addresses (v4: not 127/8, 10/8, 172.16/12, 192.168/16)
+    s = s.replace(/\b[A-HJ-NPR-Z0-9]{17}\b/g, (x) => (/[A-Z]/.test(x) ? '[vin]' : x))
+        .replace(/\b(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b/g, (x, a, b) => {
+            a = Number(a); b = Number(b);
+            const own = a === 127 || a === 10 || a === 0 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31) || (a === 169 && b === 254);
+            return own || x.split('.').some((n) => Number(n) > 255) ? x : '[ip]';
+        })
+        .replace(/\b[0-9a-f]{1,4}(?::[0-9a-f]{0,4}){3,7}\b/gi, (x) => (/^(fe80|fc|fd)/i.test(x) ? x : '[ip]'));
+    return s;
+}
+// the newest lines that fit in max bytes (a line on its own past max: none)
+function lastBytes(ls, max) {
+    let size = 0, i = ls.length;
+    while (i > 0 && size + Buffer.byteLength(ls[i - 1]) + 1 <= max) size += Buffer.byteLength(ls[--i]) + 1;
+    return ls.slice(i);
+}
+// a file's last n lines (from its last 256 KiB); [] when it can't be read
+function tailLines(f, n) {
+    try {
+        const fd = fs.openSync(f, 'r');
+        try {
+            const size = fs.fstatSync(fd).size, len = Math.min(size, 256 << 10), b = Buffer.alloc(len);
+            fs.readSync(fd, b, 0, len, size - len);
+            const ls = b.toString('utf8').split('\n');
+            if (len < size) ls.shift();   // cut mid-line
+            return ls.filter(Boolean).slice(-n);
+        } finally { fs.closeSync(fd); }
+    } catch (e) { return []; }
+}
+
 // ---------------------------------------------------------------- daemon
 function Daemon(o) {
     this.opts = Object.assign(defaults(), o || {});
+    // every log line (the daemon's, Account's, Audio's: they all log through opts.log) also goes to a ring for send_logs
+    const out = this.opts.log;
+    this.ring = [];
+    this.opts.log = (m) => {
+        this.ring.push(new Date().toISOString() + ' ' + m);
+        if (this.ring.length > RING_MAX) this.ring.shift();
+        out(m);
+    };
     this.log = this.opts.log;
+    this.seen = {};        // video/playlist/channel ids the app sent: a log report tags them (see report)
+    this.reporting = false;
     this.state = 'idle';
     this.cur = null;      // {id, title, dir, rect, fill, gen}
     this.gen = 0;         // bumps on every play/stop: stale async work checks it
@@ -863,7 +1351,7 @@ function Daemon(o) {
     this.childFetch = !this.opts.ytRequest;
     if (this.childFetch) this.opts.ytRequest = (m, u, h, b, t) => this.fetch({ method: m, url: u, headers: h, body: b, timeoutMs: t });
     this.fetchUid = null;
-    this.account = new Account(this.opts, (o) => this.emit(o));
+    this.account = new Account(this.opts, (o) => this.emit(o), () => tvClient(this.hl, this.gl));
 }
 // the fetch uid (picked on first need; none: an error naming why, never a crash)
 Daemon.prototype.uid = function () {
@@ -873,8 +1361,9 @@ Daemon.prototype.uid = function () {
     if (this.fetchUid === null) throw Object.assign(new Error('no internet uid on the car (see the log)'), { noUid: true });
     return this.fetchUid;
 };
-// youtube.com, as the fetch uid
+// Run verified HTTPS requests as the fetch uid on the selected network route.
 Daemon.prototype.fetch = function (req) {
+    this.clockDate();
     let uid;
     try { uid = this.uid(); } catch (e) { return Promise.reject(e); }
     const via = this.proxy();
@@ -933,12 +1422,22 @@ Daemon.prototype.proxyArgs = function () {
     const args = this.opts.leaseFile && this.opts.leaseFile !== '/run/mgu-uplink/lease.json' ? ['--lease', this.opts.leaseFile] : [];
     return this.proxy() ? args.concat(['--proxy-file', this.proxyRunFile()]) : args;
 };
+// Report clock changes after hello. TLS always verifies certificate dates.
+Daemon.prototype.clockDate = function () {
+    const clock = clockBehind((this.opts.now || Date.now)());
+    if (this.clockSaid !== undefined && clock !== this.clockSaid) {
+        this.clockSaid = clock;
+        this.emit({ ev: 'clock', clock: clock });
+    }
+    return clock;
+};
 // a helper (ytfetch.py, thumb.js) as the fetch uid, as fetchRequest spawns its child
 Daemon.prototype.spawnFetchUid = function (cmd, args, stdin) {
     const ids = this.opts.noSetuid ? {} : { uid: this.uid(), gid: this.uid() };
     return cp.spawn(cmd[0], cmd.slice(1).concat(args), Object.assign(ids, { cwd: '/', env: {}, stdio: [stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'] }));
 };
-// yt-dlp's cache dir (5 chars: listCache's 11-char id filter skips it), the fetch uid's
+// yt-dlp's cache dir (5 chars: listCache's 11-char id filter skips it), the fetch uid's. Root makes and chowns only
+// this folder (in root's cache/, so it cannot be swapped); everything below it (info/, yt-dlp's files) is the fetcher's
 Daemon.prototype.ytc = function () {
     const ytc = path.join(this.opts.cacheDir, 'ytdlp');
     if (!fs.existsSync(ytc)) fs.mkdirSync(ytc, 0o700);
@@ -1009,7 +1508,8 @@ Daemon.prototype.sendExtras = function () {
 };
 Daemon.prototype.loadSegments = async function (c) {
     if (this.opts.providerId !== 'youtube') return;
-    const f = path.join(c.dir, 'sb.json');
+    // root's own folder: a sb.json in the video's folder (0.3.x) is the fetch uid's to plant a symlink in, never read
+    const sb = path.join(this.opts.cacheDir, SB_DIR), f = path.join(sb, c.id + '.json');
     let segs = readJson(f);
     if (!Array.isArray(segs)) {
         const pre = require('crypto').createHash('sha256').update(c.id).digest('hex').slice(0, 4);
@@ -1026,7 +1526,10 @@ Daemon.prototype.loadSegments = async function (c) {
                     segs.push({ s: Math.round(g.segment[0] * 1000), e: Math.round(g.segment[1] * 1000), cat: g.category });
             });
         } else if (r.status !== 404) return; // 404: none for this video (cached as such); else asked again next play
-        try { fs.writeFileSync(f, JSON.stringify(segs)); } catch (e) { /* the dir went */ }
+        try {
+            if (!fs.existsSync(sb)) fs.mkdirSync(sb, 0o700);
+            fs.writeFileSync(f, JSON.stringify(segs), { mode: 0o600 });
+        } catch (e) { this.log('sponsorblock cache: ' + e.message); }
     }
     if (this.cur !== c) return;
     c.segs = segs.filter((x) => x && x.e - x.s >= 1000).sort((a, b) => a.s - b.s);
@@ -1047,6 +1550,7 @@ Daemon.prototype.skipSegments = function () {
 // ---- speed: a warm ytfetch.py (yt-dlp loaded: ~1.2 s on the car) takes the next job, and the stream lookup
 // (~2.5 s) runs while the controller rests on a tile (prefetch), so a play skips both
 Daemon.prototype.spawnJob = function (job) {
+    this.clockDate();
     const s = this.spare;
     this.spare = null;
     if (s && s.child.exitCode === null && s.child.signalCode === null) { // still loading: serve reads the job once warm
@@ -1082,10 +1586,7 @@ Daemon.prototype.prefetch = function (id) {
     if (!ID_RE.test(String(id)) || !this.opts.spare) return undefined;
     if (this.extracting) { if (this.extracting.id !== id) this.nextPrefetch = id; return undefined; }
     if (isPlayable(path.join(this.opts.cacheDir, id)) || this.preparing === id || this.freshInfo(id)) return undefined;
-    const idir = path.dirname(this.infoFile(id));
-    mkdirp(path.join(this.ytc(), 'info'));
-    this.chownFetch(idir);
-    try { fs.readdirSync(idir).forEach((n) => { const f = path.join(idir, n); if (Date.now() - fs.statSync(f).mtime.getTime() > this.opts.infoMaxMs) fs.unlinkSync(f); }); } catch (e) { /* best effort */ }
+    // info/ and its stale files: the fetcher makes and prunes them (extract), root never writes below ytdlp/
     const child = this.spawnJob(['extract', '--cache-dir', this.ytc(), '--', id, this.infoFile(id)]);
     this.keepWarm(); // the play after this lookup finds a spare, not a cold start (the 5 s poll was too late)
     const x = this.extracting = { id: id, child: child, done: null };
@@ -1100,31 +1601,70 @@ Daemon.prototype.prefetch = function (id) {
     readline.createInterface({ input: child.stderr }).on('line', (l) => this.log('ytfetch (prefetch): ' + l));
     return undefined;
 };
+// hands a folder root just made to the fetch uid. chownSync follows symlinks, so only a direct child of root's
+// cache/ (nobody else can swap it); never a path below a fetch-owned folder (a symlink there: any file to the fetch uid)
 Daemon.prototype.chownFetch = function (p) {
+    if (path.dirname(path.resolve(p)) !== path.resolve(this.opts.cacheDir)) throw new Error('chownFetch outside the cache: ' + p);
     if (!this.opts.noSetuid) fs.chownSync(p, this.uid(), this.uid());
 };
+// a folder under cache/: a fetch-uid tree is emptied by its owner (rm -rf runs as that uid, so a symlink in it
+// reaches nothing that uid could not already touch), then root removes the empty folder (rmdir: never follows one).
+// A root-owned tree (or a file) as before. Throws if it stays (logged by the callers), never falls back to root's walk.
+Daemon.prototype.rmTree = function (p) {
+    let st;
+    try { st = fs.lstatSync(p); } catch (e) { return; }
+    if (!st.isDirectory() || st.uid === 0) { rmrf(p); return; }   // root's own: rm never runs as root
+    if (inRanges(this.appRanges(), st.uid)) throw new Error('rm ' + p + ': owned by app uid ' + st.uid + ', left alone');
+    // the owner (the fetch uid, or one it had before); its gid as every fetch spawn's: the same number
+    const ids = this.opts.noSetuid ? {} : { uid: st.uid, gid: st.uid };
+    const r = cp.spawnSync('/bin/rm', ['-rf', '--', p], Object.assign(ids, { cwd: '/', env: {}, stdio: 'ignore', timeout: 30000 }));
+    if (r.error) this.log('rm ' + p + ': ' + r.error.message);   // (exit 1 is normal: it cannot remove p itself, root's cache/ holds it)
+    try { fs.rmdirSync(p); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+};
 
+// cache/ must be root's own real folder, else a swapped one points every root step in it elsewhere: refuse to start.
+// 0711: the fetch uid reaches its own folders in it, nobody else can list what was watched (a wider mode is fixed)
+Daemon.prototype.checkCacheDir = function () {
+    const dir = this.opts.cacheDir, me = process.getuid();   // root on the car (a test: its own uid)
+    try { mkdirp(dir); } catch (e) { this.log('cache dir: ' + e.message); }
+    const refuse = (why) => Object.assign(new Error('cache dir ' + dir + ' ' + why + ': not starting'), { refuse: true });
+    let st;
+    try { st = fs.lstatSync(dir); } catch (e) { throw refuse(e.message); }
+    if (!st.isDirectory()) throw refuse('is not a folder (a symlink?)');
+    if (st.uid !== me) throw refuse('is owned by uid ' + st.uid + ', not ' + me);
+    if (st.mode & 0o022) this.log('SECURITY: cache dir ' + dir + ' was ' + (st.mode & 0o777).toString(8) + ' (group/other writable): set to 711');
+    fs.chmodSync(dir, 0o711);
+};
+// MainApp's app uid ranges (mainappRanges), kept once read: they do not change while it runs. null: unknown
+Daemon.prototype.appRanges = function () {
+    if (!this.ranges) this.ranges = mainappRanges(this.opts);
+    return this.ranges;
+};
 Daemon.prototype.start = async function () {
-    // 0711: the fetch uid reaches its own folders in it, nobody else can list what was watched
-    try { mkdirp(this.opts.cacheDir); fs.chmodSync(this.opts.cacheDir, 0o711); } catch (e) { this.log('cache dir: ' + e.message); }
+    this.checkCacheDir();
     try { mkdirp(this.opts.logDir); } catch (e) { this.log('log dir: ' + e.message); }
     if (!this.opts.embedded) this.listen();
     // the uplink learns our fetch uid at start (its 5 s rescan), before anyone signs in
     if (this.childFetch && this.fetchUid === null) { try { this.fetchUid = pickFetchUid(this.opts); } catch (e) { this.log('internet uid: ' + e.message); } }
     this.timers.push(setInterval(() => this.guard(() => this.watchdog()), 1000));
     this.timers.push(setInterval(() => this.guard(() => this.keepWarm()), this.opts.tickMs));
+    this.timers.push(setInterval(() => this.guard(() => this.lockSocket()), this.opts.tickMs));   // a reinstall can change the app's uid
     this.keepWarm();
     this.prune();
-    // The SOME/IP services may come up after us at boot: retry until the leftover check ran.
-    for (let i = 0; ; i++) {
+    // The SOME/IP services may come up after us at boot: retry until the leftover check ran (logged when the reason changes)
+    for (let last = null; ;) {
         try {
             await this.audio.init();
             await this.audio.dropLeftovers();
+            this.audio.unsupported = null;
+            if (last) this.log('someip ready');
             this.readyResolve();
             break;
         } catch (e) {
-            if (i % 12 === 0) this.log('someip not ready: ' + e.message);
-            await sleep(5000);
+            const why = this.audio.why(e);
+            if (why !== last) this.log('someip not ready: ' + why);
+            last = why;
+            await sleep(this.opts.someipRetryMs);
         }
     }
 };
@@ -1151,11 +1691,113 @@ Daemon.prototype.listen = function () {
     this.server = net.createServer((c) => this.guard(() => this.onClient(c)));
     this.server.on('error', (e) => this.log('ctl server: ' + e.message));
     this.server.listen(sock, () => {
-        try { fs.chmodSync(sock, 0o660); } catch (e) { this.log('chmod ctl.sock: ' + e.message); }
-        try { fs.chownSync(sock, 0, this.opts.sockGid); } catch (e) { /* not root (tests) */ }
+        this.sockUid = undefined;   // nothing applied yet: lockSocket sets the mode and logs it
+        this.lockSocket();
         this.log('listening on ' + sock);
     });
 };
+// the uid MainApp's registry gives RideTube's app (apps/jap_ridetube.json userId), null if it cannot be read or is
+// not an app's: an integer (or all-digit string) inside MainApp's app uid ranges (unchecked while those are unknown),
+// never the fetch uid
+Daemon.prototype.appUid = function () {
+    const f = path.join(this.opts.oapRoot, 'oap_12201', 'data', 'apps', 'jap_ridetube.json');
+    const e = this.regOk(f) ? readJson(f) : null;
+    const v = e && e.userId;
+    const u = typeof v === 'number' || typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : NaN;
+    return this.okAppUid(u) ? u : null;
+};
+Daemon.prototype.okAppUid = function (u) {
+    const cfg = this.appRanges();
+    return isId(u) && u <= MAX_UID && u !== this.fetchUid && (!cfg || inRanges(cfg, u));
+};
+// the last good app uid, kept in state/app-uid.json (root's): a failed registry read keeps it, a restart too
+Daemon.prototype.knownAppUid = function () {
+    const f = path.join(this.opts.stateDir, 'app-uid.json');
+    if (this.lastAppUid === undefined) {
+        const k = Number((readJson(f) || {}).uid);
+        this.lastAppUid = this.okAppUid(k) ? k : null;
+    }
+    const u = this.appUid();
+    if (u === null && this.lastAppUid !== null && this.appRemoved()) {
+        // uninstalled (or mid-reinstall): its old uid may go to another app, so root only until an entry comes back
+        if (!this.regGone) this.log('ctl.sock: RideTube is no longer in MainApp\'s registry: root only');
+        this.regGone = true;
+        return 0;
+    }
+    this.regGone = false;
+    if (u === null) {
+        if (this.lastAppUid !== null && !this.regBad) this.log('ctl.sock: no valid app uid in MainApp\'s registry: kept ' + this.lastAppUid);
+        this.regBad = true;
+        return this.lastAppUid;
+    }
+    this.regBad = false;
+    if (u !== this.lastAppUid) {
+        this.lastAppUid = u;
+        try {
+            if (!fs.existsSync(this.opts.stateDir)) { mkdirp(path.dirname(this.opts.stateDir)); fs.mkdirSync(this.opts.stateDir, 0o700); }
+            writeIfChanged(f, JSON.stringify({ uid: u }) + '\n', 0o600);
+        } catch (e) { this.log('app uid: ' + e.message); }
+    }
+    return u;
+};
+// true when MainApp's apps folder lists fine and has no jap_ridetube.json (a read error is not a removal)
+Daemon.prototype.appRemoved = function () {
+    const d = path.join(this.opts.oapRoot, 'oap_12201', 'data', 'apps');
+    try { return this.regOk(d) && fs.readdirSync(d).indexOf('jap_ridetube.json') < 0; }
+    catch (e) { return false; }
+};
+// every app can write /var/opt/public/oap (group mgu_persist), so one could rename oap_12201 and plant its own
+// registry: trust a path only when each part from oap_12201 down is no symlink, owned by MainApp (or root) and not
+// world-writable
+Daemon.prototype.regOk = function (p) {
+    const top = path.join(this.opts.oapRoot, 'oap_12201'), parts = path.relative(top, p).split(path.sep);
+    let cur = top;
+    for (let i = 0; i <= parts.length; i++) {
+        if (i > 0) cur = path.join(cur, parts[i - 1]);
+        let st;
+        try { st = fs.lstatSync(cur); } catch (e) { return false; }
+        if (st.isSymbolicLink() || (st.uid !== this.opts.mgrUid && st.uid !== 0) || (st.mode & 0o002)) {
+            if (!this.regUntrusted) this.log('ctl.sock: MainApp\'s registry is not MainApp\'s (' + cur + '): ignored');
+            this.regUntrusted = true;
+            return false;
+        }
+    }
+    this.regUntrusted = false;
+    return true;
+};
+// ctl.sock belongs to the app's uid alone (<uid>:root 0600): no other app can play, read feeds or sign out. Shared
+// (0660 root:tm_oap_app, every app can connect) only while no app uid was ever known (a fresh install whose registry
+// cannot be read). Applied only when it changes, logged then; a connection made before a change is dropped (the app
+// reconnects every 2 s under the new owner). A failed chown keeps the previous owner (root only if none), never shared.
+// sockUid (read it through sockShared()): the uid it is locked to, 0 root only, null while shared, undefined before listen
+Daemon.prototype.lockSocket = function () {
+    if (!this.server || !this.server.listening) return;
+    const u = this.knownAppUid(), sock = this.opts.sock, was = this.sockUid;
+    if (u === was) return;
+    try {
+        if (u === null) { fs.chmodSync(sock, 0o660); fs.chownSync(sock, 0, this.opts.sockGid); }
+        else { fs.chmodSync(sock, 0o600); fs.chownSync(sock, u, 0); }   // closed first, then handed over
+        this.log(u === null ? 'ctl.sock: shared with every app (0660 root:tm_oap_app): no app uid known' : u === 0 ? 'ctl.sock: root only (0600)' : 'ctl.sock: app uid ' + u + ' only (0600)');
+        this.sockUid = u;
+        this.sockErr = null;
+    } catch (e) {
+        if (u === null) {
+            this.sockUid = null;   // shared anyway (0660); the group is best effort (not root: tests)
+        } else {
+            let back = 0;
+            try { if (typeof was === 'number' && was > 0) { fs.chownSync(sock, was, 0); back = was; } } catch (e2) { /* root only */ }
+            this.sockUid = back;
+        }
+        if (e.message !== this.sockErr) this.log('ctl.sock: ' + e.message + (u === null ? ': shared with every app (0660 root:tm_oap_app)' : this.sockUid ? ': kept app uid ' + this.sockUid : ': root only (0600)'));
+        this.sockErr = e.message;   // once, not every tick
+    }
+    if (this.sockUid !== was && was !== undefined && this.client) {
+        this.log('ctl.sock: owner changed: the connected client is dropped');
+        this.client.destroy();
+    }
+};
+// true while any app on the unit can use the socket (health: "socket: shared with other apps")
+Daemon.prototype.sockShared = function () { return typeof this.sockUid !== 'number'; };
 Daemon.prototype.onClient = function (c) {
     if (this.client) {
         this.log('new client replaces the old one');
@@ -1164,6 +1806,8 @@ Daemon.prototype.onClient = function (c) {
         old.destroy();
     }
     this.client = c;
+    this.hl = this.gl = null;   // hello's lang and region hold for this connection only
+    this.clockSaid = undefined; // what hello (then `clock`) told this connection about the clock; undefined: no hello yet
     c.setEncoding('utf8');
     let buf = '';
     c.on('data', (d) => {
@@ -1194,6 +1838,7 @@ Daemon.prototype.onLine = function (line) {
     try { m = JSON.parse(line); } catch (e) { return this.emit({ ev: 'error', msg: 'bad json' }); }
     if (!m || typeof m.cmd !== 'string') return this.emit({ ev: 'error', msg: 'no cmd' });
     this.usedAt = Date.now();
+    if (typeof m.id === 'string') this.see(m.cmd === 'playlist' ? 'p' : m.cmd === 'channel' ? 'c' : 'v', m.id);
     switch (m.cmd) {
     case 'prefetch': return this.prefetch(m.id);
     case 'positions': return this.sendPositions();
@@ -1214,9 +1859,69 @@ Daemon.prototype.onLine = function (line) {
     case 'feed': return this.account.feed(m.which);
     case 'channels': return this.account.channels();
     case 'channel': return this.account.channel(m.id);
+    case 'playlists': return this.account.playlists();
+    case 'playlist': return this.account.playlist(m.id);
+    case 'send_logs': return this.sendLogs(m.app);
+    case 'hello': return this.hello(m);
+    case 'health': return this.health();
+    case 'related': return this.related(m.id);
+    case 'ytdlp': return this.ytdlp(m.auto);
+    case 'remote': return this.remote(m.on);   // 0.5.0
+    case 'proxy': return this.notImplemented('proxy');   // 0.5.0
     default: return this.emit({ ev: 'error', msg: 'unknown cmd ' + m.cmd });
     }
 };
+// `hello` {app, lang?, region?} -> hello{service, caps}. A lang or region that does not match is dropped (logged), never
+// refused: the app still learns the caps. Kept for this connection (onClient clears them) as the hl / gl of its requests
+Daemon.prototype.hello = function (m, emit, locale) {
+    emit = emit || this.emit.bind(this);
+    const lang = typeof m.lang === 'string' && LANG_RE.test(m.lang) ? m.lang : null;
+    const region = typeof m.region === 'string' && REGION_RE.test(m.region) ? m.region : null;
+    if (locale) Object.assign(locale, { lang, region });
+    else { this.hl = lang; this.gl = region; }
+    const bad = (m.lang !== undefined && !lang ? ' (bad lang dropped)' : '') + (m.region !== undefined && !region ? ' (bad region dropped)' : '');
+    this.log('hello: app ' + (/^\d+(\.\d+){0,3}$/.test(String(m.app)) ? m.app : 'unknown') + ', lang ' + (lang || '-') + ', region ' + (region || '-') + bad);
+    const clk = clockBehind((this.opts.now || Date.now)());
+    this.clockSaid = clk;
+    if (clk) this.log('clock wrong (' + clk + '): verify the head unit date and time');
+    return emit(Object.assign({ ev: 'hello', service: VERSION, caps: this.opts.reportUrl ? CAPS.concat(['logs']) : CAPS.slice() }, clk ? { clock: clk } : {}));
+};
+// commands of the frozen protocol whose package has not landed: each answers this until its package replaces the body
+Daemon.prototype.notImplemented = function (cmd) { return this.emit({ ev: 'error', cmd: cmd, msg: 'not implemented ' + cmd }); };
+Daemon.prototype.health = function (emit, options) {
+    return require('./health.js').run(this, VERSION, emit || this.emit.bind(this), options);
+};
+// `related` {id} -> related{id, items} (what YouTube plays after it: the TVHTML5 watch-next answer's video tiles, the
+// video itself left out) or related{id, error}. Signed in when we can, anonymous otherwise (as search); kept 10 min
+// per video and language, dropped at sign-out. After marilykinson-glitch's fork (GPL-3.0)
+const RELATED_KEEP = 600000;
+Daemon.prototype.related = async function (id, emit, locale) {
+    emit = emit || this.emit.bind(this);
+    const lang = locale ? locale.lang : this.hl, region = locale ? locale.region : this.gl;
+    if (!ID_RE.test(String(id))) return emit({ ev: 'related', id: String(id), error: 'bad id' });
+    const key = id + '/' + (lang || '') + '/' + (region || ''), g = this.account.gen;
+    const c = this.relatedKept || (this.relatedKept = {}), k = c[key];
+    if (k && k.g === g && Date.now() - k.t < RELATED_KEEP) return emit({ ev: 'related', id: id, items: k.items });
+    const body = { context: { client: tvClient(lang, region) }, videoId: id };
+    const ask = (tok) => this.account.json('POST', YT + '/youtubei/v1/next', body, tok ? { Authorization: 'Bearer ' + tok } : null);
+    let r;
+    try {
+        const tok = await this.account.token(false).catch(() => null);
+        r = await ask(tok);
+        if (r.status === 401 && tok) r = await ask(null);
+        if (r.status !== 200 || !r.j) throw new Error('next ' + r.status);
+    } catch (e) {
+        this.log('related: ' + e.message);
+        return emit({ ev: 'related', id: id, error: e.noUid ? e.message : 'related offline' });
+    }
+    if (g !== this.account.gen) return undefined;
+    const items = feedItems(r.j).filter((x) => x.id !== id).slice(0, FEED_MAX);
+    Object.keys(c).forEach((x) => { if (Date.now() - c[x].t >= RELATED_KEEP) delete c[x]; });   // old ones go: no unbounded map
+    c[key] = { t: Date.now(), g: g, items: items };
+    return emit({ ev: 'related', id: id, items: items });
+};
+Daemon.prototype.ytdlp = function (auto) { return this.notImplemented('ytdlp'); };            // WP6
+Daemon.prototype.remote = function (on) { return this.notImplemented('remote'); };            // WP9, 0.5.0
 Daemon.prototype.setState = function (s) {
     this.state = s;
     this.sendState();
@@ -1240,15 +1945,84 @@ Daemon.prototype.prune = function () {
     const protect = [];
     if (this.cur) protect.push(this.cur.id);
     if (this.preparing) protect.push(this.preparing);
-    return pruneCache(this.opts.cacheDir, this.opts.keep, protect, this.log, this.opts.genericMediaIds ? MEDIA_ID_RE : ID_RE);
+    return pruneCache(this.opts.cacheDir, this.opts.keep, protect, this.log, this.opts.genericMediaIds ? MEDIA_ID_RE : ID_RE, (p) => this.rmTree(p));
+};
+// ---- send_logs {app}: the ring and ytdec.log's tail, redacted (redactLog), to the log relay as the fetch uid
+// -> logs_sent{id} (the code the user quotes) or logs_error{msg: closed|busy|offline|failed}. One at a time.
+Daemon.prototype.see = function (kind, id) {
+    if (!/^[\w-]{2,64}$/.test(id) || this.seen[id]) return;
+    this.seen[id] = kind;
+    const all = Object.keys(this.seen);
+    if (all.length > 2000) delete this.seen[all[0]];
+};
+// what a report must not carry: the account (the file, and a sign-in under way), titles and ids the daemon knows
+Daemon.prototype.known = function () {
+    const secrets = [], titles = [], ids = Object.assign({}, this.seen);
+    const walk = (o) => {
+        if (typeof o === 'string' || typeof o === 'number') secrets.push(String(o));
+        else if (o && typeof o === 'object') Object.keys(o).forEach((key) => { if (key !== 'timer') walk(o[key]); });
+    };
+    walk(readJson(this.opts.accountFile));
+    walk(this.account.cred);
+    walk(this.account.pending);
+    const vid = (id) => { if (ID_RE.test(String(id))) ids[id] = 'v'; };
+    const meta = (m) => { [m.title, m.channel].forEach((x) => { if (typeof x === 'string' && x !== m.id) titles.push(x); }); };
+    if (this.cur) { vid(this.cur.id); meta(this.cur); }
+    [this.preparing, this.nextPrefetch, this.extracting && this.extracting.id].forEach(vid);
+    listCache(this.opts.cacheDir).forEach((it) => { vid(it.id); meta(it); });
+    const pos = this.positions();
+    Object.keys(pos).forEach((id) => { vid(id); meta(Object.assign({ id: id }, pos[id])); });
+    list(path.join(this.opts.cacheDir, 'thumbs')).concat(list(path.join(this.opts.cacheDir, 'ytdlp', 'info'))).forEach((n) => vid(n.split('.')[0]));
+    return { secrets: secrets, titles: titles, ids: ids };
+};
+// health: health.js's lines, last in the log (lastBytes keeps the newest), through the same redaction as the rest
+Daemon.prototype.report = function (app, health) {
+    const k = this.known(), salt = crypto.randomBytes(16).toString('hex');
+    const red = (ls) => redactLog(ls.join('\n'), k, salt, this.opts.cacheDir).split('\n');
+    const ytdec = tailLines(path.join(this.opts.logDir, 'ytdec.log'), 300);
+    const hl = (health || []).map((h) => 'health ' + h.key + ' ' + (h.ok ? 'ok' : 'FAIL') + ' ' + h.text);
+    const log = ['--- ytdec.log, last ' + ytdec.length + ' lines'].concat(ytdec, ['--- jap-ridetube-d ' + VERSION + ', last ' + this.ring.length + ' lines'], this.ring,
+        this.audio.diag.length ? ['--- someip'].concat(this.audio.diag) : [], hl.length ? ['--- health'].concat(hl) : []);
+    return { app: /^[\d.]{1,12}$/.test(String(app)) ? String(app) : 'unknown', service: VERSION,
+        os: lastBytes(red(lines(path.join(this.opts.etcDir, 'os-release')).slice(0, 5)), OS_MAX).join('\n'),
+        log: lastBytes(red(log), REPORT_MAX).join('\n') };
+};
+Daemon.prototype.sendLogs = async function (app, reply, details) {
+    const emit = reply || this.emit.bind(this);
+    if (!this.opts.reportUrl) return emit({ ev: 'logs_error', msg: 'closed' });
+    if (this.reporting) return undefined;
+    this.reporting = true;
+    try {
+        // the health page's lines ride in the report (no clipboard in the car): up to healthMs (8 s) before the POST
+        const body = this.report(app, await require('./health.js').run(this, VERSION, null, details));
+        this.log('logs: sending ' + body.log.length + ' characters');
+        const r = await this.opts.ytRequest('POST', String(this.opts.reportUrl).replace(/\/+$/, '') + '/v1/report',
+            { 'User-Agent': 'jap-ridetube-d/' + VERSION }, body, this.opts.reportTimeoutMs);
+        let id = null;
+        try { id = JSON.parse(r.body).id; } catch (e) { /* not JSON */ }
+        if (r.status === 200 && /^[A-Za-z0-9]{4,16}$/.test(String(id))) {
+            this.log('logs: sent');
+            return emit({ ev: 'logs_sent', id: String(id) });
+        }
+        this.log('logs: relay ' + r.status);
+        return emit({ ev: 'logs_error', msg: r.status === 410 ? 'closed' : r.status === 429 ? 'busy' : 'failed' });
+    } catch (e) {
+        this.log('logs: ' + e.message);
+        // no answer at all (no network, no internet uid, the relay down): offline; else something on our side
+        return emit({ ev: 'logs_error', msg: e.noUid || /timeout|\bE[A-Z]{3,}\b|socket hang up/.test(e.message) ? 'offline' : 'failed' });
+    } finally {
+        this.reporting = false;
+    }
 };
 // ---- search / thumbs
 // TVHTML5 search: signed in when we can (as feed), anonymous otherwise (it answers lockupViewModels)
-Daemon.prototype.search = async function (q) {
+Daemon.prototype.search = async function (q, emit, locale) {
+    emit = emit || this.emit.bind(this);
+    const lang = locale ? locale.lang : this.hl, region = locale ? locale.region : this.gl;
     q = typeof q === 'string' ? q.trim() : '';
-    if (!q) return this.emit({ ev: 'error', msg: 'empty search' });
+    if (!q) return emit({ ev: 'error', msg: 'empty search' });
     const accountGen = this.account.gen;
-    const ask = (tok) => this.account.json('POST', YT + '/youtubei/v1/search', { context: { client: this.account.client() }, query: q },
+    const ask = (tok) => this.account.json('POST', YT + '/youtubei/v1/search', { context: { client: tvClient(lang, region) }, query: q },
         tok ? { Authorization: 'Bearer ' + tok } : null);
     let r;
     try {
@@ -1261,16 +2035,16 @@ Daemon.prototype.search = async function (q) {
     } catch (e) {
         if (accountGen !== this.account.gen) return undefined;
         this.log('search: ' + e.message);
-        return this.emit({ ev: 'error', msg: e.noUid ? e.message : 'search offline' });
+        return emit({ ev: 'error', msg: e.noUid ? e.message : 'search offline' });
     }
     if (accountGen !== this.account.gen) return undefined;
-    return this.emit({ ev: 'results', q: q, items: feedItems(r.j).slice(0, FEED_MAX) });
+    return emit({ ev: 'results', q: q, items: feedItems(r.j).slice(0, FEED_MAX) });
 };
 Daemon.prototype.thumb = async function (id) {
     if (!ID_RE.test(String(id))) return this.emit({ ev: 'error', msg: 'bad id' });
     const accountGen = this.account.gen;
     const tdir = path.join(this.opts.cacheDir, 'thumbs'), tf = path.join(tdir, id + '.rgba');
-    const read = (f) => { try { return fs.readFileSync(f); } catch (e) { return null; } };
+    const read = (f) => readFetchFile(f, (n) => !!THUMB_SIZES[n]);   // the video folder's is the fetch uid's
     let data = read(path.join(this.opts.cacheDir, id, 'thumb.rgba')) || read(tf);
     if (!data) {
         // at most 3 helpers at once: each is a Node 22 process, and a page asks for 20 thumbs
@@ -1317,21 +2091,34 @@ Daemon.prototype.pruneThumbs = function (tdir) {
 };
 
 // ---- playback
-Daemon.prototype.play = async function (id, rect, fill, at, quality, skip) {
+// restore: {ms, paused, fill, height}, a quality restart of the same video: back to ms (even under 10 s), paused if it was.
+// Every play keeps its start in this.restart until its first tick puts it there; a pause, resume, seek (or fill) sent
+// meanwhile changes it (the last word counts), a stop or another play replaces it.
+Daemon.prototype.play = async function (id, rect, fill, at, quality, skip, restore) {
     if (!(this.opts.genericMediaIds ? MEDIA_ID_RE : ID_RE).test(String(id))) return this.emit({ ev: 'error', msg: 'bad id' });
     if (!/^\d{2,4}x\d{2,4}$/.test(String(rect))) rect = '1280x720';
-    const intent = this.playIntent = (this.playIntent || 0) + 1;
+    const own = restore || { ms: 0, paused: false, height: qualityHeight(quality, readJson(this.opts.leaseFile)) };
+    this.restart = own;
     await this.stop(null, true);
-    // An external STOP/provider switch may run while audio.release is pending.
-    if (intent !== this.playIntent) return undefined;
+    if (this.restart !== own) return undefined;   // stopped, or replaced, while the one before stopped
+    if (own.fill !== undefined) fill = own.fill;
     const gen = ++this.gen;
     const dir = path.join(this.opts.cacheDir, id);
+    // Upgrade a cached directory from the old mode without following symlinks.
+    try {
+        const fd = fs.openSync(dir, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
+        try { fs.fchmodSync(fd, VIDEO_DIR_MODE); } finally { fs.closeSync(fd); }
+    } catch (e) { /* fetchVideo creates missing directories */ }
     const meta0 = Object.assign(readMeta(dir, id), this.opts.initialMetadata && this.opts.initialMetadata.id === id ? this.opts.initialMetadata : {});
-    this.cur = { id: id, title: meta0.title, durationMs: meta0.duration_s > 0 ? meta0.duration_s * 1000 : undefined, dir: dir, rect: rect, fill: fill, gen: gen, height: qualityHeight(quality, readJson(this.opts.leaseFile)),
-        skip: Array.isArray(skip) ? skip.filter((x) => typeof x === 'string') : null, chapters: (readJson(path.join(dir, 'meta.json')) || {}).chapters };
+    // the chapters too: meta.json is the fetch uid's (a symlink or a FIFO there is no meta, never followed or waited on)
+    const mb = readFetchFile(path.join(dir, 'meta.json'), (n) => n <= META_MAX);
+    let chapters;
+    try { chapters = mb ? JSON.parse(mb.toString('utf8')).chapters : undefined; } catch (e) { /* none */ }
+    this.cur = { id: id, title: meta0.title, durationMs: meta0.duration_s > 0 ? meta0.duration_s * 1000 : undefined, dir: dir, rect: rect, fill: fill, gen: gen, height: own.height,
+        skip: Array.isArray(skip) ? skip.filter((x) => typeof x === 'string') : null, chapters: chapters };
     const was = this.positions()[id];
     // where it was left (here, else YouTube's own position the tile carried: at): seek there on the first tick
-    this.startAt = !this.opts.resume ? null : was ? (!was.done && was.ms > 10000 ? was.ms : null) : (Number(at) > 10000 ? Math.floor(Number(at)) : null);
+    if (!restore && !own.sought) own.ms = !this.opts.resume ? 0 : was ? (!was.done && was.ms > 10000 ? was.ms : 0) : (Number(at) > 10000 ? Math.floor(Number(at)) : 0);
     this.posAt = Date.now();
     this.pct = 0;
     this.phase = 'connecting';
@@ -1341,6 +2128,9 @@ Daemon.prototype.play = async function (id, rect, fill, at, quality, skip) {
     this.headStop = null;
     this.switchVideoPaused = false;
     this.seekSeq = 0;
+    this.underruns = [];   // the recoveries of the last minute (onPlaybackError)
+    this.timeSent = false; // a `time` of this play went out (onTime)
+    this.recovering = false;
     this.headWait = false;
     this.switching = false;
     this.settle = null;
@@ -1355,14 +2145,15 @@ Daemon.prototype.play = async function (id, rect, fill, at, quality, skip) {
                 const x = this.extracting;   // its lookup is nearly there: wait for it rather than redo it
                 if (x && x.id === id) await withTimeout(x.done, 8000, 'prefetch').catch(() => undefined);
                 if (gen !== this.gen) return undefined;
-                firstHead = await this.fetchVideo(id, dir);
+                firstHead = await this.fetchVideo(id, dir, k ? 'retry' : undefined);
                 break;
             } catch (e) {
                 if (gen !== this.gen) return undefined;
                 // the video itself refused (gone, private, members, age): no retry; else the network, maybe back soon
                 if (k >= waits.length || PERMANENT_RE.test(e.message)) return this.failPlayback('fetch: ' + e.message);
+                // the retry extracts again (its stream URLs may be what failed: another uplink), without --info. Root never
+                // unlinks info/<id>.json: info/ is the fetch uid's, a symlink there would point the unlink anywhere
                 this.log('fetch ' + id + ': ' + e.message + ' - again in ' + waits[k] + ' ms');
-                try { fs.unlinkSync(this.infoFile(id)); } catch (e2) { /* none */ } // its stream URLs may be what failed (another uplink)
                 this.emit({ ev: 'retry', id: id, n: k + 1, msg: e.message });
                 await sleep(waits[k]);
                 if (gen !== this.gen) return undefined;
@@ -1373,7 +2164,7 @@ Daemon.prototype.play = async function (id, rect, fill, at, quality, skip) {
     try { const now = new Date(); fs.utimesSync(dir, now, now); } catch (e) { /* LRU recency only */ }
     this.sendExtras();
     this.loadSegments(this.cur).catch((e) => this.log('sponsorblock: ' + e));
-    this.trackStart(this.cur).catch((e) => this.log('history: ' + e));
+    if (this.opts.providerId === 'youtube') this.trackStart(this.cur).catch((e) => this.log('history: ' + e));
     this.prune();
     this.deaths = 0;
     this.paused = false;
@@ -1384,7 +2175,8 @@ Daemon.prototype.play = async function (id, rect, fill, at, quality, skip) {
     this.ticking = false;
     this.lastTickAt = Date.now();
     try {
-        await withTimeout(this.ready, 10000, 'audio service'); // never connect before the leftover sweep
+        // never connect before the leftover sweep; a car without the services: the line that says so
+        await withTimeout(this.ready, 10000, 'audio service').catch((e) => { throw this.audio.unsupported ? new Error(this.audio.unsupported) : e; });
         if (gen !== this.gen) return undefined;
         if (firstHead !== null && !this.fullReady) {
             this.head = this.nextHead || firstHead;
@@ -1393,7 +2185,16 @@ Daemon.prototype.play = async function (id, rect, fill, at, quality, skip) {
             this.dropHead(this.nextHead);
             this.nextHead = null;
         }
-        await this.audio.play(path.join(dir, this.head ? headName(this.head.n) : 'audio.m4a'));
+        if (own.paused) { // paused while it started (a paused quality restart): no sound until resume starts it at ms
+            if (this.restart === own) this.restart = null;
+            this.paused = true;
+            this.stoppedAt = this.elapsed = own.ms;
+            this.ticking = true;
+            this.spawnYtdec(own.ms);
+            this.setState('paused');
+            return undefined;
+        }
+        await this.startAudio(path.join(dir, this.head ? headName(this.head.n) : 'audio.m4a'), gen);
     } catch (e) {
         if (gen !== this.gen) return this.audio.release();
         return this.failPlayback(e.message);
@@ -1507,6 +2308,20 @@ Daemon.prototype.switchToHead = async function () {
     if (this.fullReady) return this.onFullAudio();
     return undefined;
 };
+// connect + playFile, once more after a wait (BMW can refuse a route just after a disconnect: E_NOT_POSSIBLE, seen on
+// marilykinson-glitch's car); gen: the play or resume it belongs to, gone stale -> the first error, no second try
+Daemon.prototype.startAudio = async function (file, gen) {
+    try {
+        return await this.audio.play(file);
+    } catch (e) {
+        if (gen !== this.gen) throw e;
+        this.log('audio start: ' + e.message + ' - again in ' + this.opts.audioRetryMs + ' ms');
+        await this.audio.release();   // (connect may have worked before playFile failed)
+        await sleep(this.opts.audioRetryMs);
+        if (gen !== this.gen) throw e;
+        return this.audio.play(file);
+    }
+};
 // audio.m4a is complete. On the head: switch now; paused: resume() switches (as after a STOP mid-file)
 Daemon.prototype.onFullAudio = function () {
     this.fullReady = true;
@@ -1599,18 +2414,22 @@ Daemon.prototype.waitFull = function (ms) {
 // ytfetch.py into a fresh dir; resolves once playable (audio complete or a prefix, and startVideoMs of video,
 // or all of it), rejects if it ends before. A provider may offer longer prefixes during playback.
 // It keeps writing the video (and the rest of the audio) after that, while we play.
-Daemon.prototype.fetchVideo = function (id, dir) {
+// how: 'retry' (play's next try: a new extraction, no --info) or 'again' (resumeFetch: playing, into the folder as it is)
+Daemon.prototype.fetchVideo = function (id, dir, how) {
     return new Promise((resolve, reject) => {
-        rmrf(dir); // a killed fetch's leftovers
-        mkdirp(dir);
-        fs.chmodSync(dir, 0o700);
-        this.chownFetch(dir);
-        const info = this.freshInfo(id) ? ['--info', this.infoFile(id)] : [];
+        const again = how === 'again';
+        if (!again) {
+            this.rmTree(dir); // a killed fetch's leftovers
+            mkdirp(dir);
+            fs.chmodSync(dir, VIDEO_DIR_MODE);
+            this.chownFetch(dir);
+        }
+        const info = !how && this.freshInfo(id) ? ['--info', this.infoFile(id)] : [];
         const child = this.spawnJob(['fetch', '--cache-dir', this.ytc(), '--height', String(this.cur.height || 720)].concat(info, ['--', id, dir]));
         this.fetcher = child;
         this.preparing = id;
         this.fetchedMs = 0;
-        let audio = false, head = null, done = false, started = false, err = null;
+        let audio = again && this.fullReady, head = null, done = false, started = again, err = null, ytdecAgain = again;
         const pct = (p) => {
             p = Math.min(99, Math.max(this.pct, Math.round(p)));
             if (p !== this.pct && this.state === 'preparing') { this.pct = p; this.sendState(); }
@@ -1623,6 +2442,7 @@ Daemon.prototype.fetchVideo = function (id, dir) {
                 this.fetcher = null;
                 this.preparing = null;
                 if (done && why === 'exit 0') this.fetchedMs = Infinity;
+                else if (started && this.resumeFetch(id, dir, err || why)) { /* fetched again after a wait */ }
                 else if (started && !this.fullReady) { // playing the head: the rest of the audio never comes
                     this.failPlayback('fetch: ' + (err || why)).catch((e) => this.log(e));
                     return;
@@ -1681,6 +2501,11 @@ Daemon.prototype.fetchVideo = function (id, dir) {
             else if (m.ev === 'video') {
                 this.fetchedMs = Number(m.ms) || 0;
                 if (head !== null || audio) this.phase = 'video';
+                if (ytdecAgain && this.child && this.ticking) { // the index begun again: a ytdec reading it from the start, at the clock
+                    ytdecAgain = false;
+                    this.killYtdec();
+                    this.spawnYtdec(this.paused || this.headWait ? this.elapsed : this.elapsed + (Date.now() - this.lastTickAt));
+                }
                 if (audio || head !== null) pct(70 + 29 * Math.min(1, this.fetchedMs / this.opts.startVideoMs));
             } else if (m.ev === 'done') done = true;
             else if (m.ev === 'error') err = String(m.msg);
@@ -1691,6 +2516,23 @@ Daemon.prototype.fetchVideo = function (id, dir) {
         child.on('error', (e) => end(e.message));
         child.on('close', (code, sig) => end(sig ? 'killed ' + sig : 'exit ' + code)); // close: after its last line
     });
+};
+// The fetcher ended early while playing (the network, mostly): fetched again into the same folder after a wait, twice a
+// video at most, then as before. The sound plays on meanwhile (the player holds audio.m4a; the new one replaces it whole,
+// on the head its audio_ready switches as usual), ytdec again once the new index starts. False: not this time.
+// shortcut: it fetches from 0 again (ytfetch.py has no start position), audio included; WP8's streaming fetcher brings `pos`
+Daemon.prototype.resumeFetch = function (id, dir, why) {
+    const c = this.cur, n = (c && c.fetchAgain) || 0;
+    if (!c || n >= 2 || PERMANENT_RE.test(why) || /storage almost full/.test(why)) return false;
+    c.fetchAgain = n + 1;
+    const gen = this.gen, wait = (this.opts.fetchRetryMs || [])[n] || 0;
+    this.log('fetch ' + id + ': ' + why + ' - fetched again in ' + wait + ' ms (' + c.fetchAgain + ' of 2)');
+    sleep(wait).then(() => (gen === this.gen ? this.fetchVideo(id, dir, 'again') : undefined)).catch((e) => { // (could not spawn): as before
+        if (gen !== this.gen) return undefined;
+        if (!this.fullReady) return this.failPlayback('fetch: ' + e.message);
+        return this.emit({ ev: 'error', msg: 'video incomplete: ' + e.message });
+    }).catch((e) => this.log(e));
+    return true;
 };
 // SIGTERM (it leaves .part files), SIGKILL after 3 s; resolves when it is gone
 Daemon.prototype.stopFetch = function () {
@@ -1707,25 +2549,32 @@ Daemon.prototype.stopFetch = function () {
 };
 Daemon.prototype.failPlayback = async function (msg) {
     this.log('error: ' + msg);
+    const g = ++this.gen;   // what a resume, recovery or start under way checks: none may open the audio again
+    this.restart = null;
     this.ticking = false;
     this.killYtdec();
     await Promise.all([this.audio.release(), this.stopFetch()]);
+    if (g !== this.gen) return;   // a new video (or a stop) came in meanwhile: the error was the old one's
     this.setState('error');
     this.emit({ ev: 'error', msg: msg });
 };
 // reason: 'idle' | 'ended' | null (internal, before a new play: no state event)
 Daemon.prototype.stop = async function (reason, preservePlayIntent) {
-    if (!preservePlayIntent) this.playIntent = (this.playIntent || 0) + 1;
+    if (!preservePlayIntent || reason) {   // a stop cancels a start under way (a quality restart's too), and none starts while it tears down
+        this.restart = null;
+        if (this.cur) this.cur.stopped = true;
+    }
     if (this.ticking) {
         this.savePos(true);
         if (reason === 'ended' && this.pos && this.cur && this.pos[this.cur.id]) this.pos[this.cur.id].done = true;
         const p = this.cur && this.pos && this.pos[this.cur.id];
         if (this.cur && this.cur.track) this.ping(this.cur, true, !!(p && p.done));
     }
-    this.gen++;
+    const g = ++this.gen;
     this.ticking = false;
     this.killYtdec();
     await Promise.all([this.audio.release(), this.stopFetch()]);
+    if (g !== this.gen) return;   // another stop or a play came in while this one waited: the late tail would wipe it
     if (reason) {
         this.setState(reason);
         if (this.pos) this.sendPositions();
@@ -1733,7 +2582,12 @@ Daemon.prototype.stop = async function (reason, preservePlayIntent) {
         this.prune();          // a played video goes
     }
 };
+// a start under way that pause, resume and seek leave to this.restart (its first tick applies it): a play not at the
+// player yet, or a quality restart until that tick (a setTime before it is dropped)
+Daemon.prototype.waiting = function () { return !!(this.restart && (this.restart.restore || !this.ticking)); };
 Daemon.prototype.pause = async function () {
+    if (this.restart) this.restart.paused = true;
+    if (this.waiting()) return;
     if (this.state !== 'playing') return;
     if (this.switching && !this.headWait) {
         this.elapsed += Date.now() - this.lastTickAt;
@@ -1760,6 +2614,8 @@ Daemon.prototype.hold = function (ms) {
     return this.audio.button('STOP');
 };
 Daemon.prototype.resume = async function () {
+    if (this.restart) this.restart.paused = false;
+    if (this.waiting()) return;
     if (this.state !== 'paused') return;
     this.paused = false;
     this.lastProgress = Date.now();
@@ -1770,36 +2626,41 @@ Daemon.prototype.resume = async function () {
             return this.switchToHead();
         return; // ytdec and the player stay paused until another complete prefix arrives
     }
-    if (this.stoppedAt !== null && this.stoppedAt !== undefined) { // the player stopped mid-file: start it again there
-        const gen = this.gen;
-        this.sawPlay = false; // the new file's own STOP/PLAY is not a stop mid-file
-        this.toYtdec('seek ' + this.stoppedAt);
-        this.toYtdec('resume');
-        // stopped, the player ignores playFile and PLAY (car, 2026-11-03): a new connection, as a new video starts
-        try {
-            await this.audio.release();
-            if (gen !== this.gen) return;
-            await this.audio.play(path.join(this.cur.dir, this.head ? headName(this.head.n) : 'audio.m4a'));
-        } catch (e) {
-            if (gen === this.gen) await this.failPlayback('resume: ' + e.message);
-            return;
-        }
-        if (gen !== this.gen || this.state !== 'playing') return; // stopped, or paused again meanwhile
-        // a setTime before the new file's first tick is dropped (it started at 0 on the car): wait for one (3 s at most)
-        await this.waitFirstAudioTick();
-        if (gen !== this.gen || this.state !== 'playing') return;
-        const at = this.stoppedAt;  // (a seek meanwhile moved it: seek() keeps it while the file restarts)
-        this.stoppedAt = null;
-        this.settle = { ms: at, until: Date.now() + 3000 };
-        await this.audio.seek(at);
-        return;
-    }
+    if (this.stoppedAt !== null && this.stoppedAt !== undefined) return this.replayAt('resume'); // the player stopped mid-file
     this.toYtdec('resume');
     await this.audio.button('PLAY');
 };
+// The player stopped (our STOP, or it ran dry): start the file again at stoppedAt. Stopped, it ignores playFile and PLAY
+// (car, 2026-11-03): a new connection, as a new video starts. why: the error's prefix if that fails.
+Daemon.prototype.replayAt = async function (why) {
+    const gen = this.gen;
+    this.sawPlay = false; // the new file's own STOP/PLAY is not a stop mid-file
+    this.toYtdec('seek ' + this.stoppedAt);
+    this.toYtdec('resume');
+    try {
+        await this.audio.release();
+        if (gen !== this.gen) return;
+        await this.startAudio(path.join(this.cur.dir, this.head ? headName(this.head.n) : 'audio.m4a'), gen);
+    } catch (e) {
+        if (gen === this.gen) await this.failPlayback(why + ': ' + e.message);
+        return;
+    }
+    // (connected after a teardown had released: let it go too)
+    if (gen !== this.gen && (this.state === 'error' || this.state === 'idle')) await this.audio.release().catch(() => undefined);
+    if (gen !== this.gen || this.state !== 'playing') return; // stopped, or paused again meanwhile
+    // a setTime before the new file's first tick is dropped (it started at 0 on the car): wait for one (3 s at most)
+    await this.waitFirstAudioTick();
+    if (gen !== this.gen || this.state !== 'playing') return;
+    const at = this.stoppedAt;  // (a seek meanwhile moved it: seek() keeps it while the file restarts)
+    this.stoppedAt = null;
+    this.settle = { ms: at, until: Date.now() + 3000 };
+    await this.audio.seek(at);
+};
 Daemon.prototype.seek = async function (ms) {
-    if (this.state !== 'playing' && this.state !== 'paused') return;
     ms = Math.max(0, Math.floor(Number(ms) || 0));
+    if (this.restart) { this.restart.ms = ms; this.restart.sought = true; } // the start under way ends there, not where it was left
+    if (this.waiting()) return;
+    if (this.state !== 'playing' && this.state !== 'paused') return;
     if (this.total) ms = Math.min(ms, Math.max(0, this.total - 1000));
     this.elapsed = ms;
     this.lastProgress = Date.now();
@@ -1835,15 +2696,17 @@ Daemon.prototype.setFill = function (on) {
     this.killYtdec();
     this.spawnYtdec(this.paused || this.headWait ? this.elapsed : this.elapsed + (Date.now() - this.lastTickAt));
 };
-// Video quality while playing: the same video fetched again at that height, from where it is
+// Video quality while playing: the same video fetched again at that height, from where it is (under 10 s too), paused
+// if it was. A restart already under way carries its place and mode over; the last quality asked wins.
 Daemon.prototype.requality = async function (quality) {
-    const c = this.cur;
-    if (!c || qualityHeight(quality, readJson(this.opts.leaseFile)) === c.height) return undefined;
-    const intent = this.playIntent = (this.playIntent || 0) + 1;
+    const c = this.cur, h = qualityHeight(quality, readJson(this.opts.leaseFile)), was = this.restart;
+    if (!c || c.stopped || h === (was ? was.height : c.height)) return undefined;
+    const restore = { ms: was ? was.ms : this.elapsed, paused: was ? was.paused : this.state === 'paused', fill: was ? was.fill : undefined, height: h, restore: true };
+    this.restart = restore;
     await this.stop(null, true);
-    if (intent !== this.playIntent) return undefined;
-    rmrf(c.dir);
-    return this.play(c.id, c.rect, c.fill, null, quality, c.skip);
+    if (this.restart !== restore) return undefined;   // stopped, replaced or asked again meanwhile: this one is cancelled
+    this.rmTree(c.dir);
+    return this.play(c.id, c.rect, c.fill, null, quality, c.skip, restore);
 };
 
 // ---- MediaPlayer events
@@ -1862,8 +2725,24 @@ Daemon.prototype.onTime = function (v) {
             .catch((e) => this.log(e));
         return;
     }
-    if (this.startAt) { const at = this.startAt; this.startAt = null; this.seek(at).catch((e) => this.log('resume at: ' + e)); return; }
-    if (this.skipSegments()) return;
+    if (this.restart) { // the play's start: where it was left (or the quality restart's place), paused if asked meanwhile
+        const r = this.restart, at = Math.floor(r.ms) || 0;
+        this.restart = null;
+        (at > 0 ? this.seek(at) : Promise.resolve()).then(() => (r.paused && this.state === 'playing' ? this.pause() : undefined))
+            .catch((e) => this.log('resume at: ' + e));
+        if (at > 0) {
+            // the player's next times can still be the old place: none of them goes out as `time` (the app's first one
+            // after a play says where it resumed: "Resumed at 12:34")
+            this.settle = { ms: at, until: Date.now() + 3000 };
+            return;
+        }
+    }
+    if (this.skipSegments()) {
+        // a play from the start landing in a segment: its first `time` is still this tick's, not the segment's end
+        // (past 10 s, the app would read the play as resumed there)
+        if (!this.timeSent) { this.timeSent = true; this.emit({ ev: 'time', elapsed: v.elapsed, total: this.total }); }
+        return;
+    }
     this.savePos(false);
     if (this.cur.track && Date.now() - this.cur.track.at > 60000) this.ping(this.cur, true);
     this.toYtdec('clock ' + v.elapsed + ' ' + monoMs());
@@ -1871,6 +2750,7 @@ Daemon.prototype.onTime = function (v) {
     const now = Date.now();
     if (now - this.lastTimeEv >= 240) { // <= 4/s
         this.lastTimeEv = now;
+        this.timeSent = true;
         this.emit({ ev: 'time', elapsed: v.elapsed, total: this.total });
     }
 };
@@ -1904,9 +2784,47 @@ Daemon.prototype.onPlayerState = function (v) {
         this.setState('paused');
     }
 };
+// ITEM_BUFFER_UNDERRUN (marilykinson-glitch's car, 2026-11-18, {event: ...} on a long video): the player ran dry, not the
+// end. On the head before audio.m4a: wait for it, as at the head's end. During the head -> full switch (or the wait for it),
+// a recovery under way, or paused: the same stall, ignored. Else the player again at the clock after a short wait, 3 times
+// in a rolling minute, then an error. Any other error event: an error, as before.
+// shortcut: matched as UNDERRUN anywhere in the event (one capture), check the exact shape on the car
+const UNDERRUN_MAX = 3;
 Daemon.prototype.onPlaybackError = function (v) {
-    if (!this.ticking) return;
-    this.failPlayback('playback error ' + JSON.stringify(v)).catch((e) => this.log(e));
+    if (!this.ticking) return undefined;
+    const msg = 'playback error ' + JSON.stringify(v);
+    const fail = (m) => this.failPlayback(m).catch((e) => this.log(e));
+    if (!/UNDERRUN/.test(msg)) return fail(msg);
+    if (this.switching || this.headWait || this.recovering || this.paused) {
+        this.log('audio: underrun at ' + this.elapsed + (this.recovering ? ' while recovering' : this.paused ? ' while paused' : ' during the head -> full switch') + ', ignored');
+        return undefined;
+    }
+    if (this.head && !this.fullReady) {
+        const next = this.nextHead;
+        if (next && next.ms > this.elapsed + this.opts.headMarginMs) return this.switchToHead();
+        this.log('audio: underrun on the head at ' + this.elapsed + ', waiting for audio.m4a');
+        return this.waitFull(this.elapsed).catch((e) => this.log(e));
+    }
+    const now = Date.now();
+    this.underruns = this.underruns.filter((t) => now - t < 60000);
+    if (this.underruns.length >= UNDERRUN_MAX) return fail('audio underrun: ' + UNDERRUN_MAX + ' recoveries in a minute, stopped');
+    this.underruns.push(now);
+    return this.recover().catch((e) => this.log('underrun recovery: ' + e));
+};
+Daemon.prototype.recover = async function () {
+    const gen = this.gen;
+    this.recovering = true;
+    this.sawPlay = false;   // the dry player's own STOP is neither the end nor a stop mid-file
+    this.toYtdec('pause');
+    this.log('audio: underrun at ' + this.elapsed + ', the player again there in ' + this.opts.underrunWaitMs + ' ms');
+    try {
+        await sleep(this.opts.underrunWaitMs);
+        if (gen !== this.gen || this.state !== 'playing' || this.paused) return; // stopped, failed or paused meanwhile
+        this.stoppedAt = this.elapsed;
+        await this.replayAt('underrun recovery');
+    } finally {
+        if (gen === this.gen) this.recovering = false;
+    }
 };
 
 // ---- ytdec
@@ -1996,7 +2914,11 @@ Daemon.prototype.close = async function () {
     if (this.server) this.server.close();
 };
 
-module.exports = { qualityHeight: qualityHeight, channelTiles: channelTiles, Daemon: Daemon, Audio: Audio, Account: Account, feedItems: feedItems, isPlayable: isPlayable, feedShelves: feedShelves, ytRequest: ytRequest, uplinkLookup: uplinkLookup, pickFetchUid: pickFetchUid, fetchRequest: fetchRequest, listCache: listCache, pruneCache: pruneCache, isReady: isReady };
+module.exports = { BUILT: BUILT, clockBehind: clockBehind, qualityHeight: qualityHeight, channelTiles: channelTiles, playlistTiles: playlistTiles, playlistTitle: playlistTitle, addToPlaylistItems: addToPlaylistItems, Daemon: Daemon, Audio: Audio, Account: Account, feedItems: feedItems, isPlayable: isPlayable, redactLog: redactLog, VERSION: VERSION, CAPS: CAPS, REPORT_URL: REPORT_URL, feedShelves: feedShelves, ytRequest: ytRequest, uplinkLookup: uplinkLookup, pickFetchUid: pickFetchUid, fetchRequest: fetchRequest, listCache: listCache, pruneCache: pruneCache, isReady: isReady };
+
+// the head unit's date (YYYY-MM-DD) when its clock is provably wrong (before BUILT), else null. A clock ahead of real
+// time cannot be proven wrong: it gets nothing
+function clockBehind(now) { return now < Date.parse(BUILT) ? new Date(now).toISOString().slice(0, 10) : null; }
 
 // the uplink's DNS servers (its lease): the system resolver (127.0.0.1) answers no internet names. No
 // lease (uplink down or not installed): the system resolver, as before
@@ -2011,7 +2933,9 @@ function uplinkLookup(leaseFile) {
     };
 }
 
-if (require.main === module && process.argv[2] === '--fetch') {
+if (require.main === module && process.argv[2] === '--someip-gen') {
+    someipGen(process.argv[3], process.argv[4], process.argv[5], JSON.parse(process.argv[6] || '[]'));
+} else if (require.main === module && process.argv[2] === '--fetch') {
     // the fetch helper (as the fetch uid): one request from stdin, its answer on stdout
     let input = '';
     const out = (o) => process.stdout.write(JSON.stringify(o), () => process.exit(0));
@@ -2046,5 +2970,9 @@ if (require.main === module && process.argv[2] === '--fetch') {
         setTimeout(() => process.exit(0), 4000); // TimeoutStopSec=5
         d.close().then(() => process.exit(0), () => process.exit(0));
     }));
-    d.start().catch((e) => d.fault(e));
+    d.start().catch((e) => {
+        if (!(e && e.refuse)) return d.fault(e);
+        d.log(e.message);
+        process.exit(1);
+    });
 }

@@ -2,7 +2,8 @@
 
 // Kit runtime (display.js, renderd.js, mgu.js Settings) against a stand-in mgu-render on a Unix socket: the
 // unchanged-frame skip and its keepalive, a sheet that throws, X_STATE front flips, a reconnect after a cut
-// message, the theme kept on a fresh install. No SDK, renderer or car needed:
+// message, the theme kept on a fresh install, the Russian catalog (plurals, rows, glyphs, the HMI table). No SDK,
+// renderer or car needed:
 //   node kit/tools/test_runtime.js
 
 const assert = require('assert');
@@ -21,6 +22,7 @@ const themes = require('../runtime/themes');
 const FRAME = 7, READY = 101, TICK = 102, TOUCH = 105, X_READY = 0x4d520101, X_STATE = 0x4d520102, X_CCU = 0x4d520103;
 const uncaught = [];
 process.on('uncaughtException', (e) => uncaught.push(e));     // (else node exits, as mgu.js does on the car)
+const SHOW_WAIT = 600;                                   // over display.js SHOW_DELAY_MS (350)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const u32 = (...a) => Buffer.from(new Uint32Array(a).buffer);
 function msg(type, p) {
@@ -201,6 +203,40 @@ test('the one-time move to the new default theme: a theme picked on a fresh inst
     assert.strictEqual(new S(schema).get('theme'), 'amber');
 });
 
+test('a menu of ours over the drawn page (the HMI stack still lists the page): no picture until the page is in front again', async () => {
+    // the real Ui class (as the Settings test: the class without the SDK); the HMI's events as mgu.js gets them
+    const src = fs.readFileSync(path.join(__dirname, '..', 'runtime', 'mgu.js'), 'utf8').replace(/\r\n/g, '\n');
+    const cls = src.match(/class Ui \{[\s\S]*?\n}\n/)[0];
+    const quiet = { info() {}, warn() {}, debug() {}, error() {} };
+    const Ui = new Function('log', 'HmiText', cls + '\nreturn Ui;')(quiet, class {});
+    const ui = new Ui({ rhmiApplication: { openState: () => Promise.resolve(), getByName: () => null } });
+    // the HMI's side: a screen we open is listed at once (its visible event)
+    const open = (n) => { ui.open(n); ui._setVisible(n, true); };
+    let conn = null;
+    onConn = (c) => { conn = c; ready(c); };
+    const log = { errors: [], info() {}, warn() {}, debug() {}, error: (...a) => log.errors.push(a) };
+    const spec = { id: 'test', title: 'Test', screens: [{ name: 'VIEW', kind: 'canvas', buttons: [] }, { name: 'MAIN', kind: 'menu', items: [] }] };
+    const d = new Display(ui, log, spec, { get: () => undefined, onChange() {} }, () => themes.theme());
+    try {
+        open('VIEW');
+        assert(await waitFor(() => conn && d.active() && d.own()), 'display on the renderer');
+        assert(await waitFor(() => d.gpu.visible, 1500), 'the drawn page shows');
+        open('MAIN');                                         // the rail's Search
+        assert.strictEqual(ui.topScreen(), 'MAIN');
+        assert(!d.gpu.visible, 'the menu covers the page: the picture goes at once');
+        ui._setVisible('VIEW', true); d._syncVisible();       // the stack event that lists VIEW again
+        await sleep(SHOW_WAIT);
+        assert(!d.gpu.visible, 'the stack listing the page under the menu does not bring the picture back');
+        open('VIEW');                                         // Home in the menu (MAIN stays listed)
+        assert(await waitFor(() => d.gpu.visible, 1500), 'back on the page: the picture again');
+        open('MAIN'); assert(!d.gpu.visible);
+        ui._setVisible('MAIN', false);                        // BACK: the menu leaves the stack
+        assert.strictEqual(ui.topScreen(), 'VIEW');
+        assert(await waitFor(() => d.gpu.visible, 1500), 'BACK from the menu: the picture again');
+        assert.deepStrictEqual(log.errors, []);
+    } finally { d.closeSheet(); d.gpu.close(); clearInterval(d.keepTimer); }
+});
+
 test('a new scale keeps the uploads (the renderer keeps them), a new size sends them again', async () => {
     const t = await setup(), g = t.d.gpu;
     try {
@@ -212,6 +248,178 @@ test('a new scale keeps the uploads (the renderer keeps them), a new size sends 
         g.place(Object.assign({}, pl, { w: pl.w - 8 }));
         assert.deepStrictEqual([g.sent.atlas.size, g.sent.ramp.size, g.sent.image.size], [0, 0, 0], 'a new size');
     } finally { t.end(); }
+});
+
+test('Cyrillic titles: every letter drawn (accented Latin too), in the weight and size asked; Latin-only text keeps the main atlases', () => {
+    const fonts = require('../runtime/fonts');
+    // mixed titles: the Cyrillic and the Latin with accents, all from the one companion atlas
+    const titles = ['Поправка a B58 — їжак, Ґанок, ўсё, Љубљана, Қазақ «№1»', 'Café — Кофе', 'Đorđe / Ђорђе', 'Łódź, Ærøskøbing · Straße · Москва'];
+    [['label', 18], ['label', 44], ['bold', 24], ['bold', 64], ['num', 40], ['light', 32], ['light', 64]].forEach(([fam, size]) => {
+        const f = fonts.get(fam, size, titles[0]);
+        assert.ok(f, fam + ' ' + size);
+        assert.deepStrictEqual([f.family, f.size], [fam + '_cyr', size], fam + ' ' + size + ': its own weight, at the size asked (not scaled up)');
+        assert.ok(f.cacheKey, fam + ': a cache key (atlases are shared between apps by family and size)');
+        // every character the family's own atlas has at this size, plus the Cyrillic letters
+        const main = fonts.get(fam, size, 'Latin'), lost = Object.keys(main.glyphs).filter((c) => !f.glyphs[c]);
+        assert.deepStrictEqual(lost, [], fam + ' ' + size + ': all of the main atlas\'s characters');
+        titles.forEach((t) => assert.deepStrictEqual(Array.from(t).filter((ch) => !f.glyphs[ch.codePointAt(0)]), [], fam + ' ' + size + ': nothing dropped from ' + t));
+    });
+    // the digit-only sizes (gauges): digits, units and Cyrillic units at the size asked
+    [['num', 64], ['num', 96], ['num', 150], ['light', 110]].forEach(([fam, size]) => {
+        const f = fonts.get(fam, size, '120 км/ч');
+        assert.deepStrictEqual([f.family, f.size], [fam + '_cyr', size], fam + ' ' + size + ': at its own size');
+        assert.deepStrictEqual(Array.from('120 км/ч 3,5 bar').filter((ch) => !f.glyphs[ch.codePointAt(0)]), [], fam + ' ' + size + ': the digits and units');
+    });
+    ['label', 'bold', 'num', 'light'].forEach((fam) => assert.strictEqual(fonts.get(fam, 32, 'Rebuilding a B58 · Café').family, fam, fam + ': Latin as before'));
+});
+
+test('CJK titles never pick an atlas over 4096 rows (mgu-render closes the connection on one)', () => {
+    const fs = require('fs'), path = require('path');
+    const link = path.join(__dirname, '..', 'runtime', 'fonts', 'cjk-titles.json');
+    const had = fs.existsSync(link);
+    if (!had) fs.copyFileSync(path.join(__dirname, '..', 'localization', 'fonts', 'cjk-titles.json'), link);
+    try {
+        delete require.cache[require.resolve('../runtime/fonts')];
+        const fonts = require('../runtime/fonts');
+        const rare = '\u9f98\u9f49';   // two characters the UI atlas (cjk.json) lacks: they take cjk-titles
+        [14, 22, 32, 52, 64].forEach((size) => {
+            const f = fonts.get('label', size, '\u6807\u9898 ' + rare);
+            assert.strictEqual(f.family, 'cjk-titles', size + ': the titles atlas');
+            assert.ok(f.atlasH <= 4096, size + ': atlas ' + f.atlasH + ' rows');
+        });
+    } finally {
+        if (!had) fs.unlinkSync(link);
+        delete require.cache[require.resolve('../runtime/fonts')];
+    }
+});
+
+test('Romanian ș ț Ș Ț draw as ş ţ Ş Ţ, an accented letter the atlas lacks as its base letter: nothing drops out of a title', () => {
+    const fonts = require('../runtime/fonts');
+    const { Canvas } = require('../runtime/canvas');
+    const ro = 'Știri și Țara Românească — Ştefan, ţară', vi = 'Phở ngon · Đà Nẵng';
+    [['label', 18], ['label', 32], ['bold', 24], ['bold', 44], ['light', 32], ['num', 40]].forEach(([fam, size]) => {
+        const f = fonts.get(fam, size, ro);
+        assert.strictEqual(f.family, fam, fam + ' ' + size + ': the main atlas, not a companion');
+        [ro, vi].forEach((t) => assert.deepStrictEqual(Array.from(t).filter((ch) => !fonts.glyph(f, ch)), [], fam + ' ' + size + ': nothing dropped from ' + t));
+        assert.strictEqual(fonts.glyph(f, 'ș'), f.glyphs['ş'.codePointAt(0)], 'ș as ş');
+        assert.strictEqual(fonts.glyph(f, 'Ț'), f.glyphs['Ţ'.codePointAt(0)], 'Ț as Ţ');
+        assert.strictEqual(fonts.glyph(f, 'ở'), f.glyphs['o'.codePointAt(0)], 'ở as o');
+        assert.strictEqual(fonts.glyph(f, '😀'), undefined, 'an emoji: dropped, as before');
+        assert.strictEqual(fonts.measure(f, 'Știri'), fonts.measure(f, 'Ştiri'), 'measured as drawn');
+    });
+    // drawn: the comma-below word is as wide as the cedilla one, and wider than the word without its first letter
+    const cv = new Canvas(400, 60);
+    const w = cv.text('Știri', 0, 40, 32, '#ffffff', { literal: true });
+    assert.strictEqual(w, cv.text('Ştiri', 0, 40, 32, '#ffffff', { literal: true }));
+    assert.ok(w > cv.text('tiri', 0, 40, 32, '#ffffff', { literal: true }));
+});
+
+// ======== WP7 Language: the Russian catalog (kit/runtime/locales/ru.json), chosen at run time
+// the RideTube strings a catalog must have: wrapped call sites, the tables drawn through translate / whole, app.json's labels
+function rideTubeStrings() {
+    const read = (f) => fs.readFileSync(path.join(__dirname, '..', '..', f), 'utf8');
+    const src = read('apps/jap_ridetube/main.js') + '\n' + read('apps/jap_ridetube/health.js');
+    const LIT = String.raw`('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")`;
+    const un = (s) => s.slice(1, -1).replace(/\\(.)/g, '$1');
+    const out = new Set();
+    const add = (s) => { s = s.trim(); if (/[A-Za-z]{2}/.test(s)) out.add(s); };
+    let m;
+    const call = new RegExp(String.raw`\b(?:translate|whole|message|t)\(\s*` + LIT, 'g');
+    while ((m = call.exec(src))) add(un(m[1]));
+    const tern = new RegExp(String.raw`\b(?:translate|whole|message|t)\([^()]*?\?\s*` + LIT + String.raw`\s*:\s*` + LIT, 'g');
+    while ((m = tern.exec(src))) { add(un(m[1])); add(un(m[2])); }
+    const cnt = new RegExp(String.raw`\bcount\([^,]+,\s*` + LIT + String.raw`,\s*` + LIT, 'g');
+    while ((m = cnt.exec(src))) out.add(un(m[1]) + '|' + un(m[2]));
+    // tables drawn through translate / whole: NAMES, SUGGEST, the SponsorBlock names, the log errors, the clock text,
+    // the bar and account labels, the logs page's buttons, the rail's own names
+    const table = (name) => { const b = src.match(new RegExp('const ' + name + ' = ([\\s\\S]*?);\\n')); if (!b) throw new Error('no ' + name); const r = new RegExp(LIT, 'g'); let x; const v = []; while ((x = r.exec(b[1]))) v.push(un(x[1])); return v; };
+    table('NAMES').filter((s) => /[A-Z]/.test(s[0])).forEach(add);
+    table('SUGGEST').forEach(add);
+    table('LOGS_ERR').filter((s) => / /.test(s)).forEach(add);
+    table('CLOCK_MSG').forEach(add);
+    table('SB').filter((s) => / |-/.test(s) || s === 'sponsor' || s === 'intro').forEach(add);
+    ['Play', 'Pause', 'Now playing', 'Player', 'Sign in', 'Sign out', 'Press again to sign out', 'Send', 'Cancel', 'Close',
+        'Home', 'Subscriptions', 'Subs', 'Watch later', 'Playlists', 'History', 'Playing', 'Search', 'segment'].forEach(add);
+    // yt.js: the skipped toast
+    ['Skipped', 'self-promotion', 'like & subscribe reminder'].forEach(add);
+    // app.json: title, screens, buttons, menu items, settings and their options (the HMI and the drawn sheet)
+    const spec = JSON.parse(read('apps/jap_ridetube/app.json'));
+    add(spec.title);
+    for (const sc of spec.screens) { if (sc.title) add(sc.title); (sc.buttons || []).forEach((b) => add(b[1])); (sc.items || []).forEach((it) => it[2] && add(it[2])); }
+    for (const s of spec.settings) { add(s.label); (s.options || []).forEach((o) => { if (s.key !== 'language') add(o[1]); }); }
+    // the kit's drawn settings sheet
+    ['Settings', 'Done', 'Back', 'Version'].forEach(add);
+    return [...out];
+}
+const RT_SOURCES = ['apps/jap_ridetube/main.js', 'apps/jap_ridetube/health.js', 'apps/jap_ridetube/yt.js', 'apps/jap_ridetube/app.json', 'kit/runtime/sheet.js']
+    .map((f) => fs.readFileSync(path.join(__dirname, '..', '..', f), 'utf8')).join('\n').replace(/\\(['"])/g, '$1');
+const RU = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'runtime', 'locales', 'ru.json'), 'utf8'));
+const BRAND = /^(RideTube|720p)$/;
+const alreadyRussian = (s) => /[\u0400-\u04ff]/.test(s);   // names, no row
+
+test('ru plurals: one, few, many (11-14 many), the catalog\'s three forms; English keeps two, zh-CN one', () => {
+    const i18n = require('../runtime/i18n');
+    assert.ok(i18n.languages().indexOf('ru') >= 0 && i18n.languages().indexOf('zh-CN') >= 0, 'the catalogs: ' + i18n.languages());
+    try {
+        assert.ok(i18n.setLanguage('ru'));
+        const v = (n) => i18n.plural(n, '{count} channel', '{count} channels').replace('{count}', n);
+        assert.deepStrictEqual([1, 2, 4, 5, 11, 12, 14, 21, 22, 25, 101, 111, 0].map(v),
+            ['1 канал', '2 канала', '4 канала', '5 каналов', '11 каналов', '12 каналов', '14 каналов', '21 канал', '22 канала', '25 каналов', '101 канал', '111 каналов', '0 каналов']);
+        assert.deepStrictEqual([1, 3, 7].map((n) => i18n.plural(n, '{count} subscriptions', '{count} subscriptions')), ['{count} подписка', '{count} подписки', '{count} подписок']);
+        assert.strictEqual(i18n.t('Home'), 'Главная');
+        assert.ok(i18n.setLanguage('zh-CN'));
+        assert.deepStrictEqual([1, 5].map((n) => i18n.plural(n, '{count} channel', '{count} channels')), ['{count} 个频道', '{count} 个频道'], 'zh-CN: its one form for every count');
+        assert.strictEqual(i18n.t('Home'), '首页');
+        assert.strictEqual(i18n.setLanguage('xx'), false, 'an unknown language: nothing changes');
+        assert.strictEqual(i18n.getLanguage(), 'zh-CN');
+    } finally { i18n.setLanguage('en'); }
+    assert.deepStrictEqual([i18n.t('Home'), i18n.plural(1, 'a', 'b'), i18n.plural(2, 'a', 'b'), Object.keys(i18n.dict).length], ['Home', 'a', 'b', 0], 'English again: nothing translated');
+});
+
+test('ru.json: every key is in the source, every string RideTube translates has a row, plural rows have three forms', () => {
+    const gone = Object.keys(RU).filter((k) => k.split('|').some((part) => RT_SOURCES.indexOf(part) < 0));
+    assert.deepStrictEqual(gone, [], 'keys no source has');
+    const missing = rideTubeStrings().filter((s) => !BRAND.test(s) && !alreadyRussian(s) && !Object.prototype.hasOwnProperty.call(RU, s));
+    assert.deepStrictEqual(missing, [], 'strings without a Russian row');
+    Object.keys(RU).filter((k) => k.indexOf('|') >= 0).forEach((k) => assert.strictEqual(RU[k].split('|').length, 3, k));
+    Object.keys(RU).forEach((k) => {
+        const ph = (s) => (s.match(/\{\w+\}/g) || []).sort().join();
+        RU[k].split('|').forEach((v) => assert.strictEqual(ph(v), ph(k.split('|')[0]), 'the same {placeholders}: ' + k));
+        assert.ok(/[\u0400-\u04ff]/.test(RU[k]), 'Russian: ' + k);
+    });
+});
+
+test('ru.json: every character draws from the Cyrillic atlases (label, bold, light, num), none dropped', () => {
+    const fonts = require('../runtime/fonts');
+    const text = Object.keys(RU).map((k) => RU[k]).join('');
+    [['label', 18], ['label', 24], ['bold', 24], ['bold', 32], ['light', 32], ['num', 40]].forEach(([fam, size]) => {
+        const f = fonts.get(fam, size, 'Я');
+        assert.strictEqual(f.family, fam + '_cyr');
+        const lost = Array.from(new Set(Array.from(text))).filter((ch) => !fonts.glyph(f, ch));
+        assert.deepStrictEqual(lost, [], fam + ' ' + size + ': no glyph for ' + lost.join(' '));
+    });
+    // the Language setting's own names in the atlases an English package draws them with
+    assert.ok(Array.from('Русский').every((ch) => fonts.glyph(fonts.get('label', 28, 'Русский'), ch)), 'Русский');
+});
+
+test('the built package (dist/jap_ridetube): the car\'s ru_RU table has the menu and settings in Russian, en_GB as before', () => {
+    const dir = path.join(__dirname, '..', '..', 'dist', 'jap_ridetube', 'rhmiData', 'strings');
+    if (!fs.existsSync(path.join(dir, 'ru_RU.json'))) { console.log('      (skipped: python3 kit/tools/build.py jap_ridetube first)'); return; }
+    const table = (l) => JSON.parse(fs.readFileSync(path.join(dir, l + '.json'), 'utf8'));
+    const en = table('en_GB'), ru = table('ru_RU'), de = table('de_DE');
+    const spec = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'apps', 'jap_ridetube', 'app.json'), 'utf8'));
+    const labels = [].concat(...spec.screens.map((sc) => (sc.items || []).map((it) => it[2]).concat((sc.buttons || []).map((b) => b[1]))),
+        ...spec.settings.map((s) => [s.label].concat(s.key === 'language' ? [] : (s.options || []).map((o) => o[1])))).filter((x) => x && !BRAND.test(x) && !/^\d+ %$/.test(x));
+    const enValues = Object.keys(en).map((k) => en[k]), ruValues = Object.keys(ru).map((k) => ru[k]);
+    labels.forEach((l) => {
+        assert.ok(enValues.indexOf(l) >= 0, 'en_GB has ' + l);
+        if (alreadyRussian(l)) { assert.ok(ruValues.indexOf(l) >= 0, 'shared menu keeps ' + l); return; }
+        assert.ok(ruValues.indexOf(RU[l]) >= 0, 'ru_RU has ' + RU[l] + ' (' + l + ')');
+        assert.ok(ruValues.indexOf(l) < 0, 'ru_RU has no English ' + l);
+    });
+    assert.deepStrictEqual(Object.keys(ru), Object.keys(en), 'the same string ids');
+    assert.deepStrictEqual(de, en, 'a car language without a catalog: the English table');
+    assert.ok(enValues.filter(alreadyRussian).every((v) => labels.indexOf(v) >= 0 || v === '\u0420\u0443\u0441\u0441\u043a\u0438\u0439'), 'en_GB: existing x3 Russian menu labels and the language name');
 });
 
 (async () => {

@@ -19,7 +19,7 @@ import tarfile
 MEDIA = Path(__file__).resolve().parents[1]
 CORE = MEDIA / "core"
 VERSION = "0.1.8"
-YOUTUBE_VERSION = "0.3.16"
+YOUTUBE_VERSION = "0.4.1"
 SERVICES = {
     "vk": {"id": "vk", "appId": "marku_vk_video", "title": "VK Видео", "accent": "#0077FF",
            "loggingId": "MKV1", "iconGlyph": "VK", "socket": "/run/jap-ridetube-d/vk.sock",
@@ -45,6 +45,8 @@ def app_spec(service):
                  "description": service["title"] + ": тестовый выпуск для MGU, поиск и видео напрямую, вход с телефона.",
                  "loggingId": service["loggingId"], "iconGlyph": service["iconGlyph"]})
     view = copy.deepcopy(base["screens"][0])
+    base["signals"].pop("de.bmw.infotainment.controlelements.SteeringWheelPushButton", None)
+    view.pop("fill", None)
     view["title"] = service["title"]
     view["buttons"] = [["BTN_PLAY", "Играть"], ["BTN_RW", "−10 с"], ["BTN_FF", "+10 с"],
                        ["BTN_LIST", "Плеер"], ["BTN_FIND", "Поиск"],

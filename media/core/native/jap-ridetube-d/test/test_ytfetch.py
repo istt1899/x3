@@ -10,6 +10,8 @@ import json
 import os
 import shutil
 import socket
+import ssl
+import struct
 import subprocess
 import sys
 import tempfile
@@ -47,6 +49,17 @@ def packets(path, sel):
                           'packet=size,duration', '-of', 'csv=p=0', path],
                          check=True, capture_output=True, text=True).stdout
     return [line.split(',')[:2] for line in out.split()]
+
+
+def probe(path, entries):
+    return json.loads(subprocess.run([FFPROBE, '-v', 'error', '-show_entries', entries, '-of', 'json', path],
+                                     check=True, capture_output=True, text=True, encoding='utf-8').stdout)
+
+
+def decoded(path):
+    """the decoded audio's MD5 (ffmpeg's md5 muxer)"""
+    return subprocess.run([FF, '-v', 'error', '-i', path, '-map', '0:a:0', '-f', 'md5', '-'],
+                          check=True, capture_output=True, text=True).stdout.strip()
 
 
 def atoms(path):
@@ -88,7 +101,12 @@ class Pipeline:
     def check_audio(self, src_m4a, out_m4a):
         a = atoms(out_m4a)
         self.assertLess(a.index('moov'), a.index('mdat'), a)
-        self.assertEqual(packets(out_m4a, 'a:0'), packets(src_m4a, 'a:0'))  # every sample, same size+duration
+        actual, original = packets(out_m4a, 'a:0'), packets(src_m4a, 'a:0')
+        self.assertEqual([p[1] for p in actual], [p[1] for p in original])
+        # Older ffprobe estimates the boundary durations of fragmented AAC differently.
+        inner = slice(1, -1) if original[0][0] == 'N/A' else slice(None)
+        self.assertEqual([p[0] for p in actual[inner]], [p[0] for p in original[inner]])
+        self.assertEqual(decoded(out_m4a), decoded(src_m4a))
         r = subprocess.run([FF, '-v', 'error', '-i', out_m4a, '-f', 'null', '-'], capture_output=True, text=True)
         self.assertEqual((r.returncode, r.stderr), (0, ''))
 
@@ -173,12 +191,92 @@ class Offline(unittest.TestCase, Pipeline):
         ff('-i', clip(TMP), '-map', '0:a:0', '-c', 'copy', '-movflags', '+faststart', plain)
         self.assertIsNone(ytfetch.flatten_m4a(plain, head, limit=os.path.getsize(plain) // 2))
 
+    def test_audio_tags(self):
+        """the car's player reads the title, artist and cover from the file: iTunes tags in the moov, which a
+        reader (ffprobe) finds; the same audio, decoded bit for bit, as without them (the offsets moved too)"""
+        jpg = os.path.join(self.tmp, 'cover.jpg')
+        ff('-f', 'lavfi', '-i', 'color=red:size=320x180', '-frames:v', '1', jpg)
+        with open(jpg, 'rb') as f:
+            cover = f.read()
+        plain, out = os.path.join(self.tmp, 'untagged.m4a'), os.path.join(self.tmp, 'tagged.m4a')
+        ytfetch.flatten_m4a(self.a, plain)
+        ytfetch.flatten_m4a(self.a, out, udta=ytfetch.tags_udta('Поправка a B58 — Café', 'Night Garage', cover))
+        self.assertEqual(atoms(out), ['ftyp', 'moov', 'mdat'])
+        self.assertEqual(decoded(out), decoded(plain), 'the same audio, every sample where the moov says')
+        self.assertEqual(probe(out, 'format_tags=title,artist')['format']['tags'], {'title': 'Поправка a B58 — Café', 'artist': 'Night Garage'})
+        pics = [s for s in probe(out, 'stream=codec_name:stream_disposition=attached_pic')['streams'] if s['disposition']['attached_pic']]
+        self.assertEqual([s['codec_name'] for s in pics], ['mjpeg'], 'the cover, as an attached picture')
+        # the head (a prefix of the download) carries them too
+        with open(self.a, 'rb') as f:
+            data = f.read()
+        part, head = os.path.join(self.tmp, 'half_t.m4a'), os.path.join(self.tmp, 'head_t.m4a')
+        with open(part, 'wb') as f:
+            f.write(data[:len(data) // 2] + bytes(len(data) - len(data) // 2))
+        ytfetch.flatten_m4a(part, head, limit=len(data) // 2, udta=ytfetch.tags_udta('Head', 'Chan'))
+        self.assertEqual(probe(head, 'format_tags=title,artist')['format']['tags'], {'title': 'Head', 'artist': 'Chan'})
+
     def test_audio_plain_is_copied(self):
         plain, out = os.path.join(self.tmp, 'plain.m4a'), os.path.join(self.tmp, 'plain_out.m4a')
         ff('-i', clip(TMP), '-map', '0:a:0', '-c', 'copy', '-movflags', '+faststart', plain)
         ytfetch.flatten_m4a(plain, out)
         with open(plain, 'rb') as a, open(out, 'rb') as b:
             self.assertEqual(a.read(), b.read())
+
+
+class Tags(unittest.TestCase):
+    @staticmethod
+    def items(u):
+        """udta > meta (a full box) > hdlr mdir + ilst > {item: (data type, value)}"""
+        (t, s, e), = ytfetch.boxes(u)
+        assert t == b'udta'
+        (t, s, e), = ytfetch.boxes(u, s, e)
+        assert t == b'meta'
+        hdlr, ilst = ytfetch.boxes(u, s + 4, e)
+        assert (hdlr[0], u[hdlr[1] + 8:hdlr[1] + 12], ilst[0]) == (b'hdlr', b'mdir', b'ilst')
+        out = {}
+        for t, s, e in ytfetch.boxes(u, ilst[1], ilst[2]):
+            (d, ds, de), = ytfetch.boxes(u, s, e)
+            assert d == b'data'
+            out[t] = (struct.unpack_from('>I', u, ds)[0], u[ds + 8:de])
+        return out
+
+    def test_udta_layout(self):
+        self.assertEqual(self.items(ytfetch.tags_udta('Title', 'Artist', b'\xff\xd8 a jpeg')),
+                         {b'\xa9nam': (1, b'Title'), b'\xa9ART': (1, b'Artist'), b'covr': (13, b'\xff\xd8 a jpeg')})
+        self.assertEqual(self.items(ytfetch.tags_udta('Кофе — Café', None, None)), {b'\xa9nam': (1, 'Кофе — Café'.encode())})
+        self.assertEqual(self.items(ytfetch.tags_udta(None, 'A', b'\x89PNG\r\n\x1a\nx')), {b'\xa9ART': (1, b'A'), b'covr': (14, b'\x89PNG\r\n\x1a\nx')})
+        self.assertEqual(ytfetch.tags_udta(), b'', 'nothing to say: no box')
+        self.assertEqual(len(self.items(ytfetch.tags_udta('x' * 300))[b'\xa9nam'][1]), 255, 'a long title cut')
+
+    def test_cover_is_a_jpeg_or_nothing(self):
+        bodies = {'/ok': b'\xff\xd8' + b'j' * 100, '/png': b'\x89PNG\r\n\x1a\n' + b'p' * 100,
+                  '/big': b'\xff\xd8' + bytes(ytfetch.COVER_MAX), '/missing': None}
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                b = bodies.get(self.path)
+                if b is None:
+                    self.send_error(404)
+                    return
+                self.send_response(200)
+                self.send_header('Content-Length', str(len(b)))
+                self.end_headers()
+                self.wfile.write(b)
+
+            def log_message(self, *a):
+                pass
+
+        srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        old, ytfetch.COVER_URL = ytfetch.COVER_URL, f'http://127.0.0.1:{srv.server_port}/{{}}'
+        try:
+            self.assertEqual(ytfetch.fetch_cover('ok'), bodies['/ok'])
+            for p in ('png', 'big', 'missing'):
+                self.assertIsNone(ytfetch.fetch_cover(p), p)
+        finally:
+            ytfetch.COVER_URL = old
+            srv.shutdown()
+            srv.server_close()
 
 
 class _Ranges(http.server.BaseHTTPRequestHandler):
@@ -279,7 +377,7 @@ class Ranged(unittest.TestCase, Pipeline):
         ytfetch._out, ytfetch.HEAD_MIN_MS = buf, 10000
         ytfetch.AUDIO_FIRST = ytfetch.AUDIO_CHUNK = 60000
         try:
-            a = type('A', (), {'dir': out})()
+            a = type('A', (), {'dir': out, 'proxy': None})()
             src = ytfetch.audio_ranged(a, Ya(), info, {'duration_s': 60})
         finally:
             ytfetch._out, ytfetch.HEAD_MIN_MS, ytfetch.AUDIO_FIRST, ytfetch.AUDIO_CHUNK = old
@@ -338,6 +436,151 @@ class Dns(unittest.TestCase):
         self.assertIs(socket.getaddrinfo, self.orig)
 
 
+class ClockWrong(unittest.TestCase):
+    def test_messages(self):
+        import ssl
+        e = ssl.SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: '
+                                            'certificate is not yet valid (_ssl.c:1010)')
+        m = ytfetch.clock_wrong(Exception('ERROR: [youtube] x: Unable to download API page: ' + str(e)))
+        self.assertTrue(m.startswith("Wrong head unit clock (20"), m)
+        self.assertIsNone(ytfetch.clock_wrong(Exception('HTTP Error 403: Forbidden')))
+        e.verify_message = 'certificate has expired'
+        self.assertTrue(ytfetch._why(e).startswith('wrong clock: 20'))
+        e.verify_message = 'unable to get local issuer certificate'
+        e.args = (1, 'certificate verify failed: unable to get local issuer certificate')
+        self.assertEqual(ytfetch._why(e), 'certificate not trusted')
+
+
+def openssl(*args, cwd):
+    subprocess.run(['openssl'] + list(args), cwd=cwd, check=True, capture_output=True)
+
+
+def make_certs(d):
+    """In d: ca.pem (a test CA, valid now), future.pem (localhost, signed by it, valid only from 2099) and
+    stranger.pem (localhost, from 2099 too, self-signed: no trusted CA), each with its .key. X509-strict extensions:
+    Python 3.13+ verifies with VERIFY_X509_STRICT."""
+    with open(os.path.join(d, 'ext.cnf'), 'w') as f:
+        f.write('[ca]\nbasicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign,cRLSign\n'
+                'subjectKeyIdentifier=hash\n'
+                '[leaf]\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\n'
+                'extendedKeyUsage=serverAuth\nsubjectAltName=DNS:localhost\nsubjectKeyIdentifier=hash\n'
+                'authorityKeyIdentifier=keyid\n')
+    later = ['-not_before', '20990101000000Z', '-not_after', '21000101000000Z']
+    openssl('req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', 'ca.key',
+            '-out', 'ca.pem', '-subj', '/CN=RideTube test CA', '-days', '30', '-config', 'ext.cnf', '-extensions', 'ca',
+            cwd=d)
+    openssl('req', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', 'future.key',
+            '-out', 'future.csr', '-subj', '/CN=localhost', cwd=d)
+    openssl('x509', '-req', '-in', 'future.csr', '-CA', 'ca.pem', '-CAkey', 'ca.key', '-out', 'future.pem',
+            '-extfile', 'ext.cnf', '-extensions', 'leaf', *later, cwd=d)
+    openssl('req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:P-256', '-nodes', '-keyout', 'stranger.key',
+            '-out', 'stranger.pem', '-subj', '/CN=localhost', '-config', 'ext.cnf', '-extensions', 'leaf', *later,
+            cwd=d)
+
+
+def tls_server(cert, key):
+    """An HTTPS server on 127.0.0.1 answering 200 'ok' with cert; its port."""
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header('Content-Length', '2')
+            self.end_headers()
+            self.wfile.write(b'ok')
+
+        def log_message(self, *a):
+            pass
+
+    class S(http.server.ThreadingHTTPServer):
+        def handle_error(self, *a):
+            pass  # the handshakes the client refuses
+    srv = S(('127.0.0.1', 0), H)
+    sc = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    sc.load_cert_chain(cert, key)
+    srv.socket = sc.wrap_socket(srv.socket, server_side=True)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def has_not_before():
+    try:
+        return '-not_before' in subprocess.run(['openssl', 'x509', '-help'], capture_output=True, text=True).stderr
+    except OSError:
+        return False
+
+
+@unittest.skipUnless(has_not_before(), 'needs an openssl CLI with -not_before (OpenSSL 3.4+)')
+class CertTime(unittest.TestCase):
+    """The normal HTTPS context checks certificate dates, the chain, and the hostname."""
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(dir=TMP)
+        make_certs(cls.tmp)
+        cls.ca = os.path.join(cls.tmp, 'ca.pem')
+        cls.future = tls_server(os.path.join(cls.tmp, 'future.pem'), os.path.join(cls.tmp, 'future.key'))
+        cls.stranger = tls_server(os.path.join(cls.tmp, 'stranger.pem'), os.path.join(cls.tmp, 'stranger.key'))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.future.shutdown()
+        cls.stranger.shutdown()
+        shutil.rmtree(cls.tmp)
+
+    def setUp(self):
+        self.saved = ytfetch.CA
+        ytfetch.CA = self.ca
+
+    def tearDown(self):
+        ytfetch.CA = self.saved
+
+    def hello(self, srv, host='localhost'):
+        """A TLS handshake with tls_ctx() to srv, naming host: None, or the verify error's code."""
+        with socket.create_connection(('127.0.0.1', srv.server_address[1]), timeout=5) as raw:
+            try:
+                with ytfetch.tls_ctx().wrap_socket(raw, server_hostname=host):
+                    return None
+            except ssl.SSLCertVerificationError as e:
+                return e.verify_code
+
+    def test_certificate_validation(self):
+        context = ytfetch.tls_ctx()
+        self.assertTrue(context.check_hostname)
+        self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertEqual(self.hello(self.future), 9)  # not yet valid
+        self.assertEqual(self.hello(self.stranger), 18)  # self-signed
+
+    def test_request_command(self):
+        url = f'https://localhost:{self.future.server_address[1]}/x'
+        q = json.dumps({'method': 'GET', 'url': url, 'headers': {'User-Agent': 'test'}, 'body': None, 'timeoutMs': 5000})
+
+        def run(*flags):
+            # in a child, as the daemon runs it (CA pointed at the test CA through a wrapper module)
+            code = ('import sys; sys.path.insert(0, %r); import ytfetch; ytfetch.CA = %r; sys.exit(ytfetch.main(sys.argv[1:]))'
+                    % (ROOT, self.ca))
+            r = subprocess.run([sys.executable, '-I', '-c', code, 'request', '--cache-dir', self.tmp,
+                                '--lease', os.path.join(self.tmp, 'none.json'), *flags],
+                               input=q, capture_output=True, text=True, timeout=30)
+            return json.loads(r.stdout)
+        self.assertTrue(run()['error'].startswith('Wrong head unit clock ('), 'no flag: the clock message')
+
+    def test_ytdlp_contexts(self):
+        src = PYZ if os.path.isfile(PYZ) else os.environ.get('YTDLP_SRC')
+        if not src:
+            self.skipTest('no build/ytdlp.pyz and no YTDLP_SRC')
+        url = f'https://localhost:{self.future.server_address[1]}/x'
+        code = '\n'.join([
+            'import sys; sys.path.insert(0, %r); import ytfetch' % ROOT,
+            'ytfetch.CA = %r' % self.ca,
+            'yt = ytfetch.load_ytdlp(%r, %r)' % (src, self.tmp),
+            'try:',
+            '    print(yt.YoutubeDL({"quiet": True, "no_warnings": True}).urlopen(%r).read().decode())' % url,
+            'except Exception as e:',
+            '    print("error", e)'])
+        # -S: yt-dlp alone, as in the pyz (no site-packages beside it)
+        out = subprocess.run([sys.executable, '-I', '-S', '-c', code], capture_output=True, text=True,
+                                          timeout=60, cwd='/').stdout.strip()
+        self.assertIn('certificate is not yet valid', out)
+
+
 class NoCaptions(unittest.TestCase):
     def test_initial_extract_loses_captions(self):
         import types
@@ -353,6 +596,53 @@ class NoCaptions(unittest.TestCase):
         r = IE()._initial_extract('u')
         self.assertEqual(r[4], [{'streamingData': {}}, {'videoDetails': {}}])
         ytfetch.no_captions(types.SimpleNamespace(extractor=types.SimpleNamespace()))  # layout changed: no-op
+
+
+def vfmt(fid, proto, h):
+    return {'format_id': fid, 'url': 'https://example.invalid/' + fid, 'protocol': proto, 'vcodec': 'avc1.4d401f',
+            'acodec': 'none', 'height': h, 'fps': 30, 'ext': 'mp4'}
+
+
+class Playable(unittest.TestCase):
+    def test_live_and_hls_only_get_a_plain_reason(self):
+        https, hls = vfmt('v', 'https', 720), vfmt('h', 'm3u8_native', 720)
+        self.assertIsNone(ytfetch.unplayable({'formats': [https, hls]}))
+        for live in ('is_live', 'is_upcoming', 'post_live'):
+            self.assertEqual(ytfetch.unplayable({'live_status': live, 'formats': [https]}),
+                             "Live videos can't be played yet")
+        self.assertIn("can't play", ytfetch.unplayable({'formats': [hls]}))
+        self.assertEqual(ytfetch.unplayable({'formats': [dict(https, vcodec='vp09')]}), 'no avc1 video')
+
+    @unittest.skipUnless(os.path.isfile(PYZ), 'no build/ytdlp.pyz')
+    def test_video_pick_is_never_hls(self):
+        import types
+        # as on the car (load_ytdlp): a stub certifi, so a broken one on this computer can't break the import
+        sys.modules.setdefault('certifi', types.SimpleNamespace(where=lambda: os.devnull, contents=lambda: ''))
+        sys.path.insert(0, PYZ)
+        import yt_dlp
+        ydl = yt_dlp.YoutubeDL({'format': ytfetch.video_fmt(720), 'quiet': True, 'no_warnings': True})
+        info = {'id': 'x', 'title': 't', 'extractor': 'test', 'extractor_key': 'Test',
+                'webpage_url': 'https://example.invalid/x',
+                'formats': [vfmt('h720', 'm3u8_native', 720), vfmt('v480', 'https', 480)]}
+        r = ydl.process_ie_result(info, download=False)
+        self.assertEqual(r['format_id'], 'v480', 'an https 480p over an HLS 720p')
+
+
+class InfoDir(unittest.TestCase):
+    def test_made_and_pruned_by_the_fetcher(self):
+        tmp = tempfile.mkdtemp(dir=TMP)
+        try:
+            d = os.path.join(tmp, 'ytdlp', 'info')
+            ytfetch.info_dir(os.path.join(d, 'a.json'))
+            self.assertEqual(os.stat(d).st_mode & 0o777, 0o700)
+            old, new = os.path.join(d, 'old.json'), os.path.join(d, 'new.json')
+            for f in (old, new):
+                open(f, 'w').close()
+            os.utime(old, (0, 0))
+            ytfetch.info_dir(os.path.join(d, 'b.json'))
+            self.assertEqual(sorted(os.listdir(d)), ['new.json'])
+        finally:
+            shutil.rmtree(tmp)
 
 
 def online():
@@ -407,6 +697,56 @@ class Online(unittest.TestCase, Pipeline):
             self.assertEqual(packets(remux, 'a:0'), packets(os.path.join(out, 'audio.m4a'), 'a:0'))
         finally:
             shutil.rmtree(tmp)
+
+
+# ---- WP4 health ----
+class CheckJson(unittest.TestCase):
+    """check --json (the daemon's health probes): one JSON line per probe, then done; offline here, on purpose."""
+
+    def test_shape_offline(self):
+        tmp = tempfile.mkdtemp(dir=TMP)
+        try:
+            pyz = os.path.join(tmp, 'pyz')  # a stand-in yt-dlp: loads, has a version
+            os.makedirs(os.path.join(pyz, 'yt_dlp'))
+            with open(os.path.join(pyz, 'yt_dlp', '__init__.py'), 'w') as f:
+                f.write('extractor = None\n')
+            with open(os.path.join(pyz, 'yt_dlp', 'version.py'), 'w') as f:
+                f.write("__version__ = '2099.01.02'\n")
+            lease = os.path.join(tmp, 'lease.json')
+            with open(lease, 'w') as f:
+                json.dump({'dns': ['127.0.0.1']}, f)  # loopback: no network gear can answer for it (some redirect any outside :53)
+            p = subprocess.run([sys.executable, '-I', os.path.join(ROOT, 'ytfetch.py'), 'check', '--json', '--cache-dir', tmp,
+                                '--lease', lease, '--pyz', pyz], capture_output=True, text=True, timeout=30, env={}, cwd='/')
+            evs = [json.loads(x) for x in p.stdout.splitlines()]
+            self.assertEqual([e['ev'] for e in evs], ['check'] * 3 + ['done'], p.stderr)
+            self.assertEqual([e['name'] for e in evs[:3]], ['ytdlp', 'dns', 'tls'])
+            for e in evs[:3]:
+                self.assertEqual(sorted(e), sorted(['ev', 'name', 'ok', 's', 'info'] + {'ytdlp': ['version'], 'dns': ['servers']}.get(e['name'], [])))
+                self.assertIsInstance(e['ok'], bool)
+                self.assertIsInstance(e['info'], str)
+            y, d, t = evs[:3]
+            self.assertEqual((y['ok'], y['version']), (True, '2099.01.02'))
+            self.assertEqual(sorted(os.listdir(tmp)), ['lease.json', 'pyz'], 'no file written')
+            self.assertNotIn('127.0.0.1', p.stdout, 'no address in a line')
+            if d['ok']:
+                self.skipTest('a DNS server answers on 127.0.0.1 here')
+            self.assertEqual(p.returncode, 1)
+            self.assertEqual((d['ok'], d['servers'], d['info']), (False, 1, 'name not resolved'))
+            self.assertEqual((t['ok'], t['info']), (False, 'skipped: no DNS'))
+            self.assertEqual(evs[3], {'ev': 'done', 'ok': False})
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_why_has_no_address(self):
+        e = socket.gaierror(socket.EAI_NONAME, 'www.youtube.com: lease DNS: 192.168.1.1: timed out')
+        self.assertEqual(ytfetch._why(e), 'name not resolved')
+        self.assertEqual(ytfetch._why(socket.timeout('timed out')), 'timed out')
+        self.assertEqual(ytfetch._why(ConnectionRefusedError(61, 'Connection refused')), 'connection refused')
+        import errno
+        import urllib.error
+        self.assertEqual(ytfetch._why(urllib.error.URLError(OSError(errno.EHOSTUNREACH, 'No route to host'))), 'no route to host')
+        self.assertEqual(ytfetch._why(urllib.error.URLError(OSError(5, 'odd 10.0.0.1'))), 'failed')
+        self.assertEqual(ytfetch._why(ValueError('10.0.0.1')), 'failed')
 
 
 if __name__ == '__main__':

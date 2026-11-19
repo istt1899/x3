@@ -223,7 +223,44 @@ function adapter(id, gates) {
     let invalid = null;
     try { await yt.preparePlayback('-123_456'); } catch (error) { invalid = error; }
     assert.ok(invalid && /YouTube/.test(invalid.message));
-    await yt.close();
+    const next = require('../core/native/jap-ridetube-d/test/next_tvhtml5.json');
+    const account = yt.daemon.account, queries = [];
+    account.token = async () => 'fixture-token';
+    account.json = async (method, url, body) => {
+        queries.push(body);
+        return { status: 200, j: url.endsWith('/next') ? next : {} };
+    };
+    const rideTube = new Gateway({ providers: [yt], player: new FakePlayer(), sockets });
+    await rideTube.start();
+    const ru = await client(sockets.youtube), en = await client(sockets.youtube);
+    ru.send({ cmd: 'hello', app: '0.4.1', lang: 'ru', region: 'RU' });
+    en.send({ cmd: 'hello', app: '0.4.1', lang: 'en', region: 'GB' });
+    await until(() => ru.messages.some((m) => m.ev === 'hello') && en.messages.some((m) => m.ev === 'hello'), 'RideTube handshake');
+    const caps = ru.messages.find((m) => m.ev === 'hello').caps;
+    assert.deepStrictEqual(caps, ['related', 'hist', 'health', 'playlists']);
+    ru.send({ cmd: 'related', id: 'aqz-KE-bpKQ' });
+    await until(() => ru.messages.some((m) => m.ev === 'related'), 'Watch next');
+    assert.ok(ru.messages.find((m) => m.ev === 'related').items.length > 0);
+    assert.ok(!en.messages.some((m) => m.ev === 'related'), 'related replies only reach their requester');
+    en.send({ cmd: 'related', id: 'aqz-KE-bpKQ' });
+    await until(() => en.messages.some((m) => m.ev === 'related'), 'Watch next in another locale');
+    assert.deepStrictEqual(queries.map((q) => [q.context.client.hl, q.context.client.gl]), [['ru', 'RU'], ['en', 'GB']]);
+    ru.send({ cmd: 'feed', which: 'hist' });
+    ru.send({ cmd: 'feed', which: 'liked' });
+    ru.send({ cmd: 'playlists' });
+    ru.send({ cmd: 'playlist', id: 'LL' });
+    await until(() => ['feed', 'playlists', 'playlist'].every((kind) => ru.messages.some((m) => m.ev === kind)), 'account browsing');
+    assert.ok(queries.some((q) => q.browseId === 'FEhistory' && q.context.client.hl === 'ru'));
+    assert.ok(!en.messages.some((m) => m.ev === 'feed'), 'account feeds only reach their requester');
+    assert.ok(queries.some((q) => q.browseId === 'VLLL'));
+    assert.ok(queries.some((q) => q.browseId === 'FEplaylist_aggregation'));
+    assert.ok(!en.messages.some((m) => m.ev === 'playlist' || m.ev === 'playlists'), 'playlist replies only reach their requester');
+    ru.send({ cmd: 'health' });
+    await until(() => ru.messages.some((m) => m.ev === 'health' && m.done), 'Health page completes');
+    assert.ok(ru.messages.some((m) => m.ev === 'health' && m.key === 'socket'));
+    assert.ok(!en.messages.some((m) => m.ev === 'health'), 'diagnostics only reach their requester');
+    await rideTube.close();
+
 
     // Use the real core for refresh failure and a quality/provider-switch race.
     // The core clears child on quit, before the operating system reports exit.
