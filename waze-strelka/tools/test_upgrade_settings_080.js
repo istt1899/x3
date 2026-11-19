@@ -9,14 +9,18 @@ var legacy={enabled:true,outputs:{cluster:false,hud:true},hudOpacityPct:45,
  overspeedPreferences:{visualFlash:false,visualOffsetKmh:7,soundEnabled:true,soundOffsetKmh:23}};
 function copy(value){return JSON.parse(JSON.stringify(value));}
 function delay(ms){return new Promise(function(resolve){setTimeout(resolve,ms);});}
-async function until(fn){for(var i=0;i<400;i++){if(fn())return;await delay(10);}throw Error('Upgrade fixture timed out');}
+async function until(fn,attempts,description){
+ for(var i=0;i<(attempts||400);i++){if(fn())return;await delay(10);}
+ throw Error(description||'Upgrade fixture timed out');
+}
 function known(state){return{enabled:state.enabled,outputs:state.outputs,hudOpacityPct:state.hudOpacityPct,cardLayout:state.cardLayout,alertPreferences:state.alertPreferences,overspeedPreferences:state.overspeedPreferences};}
 async function start(){
  var socket=process.platform==='win32'?'\\\\.\\pipe\\strelka-upgrade-'+process.pid+'-'+(++seq):path.join(root,'ctl-'+(++seq)+'.sock');
  var child=cp.spawn(process.execPath,[path.join(__dirname,'fixtures/upgrade-service.cjs'),root,socket],{windowsHide:true,stdio:['pipe','pipe','pipe']}),output='',errors='',states=[],buffer='';
  child.stdout.on('data',function(b){output+=b;});child.stderr.on('data',function(b){errors+=b;});
  var run={child:child,output:function(){return output;},state:function(){return states[states.length-1];}};runs.push(run);
- await until(function(){if(child.exitCode!==null)throw Error(errors||'Service exited early');return output.indexOf('READY\n')>=0;});
+ // The real child builds the bundled database before READY, with the production probe's 8 s budget.
+ await until(function(){if(child.exitCode!==null)throw Error(errors||'Service exited early');return output.indexOf('READY\n')>=0;},800,'Upgrade service startup timed out');
  var client=net.connect(socket);run.client=client;client.setEncoding('utf8');client.on('error',function(){});
  client.on('data',function(b){buffer+=b;var nl;while((nl=buffer.indexOf('\n'))>=0){var msg=JSON.parse(buffer.slice(0,nl));buffer=buffer.slice(nl+1);if(msg.state)states.push(msg.state);}});
  await until(function(){return states.length>0;});

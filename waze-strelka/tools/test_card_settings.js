@@ -11,7 +11,10 @@ function directory(name) { var dir = path.join(root, name); fs.mkdirSync(dir); r
 function socket(dir) { return process.platform === 'win32' ? '\\\\.\\pipe\\strelka-card-' + process.pid + '-' + (++sequence) : path.join(dir, 'ctl.sock'); }
 function immediate() { return new Promise(function (resolve) { setImmediate(resolve); }); }
 function sleep(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
-async function until(fn) { for (var i = 0; i < 300; i++) { if (fn()) return; await sleep(10); } throw Error('Timed out waiting for card settings'); }
+async function until(fn, attempts, description) {
+  for (var i = 0; i < (attempts || 300); i++) { if (fn()) return; await sleep(10); }
+  throw Error('Timed out waiting for ' + (description || 'card settings'));
+}
 function fakeGps(clock) {
   var gps = new EventEmitter(); gps.start = gps.close = function () {};
   gps.fix = { lat: 54.4932, lon: 36.2282, speedKmh: 0, headingDeg: 90, accuracyM: 19.4, timeMs: clock(), motionTimeMs: clock(), source: 'bmw-nmea' };
@@ -58,7 +61,8 @@ async function processStart(dir) {
     "var a=s.start({dataDir:process.argv[2],socket:process.argv[3],gps:g,guidance:{evaluate:function(){return null;}},display:{update:function(){},status:function(){return 'ready';},diagnostics:function(){return {connection:'ready',map:{state:'shown',target:'shown',rendering:'verified'},hud:{state:'shown',target:'shown',rendering:'verified'}};},close:function(){}},dimmer:{update:function(){},status:function(){return 'off';},close:function(){}},onListening:function(){process.stdout.write('READY\\n');},onError:function(e){process.stderr.write(e.message);process.exit(1);}});process.stdin.on('data',function(){a.close();process.exit(0);});";
   var child = cp.spawn(process.execPath, ['-e', code, path.join(base, 'marku-kaluga-cameras.js'), dir, control], { windowsHide: true, stdio: ['pipe','pipe','pipe'] }); children.push(child);
   child.stdout.on('data', function (bytes) { if (String(bytes).indexOf('READY') >= 0) ready = true; }); child.stderr.on('data', function (bytes) { stderr += bytes; });
-  await until(function () { if (child.exitCode !== null) throw Error('Service process failed: ' + stderr); return ready; });
+  // Initializing the bundled database before READY has the production probe's 8 s budget.
+  await until(function () { if (child.exitCode !== null) throw Error('Service process failed: ' + stderr); return ready; }, 800, 'card-settings service startup');
   var client = connect(control); await until(function () { return client.replies.length > 0; });
   return { client: client, close: async function () { client.sock.destroy(); child.stdin.write('stop\n'); await until(function () { return child.exitCode !== null; }); assert.strictEqual(child.exitCode, 0, stderr); } };
 }
