@@ -59,4 +59,25 @@ const healthy = createGpsClock({wallNow:() => utc, monotonicNow:() => 0,
   createNetworkUtc:() => { throw new Error('healthy wall must remain offline'); }});
 assert.strictEqual(healthy.now(), utc);
 healthy.close();
+
+let midnightElapsed = 0;
+const midnight = Date.parse('2026-11-21T00:00:00.000Z');
+const oldMidnight = Date.parse('1983-11-21T00:00:00.000Z');
+const midnightClock = createGpsClock({
+  wallNow:() => broken + midnightElapsed,
+  monotonicNow:() => midnightElapsed,
+  readRtc:() => null,
+  createNetworkUtc:() => ({now:() => midnight + midnightElapsed - 5000, close() {}})
+});
+midnightClock.snapshot();
+midnightElapsed = 3850;
+midnightClock.observeRmc(oldMidnight - 1150);
+midnightElapsed = 4850;
+midnightClock.observeRmc(oldMidnight - 150);
+midnightElapsed = 5000;
+assert.strictEqual(midnightClock.snapshot().referenceSource, 'network');
+assert.strictEqual(midnightClock.bmwRmcUtc(oldMidnight - 150, midnight), midnight - 150);
+assert.strictEqual(midnightClock.bmwRmcUtc(oldMidnight, midnight), midnight);
+assert.strictEqual(midnightClock.bmwRmcUtc(oldMidnight - 86400000, midnight), oldMidnight - 86400000);
+midnightClock.close();
 console.log('PASS automatic clock selection, read-only RTC interfaces, frozen/mismatched RMC, unavailable network, resume and recovery to healthy system');

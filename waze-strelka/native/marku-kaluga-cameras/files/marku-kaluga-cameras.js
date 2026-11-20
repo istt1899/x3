@@ -15,7 +15,7 @@ function clockSnapshot(now, input) {
   function num(key) { return Number.isFinite(c[key]) ? c[key] : null; }
   function str(key) { return typeof c[key] === 'string' ? c[key].slice(0, 300) : null; }
   return { serviceWallMs: wall, serviceWallUtc: wall !== null && isFinite(new Date(wall).getTime()) ? new Date(wall).toISOString() : null,
-    sourceUtcMs: num('sourceUtcMs'), sourceUtc: str('sourceUtc'), sourceDeltaMs: num('sourceDeltaMs'),
+    sourceUtcMs: num('sourceUtcMs'), sourceUtc: str('sourceUtc'), rawSourceUtc: str('rawSourceUtc'), sourceDeltaMs: num('sourceDeltaMs'),
     lastPacketAgeMs: num('lastPacketAgeMs'), packetReceiptDeltaMs: num('packetReceiptDeltaMs'),
     receiptClockDiscontinuity: typeof c.receiptClockDiscontinuity === 'boolean' ? c.receiptClockDiscontinuity : null,
     admissionAfterUtcMs: num('admissionAfterUtcMs'), admissionAfterUtc: str('admissionAfterUtc'),
@@ -97,7 +97,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.9.3', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.9.4', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,

@@ -4,9 +4,22 @@ const fs = require('fs');
 const { createNetworkUtc } = require('./network-utc');
 const MIN_UTC = Date.UTC(2020, 0, 1);
 const MAX_UTC = Date.UTC(2100, 0, 1);
+const DAY_MS = 86400000;
 
 function plausible(utc) {
   return Number.isSafeInteger(utc) && utc >= MIN_UTC && utc < MAX_UTC;
+}
+
+// Some BMW RMC streams carry an obsolete year. Keep their UTC time of day
+// and require the same month and day on the independent clock, including
+// packets received just across midnight.
+function alignBmwRmc(utc, reference) {
+  if (!Number.isSafeInteger(utc) || utc >= MIN_UTC || !plausible(reference)) return utc;
+  const timeOfDay = utc % DAY_MS;
+  const candidate = Math.round((reference - timeOfDay) / DAY_MS) * DAY_MS + timeOfDay;
+  const reported = new Date(utc), aligned = new Date(candidate);
+  return reported.getUTCMonth() === aligned.getUTCMonth() &&
+    reported.getUTCDate() === aligned.getUTCDate() ? candidate : utc;
 }
 
 // Both kernel interfaces expose the hardware clock. Read date and time in one
@@ -63,7 +76,10 @@ function createGpsClock(options) {
     previous = { value, m };
   }
   function agrees(utc, m) {
-    return advancing && m - lastRmc.m <= 1500 && Math.abs(utc - (lastRmc.utc + m - lastRmc.m)) <= 1250;
+    if (!advancing) return false;
+    const age = m - lastRmc.m;
+    const referenceAtReceipt = utc - age;
+    return age <= 1500 && Math.abs(referenceAtReceipt - alignBmwRmc(lastRmc.utc, referenceAtReceipt)) <= 1250;
   }
   function snapshot() {
     const m = mono(), wallMs = wall();
@@ -98,7 +114,7 @@ function createGpsClock(options) {
       referenceUtcMs:utc, referenceEpoch:epoch, systemWallMs:wallMs };
   }
   function observeRmc(utc) {
-    if (closed || wall() < MAX_UTC || !plausible(utc)) return;
+    if (closed || wall() < MAX_UTC || !Number.isSafeInteger(utc)) return;
     const m = mono();
     if (lastRmc && utc === lastRmc.utc) return;
     const step = lastRmc && utc - lastRmc.utc, elapsed = lastRmc && m - lastRmc.m;
@@ -106,6 +122,9 @@ function createGpsClock(options) {
     lastRmc = { utc, m };
   }
   return { now:() => snapshot().referenceUtcMs, observeRmc, snapshot,
+    bmwRmcUtc(utc, reference) {
+      return wall() >= MAX_UTC && (source === 'rtc' || source === 'network') ? alignBmwRmc(utc, reference) : utc;
+    },
     close() { closed = true; reset(); } };
 }
 module.exports = { createGpsClock, readRtc };

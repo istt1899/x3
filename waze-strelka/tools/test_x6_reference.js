@@ -9,8 +9,14 @@ const service = require('../native/marku-kaluga-cameras/files/marku-kaluga-camer
 const { GpsProvider } = require('../native/marku-kaluga-cameras/files/gps-source');
 
 const wrongWall = Date.parse('2179-06-05T21:03:27.000Z');
-const actualUtc = Date.parse('2026-11-19T12:00:44.000Z');
+const actualUtc = Date.parse('2026-11-20T07:08:23.000Z');
 const second = 1000;
+
+function oldYear(utc) {
+    const date = new Date(utc);
+    date.setUTCFullYear(1983);
+    return date.getTime();
+}
 
 function sentence(body) {
     let checksum = 0;
@@ -207,7 +213,44 @@ async function main() {
         assert.strictEqual(shown(), null);
         rejectPreview(state, command, 'STATIONARY_UNKNOWN');
     });
-    console.log('PASS X6 clock mismatch, reset cutoff, RTC/RMC progression, automatic network reference and HUD safety gates');
+    for (const {source, rtcOffset} of [{source:'rtc', rtcOffset:0}, {source:'network', rtcOffset:null}]) {
+        await run('calendar-' + source, rtcOffset, ({state, command, tick, feed, utc, setNetwork, shown}) => {
+            command('outputs', {cluster:false, hud:true});
+            setNetwork(true);
+            const yesterday = 86400 * second;
+            feed(oldYear(utc() - yesterday));
+            for (let i = 0; i < 6; i++) {
+                tick(second, 100);
+                feed(oldYear(utc() - yesterday));
+            }
+            assert.strictEqual(state().clock.referenceState, 'waiting', 'Matching time on the wrong day cannot establish the reference');
+            rejectPreview(state, command, 'STATIONARY_UNKNOWN');
+            for (let i = 0; i < 4; i++) {
+                tick(second, 100);
+                feed(oldYear(utc()));
+            }
+            assert.strictEqual(state().clock.referenceSource, source);
+            assert.strictEqual(state().clock.rawSourceUtc, new Date(oldYear(utc())).toISOString());
+            assert.strictEqual(state().clock.sourceUtcMs, utc());
+            assert.strictEqual(state().clock.issue, 'NONE');
+            assert.strictEqual(state().gpsFix.speedKmh, 0);
+            command('display-test', {target:'hud'});
+            assert.strictEqual(shown().test, true);
+            tick(second, 100);
+            feed(oldYear(utc()), 20);
+            assert.strictEqual(state().displayTest.stoppedReason, 'MOVING');
+            assert.strictEqual(shown(), null);
+            tick(second, 100);
+            const stopped = utc();
+            feed(oldYear(stopped));
+            command('display-test', {target:'hud'});
+            tick(3001, 100);
+            feed(oldYear(stopped));
+            assert.strictEqual(shown(), null);
+            rejectPreview(state, command, 'STATIONARY_UNKNOWN');
+        });
+    }
+    console.log('PASS X6 clock mismatch, reset cutoff, RTC/RMC progression, BMW calendar correction and HUD safety gates');
 }
 
 main().catch(error => { console.error(error.stack); process.exitCode = 1; });

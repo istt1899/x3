@@ -101,7 +101,8 @@ function clockRows(state) {
     return ['Отказ/статус: '+clean(action(s,'displayTest').code)+' • часы '+clean(clock.issue),
         'Часы приложения: '+knownUtc(app.wallUtc,app.wallMs),
         'Часы сервиса: '+knownUtc(clock.serviceWallUtc,clock.serviceWallMs),
-        'Полный RMC UTC BMW: '+knownUtc(clock.sourceUtc,clock.sourceUtcMs),
+        'Полный RMC UTC BMW: '+knownUtc(clock.sourceUtc,clock.sourceUtcMs)+
+            (clock.rawSourceUtc?' • исходный UTC '+clock.rawSourceUtc:''),
         'Δ сервис − RMC: '+ms(clock.sourceDeltaMs),
         'Ручной cutoff UTC: '+knownUtc(clock.admissionAfterUtc,clock.admissionAfterUtcMs),
         'Пакет: возраст '+(Number.isFinite(clock.lastPacketAgeMs)?clock.lastPacketAgeMs+' мс':'неизвестно')+

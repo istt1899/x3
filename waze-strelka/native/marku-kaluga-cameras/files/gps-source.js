@@ -115,14 +115,15 @@ GpsDecoder.prototype.line = function (line) {
   if (this.gga && !fresh(this.gga.received, now)) this.gga = null;
   if (this.gst && !fresh(this.gst.received, now)) this.gst = null;
   if (kind === 'RMC') {
-    var time = utc(p[9], p[1]);
+    var reportedTime = utc(p[9], p[1]);
+    var time = this.resolveRmcUtc ? this.resolveRmcUtc(reportedTime, now) : reportedTime;
     var lat = coordinate(p[3], p[4], false), lon = coordinate(p[5], p[6], true);
     var validCoordinates = number(lat) && number(lon);
-    if (number(time)) this.lastParsedUtc = time;
-    // A plausible BMW date can suggest a time to check on an independent
+    if (number(reportedTime)) this.lastParsedUtc = reportedTime;
+    // BMW supplies a time to check against an independent
     // clock even when an earlier manual reset set the boundary to year 2179.
     if (this.observeRmc && number(time) && validCoordinates && p[2] === 'A' &&
-        (!p[12] || ['A','D','P','R','F'].indexOf(p[12]) >= 0)) this.observeRmc(time);
+        (!p[12] || ['A','D','P','R','F'].indexOf(p[12]) >= 0)) this.observeRmc(reportedTime, time);
     if (this.admissionAfterUtc !== null && number(time) && time <= this.admissionAfterUtc) {
       this.rmc = null; this.timing.pairReason = 'MANUAL_RESET_WAITING_SOURCE'; this.invalidate(source,'source UTC precedes manual reset boundary'); return parsed;
     }
@@ -223,8 +224,9 @@ function GpsProvider(options) {
   this.lastAdvancingRmc = null;
   this.lastAdvanceAt = null;
   this.clockPriming = false;
-  this.bmwDecoder.observeRmc = function(utc) {
-    provider.referenceClock.observeRmc(utc);
+  this.bmwDecoder.resolveRmcUtc = this.referenceClock.bmwRmcUtc;
+  this.bmwDecoder.observeRmc = function(reportedUtc, utc) {
+    provider.referenceClock.observeRmc(reportedUtc);
     var now = provider.now();
     var boundary = provider.bmwDecoder.admissionAfterUtc;
     if (provider.clockPriming && (!fresh(utc,now) || utc <= boundary)) return;
@@ -339,7 +341,8 @@ GpsProvider.prototype.diagnostics = function (now) {
   now = number(now) ? now : this.now();
   function age(time) { return number(time) && now >= time ? now - time : null; }
   function iso(time) { return number(time) && isFinite(new Date(time).getTime()) ? new Date(time).toISOString() : null; }
-  var sourceUtc = this.bmwDecoder.lastParsedUtc, cutoff = this.bmwDecoder.admissionAfterUtc;
+  var rawSourceUtc = this.bmwDecoder.lastParsedUtc, cutoff = this.bmwDecoder.admissionAfterUtc;
+  var sourceUtc = this.referenceClock.bmwRmcUtc(rawSourceUtc, now);
   var receiptDelta = number(this.input.lastPacketAt) ? now - this.input.lastPacketAt : null;
   var delta = number(sourceUtc) ? now - sourceUtc : null;
   var issue = 'NONE', reason = 'Расхождение часов не установлено';
@@ -355,14 +358,15 @@ GpsProvider.prototype.diagnostics = function (now) {
   }
   return {
     clock: { serviceWallMs: now, serviceWallUtc: iso(now), sourceUtcMs: number(sourceUtc) ? sourceUtc : null,
-      sourceUtc: iso(sourceUtc), sourceDeltaMs: delta, lastPacketAgeMs: receiptDelta !== null && receiptDelta >= 0 ? receiptDelta : null,
+      sourceUtc: iso(sourceUtc), rawSourceUtc: sourceUtc === rawSourceUtc ? null : iso(rawSourceUtc),
+      sourceDeltaMs: delta, lastPacketAgeMs: receiptDelta !== null && receiptDelta >= 0 ? receiptDelta : null,
       packetReceiptDeltaMs: receiptDelta, receiptClockDiscontinuity: receiptDelta === null ? null : receiptDelta < 0,
       admissionAfterUtcMs: number(cutoff) ? cutoff : null, admissionAfterUtc: iso(cutoff), issue: issue, reason: reason },
     gpsBridge: { state: this.bridge.state, errorCode: this.bridge.errorCode, ageMs: age(this.bridge.changedAt), reason: this.bridge.reason || null },
     gpsInput: { source: 'bmw-nmea', packets: this.input.packets, badPackets: this.input.badPackets, checksumErrors: this.input.checksumErrors,
       rmcAdvanceAgeMs: age(this.lastAdvanceAt),
       sentences: Object.assign({}, this.input.sentences), lastPacketAgeMs: age(this.input.lastPacketAt), fixUtcAgeMs: age(this.input.fixUtc),
-      sourceUtcAgeMs: this.bmwDecoder.lastParsedUtc === null ? null : now - this.bmwDecoder.lastParsedUtc,
+      sourceUtcAgeMs: delta,
       rejectReason: this.bmwDecoder.lastRejectReason, nmeaTiming: this.bmwDecoder.timingSnapshot(now) },
     gpsNavigation: this.navigationSnapshot(now)
   };
