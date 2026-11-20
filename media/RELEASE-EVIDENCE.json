@@ -47,7 +47,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "23cb2e275221282ca50d8184da9f05b09877e24ae3e93d45308c2727dbcd798d"
+      "sha256": "4cac59e987bf4177bcfb1a4f28ac0ec16af2220f07a32f0d8a75a34516c310f2"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -55,12 +55,12 @@
   },
   "catalog_update": {
     "date": "2026-11-20",
-    "reason": "Waze Strelka 0.9.4 checks advancing BMW RMC with an obsolete year against independent UTC when the MGU system date is invalid.",
-    "previous_sha256": "eee085fb11d2ac5a540919210efdad72003955909021cad4cf0b9e90f383edbf",
-    "package_commit": "8c232ea5bdaaeaa42cdc53dd5c5f1197a65c44ca",
+    "reason": "Waze Strelka 0.9.5 checks mixed-year BMW RMC against independent UTC and rejects interleaved replays.",
+    "previous_sha256": "23cb2e275221282ca50d8184da9f05b09877e24ae3e93d45308c2727dbcd798d",
+    "package_commit": "b66766eb5cc15f782a0521ee18c8ee069dce6b07",
     "updated_components": {
-      "marku-kaluga-cameras": "0.9.4",
-      "marku_kaluga_cameras": "0.9.4"
+      "marku-kaluga-cameras": "0.9.5",
+      "marku_kaluga_cameras": "0.9.5"
     },
     "hardware_scope": "ID7 package. Physical HUD output on the reported X6 remains to be verified."
   }
