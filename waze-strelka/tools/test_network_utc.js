@@ -16,9 +16,9 @@ function writeTime(packet, offset, utc) {
     packet.writeUInt32BE(Math.floor((time % 1) * 0x100000000), offset + 4);
 }
 
-function fixture(sourceUtc = actualUtc, initialWall = wrongWall) {
-    const timers = new Map(), sockets = [], queries = [];
-    let mono = 0, wall = initialWall;
+function fixture(sourceUtc = actualUtc, initialWall = wrongWall, systemDnsFails = false) {
+    const timers = new Map(), sockets = [], queries = [], uplinkQueries = [];
+    let mono = 0, wall = initialWall, lease = null;
     const clock = createNetworkUtc({
         wallNow: () => wall,
         monotonicNow: () => mono,
@@ -26,7 +26,24 @@ function fixture(sourceUtc = actualUtc, initialWall = wrongWall) {
             assert.strictEqual(family, 4);
             assert(Object.prototype.hasOwnProperty.call(addresses, host));
             queries.push(host);
+            if (systemDnsFails) { callback(new Error('ENOTFOUND')); return; }
             callback(null, addresses[host]);
+        },
+        readFile(path, encoding) {
+            assert.strictEqual(path, '/run/mgu-uplink/lease.json');
+            assert.strictEqual(encoding, 'utf8');
+            if (lease === null) throw new Error('ENOENT');
+            return lease;
+        },
+        createResolver() {
+            let servers;
+            return {
+                setServers(values) { servers = values; },
+                resolve4(host, callback) {
+                    uplinkQueries.push({host, servers});
+                    callback(null, [addresses[host]]);
+                }
+            };
         },
         createSocket(type) {
             assert.strictEqual(type, 'udp4');
@@ -90,7 +107,8 @@ function fixture(sourceUtc = actualUtc, initialWall = wrongWall) {
             {address: opts.address || socket.address, port: opts.port || 123});
     }
 
-    return {clock, timers, sockets, queries, advance, advanceWhileRunning, reply,
+    return {clock, timers, sockets, queries, uplinkQueries, advance, advanceWhileRunning, reply,
+        setLease: value => { lease = value; },
         nowUtc: () => sourceUtc + mono, setWall: value => { wall = value; }};
 }
 
@@ -120,6 +138,29 @@ for (const outcome of ['TIMEOUT', 'ONE_REPLY', 'BAD_REPLY', 'UDP']) {
     f.advance(2000);
     assert.strictEqual(f.clock.now(), null);
     assert.strictEqual(f.clock.status(), outcome);
+}
+
+{
+    const f = fixture(actualUtc, wrongWall, true);
+    f.setLease('{"dns":');
+    assert.strictEqual(f.clock.now(), null);
+    assert.strictEqual(f.clock.status(), 'DNS');
+    assert.strictEqual(f.queries.length, 1);
+    f.advance(2000);
+    assert.strictEqual(f.clock.now(), null);
+    assert.strictEqual(f.queries.length, 1, 'An unchanged lease respects DNS backoff');
+    f.setLease(JSON.stringify({dns: ['192.168.43.1', 'invalid', '192.168.43.1']}));
+    f.advance(2000);
+    assert.strictEqual(f.clock.now(), null);
+    assert.strictEqual(f.clock.status(), 'PROBE', 'An uplink lease wakes the probe during system DNS backoff');
+    assert.deepStrictEqual(f.uplinkQueries, Object.keys(addresses).map(host => ({host, servers: ['192.168.43.1']})));
+    assert.strictEqual(f.queries.length, 1);
+    f.advance(50);
+    f.reply(f.sockets[0]);
+    assert.strictEqual(f.clock.now(), null);
+    f.reply(f.sockets[1]);
+    assert.strictEqual(f.clock.now(), f.nowUtc());
+    assert.strictEqual(f.clock.status(), 'OK');
 }
 
 {

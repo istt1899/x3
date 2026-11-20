@@ -3,9 +3,12 @@
 const crypto = require('crypto');
 const dgram = require('dgram');
 const dns = require('dns');
+const fs = require('fs');
 const net = require('net');
 
 const providers = ['time.google.com', 'time.cloudflare.com'];
+const uplinkLeasePath = '/run/mgu-uplink/lease.json';
+const leasePollMs = 2000;
 const ntpEpoch = Date.UTC(1900, 0, 1);
 const ntpEraSeconds = 0x100000000;
 const earliestUtc = Date.UTC(2020, 0, 1);
@@ -52,16 +55,31 @@ function publicAddress(address) {
         !(first === 198 && (second === 18 || second === 19));
 }
 
+function readUplinkDns(readFile) {
+    try {
+        const lease = JSON.parse(readFile(uplinkLeasePath, 'utf8'));
+        if (lease && Array.isArray(lease.dns)) {
+            return [...new Set(lease.dns.filter(address => typeof address === 'string' && net.isIP(address)))];
+        }
+    } catch (error) {
+        // The lease can be absent or briefly unreadable while the uplink reconnects.
+    }
+    return [];
+}
+
 function createNetworkUtc(options) {
     options = options || {};
     const wallNow = options.wallNow || Date.now;
     const monotonicNow = options.monotonicNow || (() => process.uptime() * 1000);
     const lookup = options.lookup || dns.lookup;
+    const readFile = options.readFile || fs.readFileSync;
+    const createResolver = options.createResolver || (() => new dns.Resolver());
     const createSocket = options.createSocket || dgram.createSocket;
     const setTimeoutFn = options.setTimeout || setTimeout;
     const clearTimeoutFn = options.clearTimeout || clearTimeout;
     let previous = null, baseline = null, anchor = null, active = null;
     let nextProbe = -Infinity, retry = retryAfterMs, closed = false;
+    let nextLeasePoll = -Infinity, leaseServers = [];
     let status = 'WAIT';
 
     function cancel() {
@@ -69,6 +87,7 @@ function createNetworkUtc(options) {
         const batch = active;
         active = null;
         clearTimeoutFn(batch.timer);
+        if (batch.resolver && typeof batch.resolver.cancel === 'function') batch.resolver.cancel();
         batch.sockets.forEach(socket => {
             try { socket.close(); } catch (error) {} // Pending bind/send can already have closed it.
         });
@@ -112,7 +131,7 @@ function createNetworkUtc(options) {
     }
 
     function probe(mono) {
-        const batch = {sockets: [], samples: [], invalidReply: false, timer: null};
+        const batch = {sockets: [], samples: [], invalidReply: false, timer: null, resolver: null};
         active = batch;
         status = 'PROBE';
         nextProbe = mono + retryAfterMs;
@@ -124,10 +143,21 @@ function createNetworkUtc(options) {
         const timeoutReason = () => batch.samples.length ? 'ONE_REPLY' : batch.invalidReply ? 'BAD_REPLY' : 'TIMEOUT';
         batch.timer = setTimeoutFn(() => fail(timeoutReason()), timeoutMs);
         if (batch.timer && typeof batch.timer.unref === 'function') batch.timer.unref();
+        if (leaseServers.length) {
+            try {
+                batch.resolver = createResolver();
+                batch.resolver.setServers(leaseServers);
+            } catch (error) { fail('DNS'); return; }
+        }
+        const resolve = batch.resolver ? (host, callback) => {
+            batch.resolver.resolve4(host, (error, addresses) => {
+                callback(error, Array.isArray(addresses) ? addresses.find(publicAddress) : undefined);
+            });
+        } : (host, callback) => lookup(host, 4, callback);
         providers.forEach(host => {
             if (active !== batch) return;
             try {
-                lookup(host, 4, (error, address) => {
+                resolve(host, (error, address) => {
                     if (active !== batch) return;
                     if (error || !publicAddress(address)) { fail('DNS'); return; }
                     const sentAt = read();
@@ -173,6 +203,16 @@ function createNetworkUtc(options) {
             const mono = read();
             if (mono === null) return null;
             if (anchor && mono - anchor.at >= expireAfterMs) { anchor = null; status = 'EXPIRED'; }
+            if ((!anchor || mono >= nextProbe) && mono >= nextLeasePoll) {
+                nextLeasePoll = mono + leasePollMs;
+                const servers = readUplinkDns(readFile);
+                const changed = servers.join(',') !== leaseServers.join(',');
+                leaseServers = servers;
+                if (!anchor && changed && servers.length && status !== 'CLOCK') {
+                    cancel();
+                    nextProbe = mono;
+                }
+            }
             if (!active && mono >= nextProbe) probe(mono);
             return anchor ? Math.round(anchor.utc + mono - anchor.at) : null;
         },
