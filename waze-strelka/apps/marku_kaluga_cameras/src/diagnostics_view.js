@@ -83,6 +83,51 @@ function capture(state, version, now) {
     return {schema:1,id:'S'+at.toString(36).toUpperCase()+'-'+(++snapshotSequence),capturedAtMs:at,
         appVersion:version,state:captured};
 }
+const PHOTO_NAMES = ['Versions', 'Clocks', 'Reference', 'Fix', 'Rmc', 'Test', 'Outputs']
+    .map(name => 'cameraPhoto' + name);
+function photoRows(report, serviceReady, target) {
+    const s = report.state, clock = s.clock || {}, app = s.appClock || {};
+    const input = s.gpsInput || {}, timing = input.nmeaTiming || {}, fix = s.gpsFix;
+    const outputs = s.outputs || {}, renderer = s.rendererDetails || {}, test = s.displayTest || {};
+    const shortUtc = (raw, ms) => {
+        const stamp = typeof raw === 'string' ? raw : utc(ms);
+        return /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/.test(stamp) ? stamp.slice(0, 19).replace('T', ' ') : '—';
+    };
+    const ms = value => !Number.isFinite(value) || value < 0 ? '—' : value > 99999 ? '>99999' : n(value, 0);
+    const code = value => typeof value === 'string' && /^[A-Z0-9_]{1,27}$/.test(value) ? value : '—';
+    const version = value => typeof value === 'string' && /^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(value) ? value : '—';
+    const positionSources = {'bmw-nmea':'BMW', 'bmw-navigation':'NAV', gpsd:'GPSD', nmea:'NMEA'};
+    const sourceLabels = {system:'MGU', rtc:'RTC', network:'NTP'};
+    const pendingSource = sourceLabels[clock.referenceCandidate];
+    const ref = cameraView.gpsClockWaiting(clock) ? (pendingSource ? pendingSource + '?' : 'ждёт') :
+        sourceLabels[clock.referenceSource] || '—';
+    const display = action(serviceReady ? s : null, 'displayTest');
+    const targetLabel = target === 'hud' ? 'HUD' : target === 'map' ? 'приборы' : '—';
+    const scene = {verified:'сцена OK', checking:'проверка', unobservable:'без подтв.', none:'нет сцены'};
+    const layerState = {visible:'показан', ожидание:'ожидание', отказ:'отказ', 'нет связи':'нет связи'};
+    const targetStatus = (enabled, key) => {
+        if (enabled !== true) return enabled === false ? 'выкл' : '—';
+        const layer = renderer[key] || {};
+        if (layer.state === 'отказ' || layer.disabled) return 'отказ';
+        return scene[layer.rendering] || layerState[layer.state] || 'вкл';
+    };
+    const selectedLayer = renderer[test.target || target] || {};
+    const result = test.stoppedReason ? code(test.stoppedReason) : test.active ? 'АКТИВЕН' :
+        selectedLayer.state === 'отказ' ? code(selectedLayer.targetReason || selectedLayer.reason) : '—';
+    const speed = s.gpsMotion ? s.gpsMotion.speedKmh : fix && fix.speedKmh;
+    const speedText = Number.isFinite(speed) && speed >= 0 && speed < 1000 ? n(speed, 1) : '—';
+    const packetAge = Number.isFinite(clock.lastPacketAgeMs) ? clock.lastPacketAgeMs : input.lastPacketAgeMs;
+    return [
+        'Прил. ' + version(report.appVersion) + ' • Сервис ' + version(s.serviceVersion) + ' • ' + (serviceReady ? 'связь OK' : 'нет связи'),
+        'UTC MGU ' + shortUtc(clock.serviceWallUtc || app.wallUtc, clock.serviceWallMs) +
+            ' • RMC ' + shortUtc(clock.rawSourceUtc || clock.sourceUtc, clock.sourceUtcMs),
+        'Опора ' + ref + ' • RTC ' + code(clock.rtcStatus) + ' • NTP ' + code(clock.networkStatus),
+        'GPS ' + (fix ? positionSources[fix.source] || 'есть' : 'нет') + ' • ' + code(clock.issue) + ' • пакет ' + ms(packetAge) + ' мс',
+        'RMC приём/рост ' + ms(timing.lastRmcAgeMs) + '/' + ms(input.rmcAdvanceAgeMs) + ' мс • ' + code(timing.pairReason),
+        speedText + ' км/ч • тест ' + targetLabel + ' • ' + (display.allowed && !target ? 'OUTPUTS_OFF' : code(display.code)),
+        'HUD ' + targetStatus(outputs.hud, 'hud') + ' • Приб. ' + targetStatus(outputs.cluster, 'map') + ' • итог ' + result
+    ];
+}
 function clockRows(state) {
     const s=state||{},clock=s.clock||{},app=s.appClock||{},fix=s.gpsFix||{},input=s.gpsInput||{};
     const waiting=cameraView.gpsClockWaiting(clock),reference=cameraView.gpsClockReference(clock);
@@ -310,4 +355,4 @@ function reportPage(report, live, version, pageIndex, blockIndex, localResult, c
     for(let i=0;i<PAGE_ROWS;i++) rows['row'+(i+1)]=lines[block*PAGE_ROWS+i]||' ';
     return {rows,page:p,block,blocks,title:PAGE_TITLES[p],report:snap,command:result};
 }
-module.exports = { KEYS, values, REASONS, PAGE_KEYS, PAGE_TITLES, PAGE_ROWS, capture, reportPage, action, commandText, commandPage, clockRows, commandLines:parts };
+module.exports = { KEYS, values, REASONS, PAGE_KEYS, PAGE_TITLES, PAGE_ROWS, PHOTO_NAMES, capture, photoRows, reportPage, action, commandText, commandPage, clockRows, commandLines:parts };

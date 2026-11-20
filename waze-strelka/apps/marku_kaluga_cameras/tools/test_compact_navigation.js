@@ -6,7 +6,8 @@ const baselineLayouts=require('../../../native/marku-kaluga-cameras/files/card-l
 const {CameraMoveRepeater}=require('../src/camera_move_repeater');
 const h=create(),{app,byName:c,commands,rhmi,stats,ui,xml}=h;
 const N={hub:'ST_OnlineApps_WazeStrelkaCameras',diag:'ST_OnlineApps_WazeStrelkaDiagnostics',alerts:'ST_OnlineApps_CameraAlerts',
-    types:'ST_OnlineApps_CameraTypes',cal:'ST_OnlineApps_CameraCalibration',pos:'ST_OnlineApps_CameraPosition',db:'ST_OnlineApps_CameraDatabase',over:'ST_OnlineApps_CameraOverspeed'};
+    types:'ST_OnlineApps_CameraTypes',cal:'ST_OnlineApps_CameraCalibration',pos:'ST_OnlineApps_CameraPosition',db:'ST_OnlineApps_CameraDatabase',over:'ST_OnlineApps_CameraOverspeed',
+    photo:'ST_OnlineApps_CameraDiagnosticPhoto'};
 const tick=()=>new Promise(resolve=>setImmediate(resolve)),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function matches(text,pattern){const result=[];let value;while((value=pattern.exec(text)))result.push(value);return result;}
 async function until(fn){for(let i=0;i<100;i++){if(fn())return;await sleep(5);}throw new Error('UI condition did not arrive');}
@@ -139,16 +140,38 @@ let count=0;function ok(text){console.log('ok '+(++count)+' - '+text);}
     assert.strictEqual(commands.length,11);commands.forEach(cmd=>assert.strictEqual(Object.keys(cmd.cameraTypes).length,1));
     ok('all-types is explicit; eleven native/raw duplicate deliveries produce eleven independent partial patches');
 
-    h.reset();h.setState(state());await h.enter(N.diag);
+    const nativeDiag=xml.split('<container id="4"')[1].split('</container>')[0];
+    assert.strictEqual(matches(nativeDiag.split('name="List"')[1],/<component id="(\d+)"/g)[0][1],'411');
+    const nativePhoto=xml.split('<container id="12"')[1].split('</container>')[0];
+    assert.strictEqual(matches(nativePhoto,/<component id="\d+" type="label" widget="LT_Label_1Row">/g).length,7);
+    assert.deepStrictEqual(Object.values(ui.containers['12'].components).filter(entry=>entry.type==='label').map(entry=>entry.name),diag.PHOTO_NAMES);
+    assert(diag.PHOTO_NAMES.every(name=>c[name].desc.properties.Focusable.value===0));
+    const failed=state({serviceVersion:'0.9.6',gpsFix:null,gpsMotion:{state:'unknown',speedKmh:null},
+        clock:{serviceWallUtc:'2179-06-05T02:15:56.874Z',sourceUtc:'1983-11-20T15:12:27.000Z',lastPacketAgeMs:1,
+            issue:'UTC_MISMATCH',referenceState:'waiting',rtcStatus:'NO_UTC',networkStatus:'TIMEOUT'},
+        gpsInput:{rmcAdvanceAgeMs:10073,nmeaTiming:{lastRmcAgeMs:75,pairReason:'INVALID_RMC'}}});
+    h.reset();h.setState(failed);await h.enter(N.diag);
     for(let i=0;i<6;i++){c.cameraDiagSelector.pick(i);assert.strictEqual(app._diagPage,i);assert(c.cameraDiag_page.text().startsWith(diag.PAGE_TITLES[i]));}
-    c.cameraDiagSelector.pick(1);assert(c.cameraDiag_row1.text().startsWith('Отказ/статус:'));press('cameraDiagFreeze');const frozen=app._diagFrozen,stamp=c.cameraDiag_stamp.text(),frozenApp=frozen.state.appClock.wallMs;
+    c.cameraDiagSelector.pick(1);assert(c.cameraDiag_row1.text().startsWith('Отказ/статус:'));
+    app._cameraCardTarget='hud';commands.length=0;press('cameraDiagFreeze');
+    assert.strictEqual(h.current(),N.photo);assert.deepStrictEqual(commands,[]);
+    const photo=()=>diag.PHOTO_NAMES.map(name=>c[name].text()), frozen=photo();
+    ['0.9.6','2179-06-05 02:15:56','1983-11-20 15:12:27','NO_UTC','TIMEOUT',
+        'UTC_MISMATCH','пакет 1 мс','75/10073','INVALID_RMC','HUD • STATIONARY_UNKNOWN'].forEach(t=>assert(frozen.join('\n').includes(t),t));
+    assert(frozen.every(row=>row.length<=60));
     const altered=state({clock:{serviceWallMs:Date.parse('2179-06-05T21:03:27.741Z'),serviceWallUtc:'2179-06-05T21:03:27.741Z',sourceUtcMs:Date.parse('2026-11-09T21:03:27Z'),sourceUtc:'2026-11-09T21:03:27.000Z',sourceDeltaMs:4810000000000,lastPacketAgeMs:null,packetReceiptDeltaMs:-1000,receiptClockDiscontinuity:true,admissionAfterUtcMs:6610000000000,admissionAfterUtc:'2179-06-05T21:03:28.241Z',issue:'RESET_BOUNDARY_FUTURE',reason:'После исправления даты явно сбросьте историю GPS'}});
-    h.setState(altered);assert.strictEqual(app._diagFrozen.state.appClock.wallMs,frozenApp);assert.strictEqual(c.cameraDiag_stamp.text(),stamp);
-    app._cameraCommand({cmd:'database-check'});ack('Живой результат при замороженном GPS');assert(c.cameraDiag_command.text().includes('Живой результат'));assert.strictEqual(c.cameraDiag_stamp.text(),stamp);
-    press('cameraDiagFreeze');assert.strictEqual(app._diagFrozen,null);const gpsText=diag.clockRows(app._cameraDiagnosticState()).join('\n');
+    h.setState(altered);assert.deepStrictEqual(photo(),frozen);
+    await h.back();assert.strictEqual(h.current(),N.diag);assert.strictEqual(app._diagPage,1);
+    assert(c.cameraDiag_stamp.text().startsWith('Живые '));assert(c.cameraDiagExport.text().includes('Сохранить снимок'));
+    press('cameraDiagFreeze');assert(photo().join('\n').includes('RESET_BOUNDARY_FUTURE'));
+    assert(photo().join('\n').includes('0.0 км/ч'));
+    await h.back();const gpsText=diag.clockRows(app._cameraDiagnosticState()).join('\n');
     ['2179-06-05T21:03:27.741Z','2026-11-09T21:03:27.000Z','2179-06-05T21:03:28.241Z','-1000','неизвестно','Разрыв часов приёма: да'].forEach(t=>assert(gpsText.includes(t),t));
     const unknown=diag.clockRows(state()).join(' ');assert(unknown.includes('Разрыв часов приёма: неизвестно'));assert(!unknown.includes('Разрыв часов приёма: нет'));
-    ok('direct six-page selector, frozen appClock, live results and signed/unknown clock diagnostics remain intact');
+    h.setState(null);press('cameraDiagFreeze');assert.strictEqual(h.current(),N.photo);
+    assert(photo()[0].includes('нет связи'));assert(photo()[5].includes('SERVICE_UNAVAILABLE'));
+    await h.back();assert.strictEqual(h.current(),N.diag);
+    ok('first action opens seven fixed photo rows for the X6 failure, a healthy fix and an unavailable service');
 
     // Exercise the actual read-only CCU bridge, source event, native arrow handler
     // and application rollback handling together, rather than assigning held=true.

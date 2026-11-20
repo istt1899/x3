@@ -62,6 +62,7 @@ function createNetworkUtc(options) {
     const clearTimeoutFn = options.clearTimeout || clearTimeout;
     let previous = null, baseline = null, anchor = null, active = null;
     let nextProbe = -Infinity, retry = retryAfterMs, closed = false;
+    let status = 'WAIT';
 
     function cancel() {
         if (!active) return;
@@ -78,6 +79,7 @@ function createNetworkUtc(options) {
         if (!Number.isFinite(mono) || !Number.isFinite(wall) || wall < brokenWall) {
             anchor = previous = baseline = null;
             cancel();
+            status = 'CLOCK';
             return null;
         }
         const stamp = {mono, wall};
@@ -88,14 +90,16 @@ function createNetworkUtc(options) {
             nextProbe = mono + retryAfterMs;
             baseline = stamp;
             cancel();
+            status = 'CLOCK';
         }
         previous = stamp;
         return mono;
     }
 
-    function finish(batch, mono, result) {
+    function finish(batch, mono, result, outcome) {
         if (active !== batch) return;
         cancel();
+        status = outcome;
         if (result) {
             anchor = result;
             nextProbe = mono + renewAfterMs;
@@ -108,31 +112,33 @@ function createNetworkUtc(options) {
     }
 
     function probe(mono) {
-        const batch = {sockets: [], samples: [], timer: null};
+        const batch = {sockets: [], samples: [], invalidReply: false, timer: null};
         active = batch;
+        status = 'PROBE';
         nextProbe = mono + retryAfterMs;
-        const fail = () => {
+        const fail = reason => {
             if (active !== batch) return;
             const at = read();
-            if (at !== null) finish(batch, at, null);
+            if (at !== null) finish(batch, at, null, reason);
         };
-        batch.timer = setTimeoutFn(fail, timeoutMs);
+        const timeoutReason = () => batch.samples.length ? 'ONE_REPLY' : batch.invalidReply ? 'BAD_REPLY' : 'TIMEOUT';
+        batch.timer = setTimeoutFn(() => fail(timeoutReason()), timeoutMs);
         if (batch.timer && typeof batch.timer.unref === 'function') batch.timer.unref();
         providers.forEach(host => {
             if (active !== batch) return;
             try {
                 lookup(host, 4, (error, address) => {
                     if (active !== batch) return;
-                    if (error || !publicAddress(address)) { fail(); return; }
+                    if (error || !publicAddress(address)) { fail('DNS'); return; }
                     const sentAt = read();
                     if (sentAt === null || active !== batch) return;
-                    if (sentAt - mono >= timeoutMs) { fail(); return; }
+                    if (sentAt - mono >= timeoutMs) { fail(timeoutReason()); return; }
                     try {
                         const socket = createSocket('udp4');
                         batch.sockets.push(socket);
-                        socket.on('error', fail);
+                        socket.on('error', () => fail('UDP'));
                         const nonce = crypto.randomBytes(8);
-                        if (nonce.equals(Buffer.alloc(8))) { fail(); return; }
+                        if (nonce.equals(Buffer.alloc(8))) { fail('NONCE'); return; }
                         const request = Buffer.alloc(48);
                         request[0] = 0x23; // NTPv4 client. Other fields carry no system time or GPS data.
                         nonce.copy(request, 40);
@@ -141,9 +147,9 @@ function createNetworkUtc(options) {
                             if (active !== batch || accepted || peer.port !== 123 || peer.address !== address) return;
                             const at = read();
                             if (at === null || active !== batch) return;
-                            if (at - mono >= timeoutMs) { fail(); return; }
+                            if (at - mono >= timeoutMs) { fail(timeoutReason()); return; }
                             const utc = parseReply(packet, nonce, at - sentAt);
-                            if (utc === null) return;
+                            if (utc === null) { batch.invalidReply = true; return; }
                             accepted = true;
                             if (!batch.samples.length) { batch.samples.push({utc, at, address}); return; }
                             const prior = batch.samples[0];
@@ -151,12 +157,13 @@ function createNetworkUtc(options) {
                             const agrees = prior.address !== address && Math.abs(alignedPrior - utc) <= maxPairDisagreementMs;
                             const combined = (alignedPrior + utc) / 2;
                             const continuous = !anchor || Math.abs(anchor.utc + at - anchor.at - combined) <= maxClockDisagreementMs;
-                            finish(batch, at, agrees && continuous ? {utc: combined, at} : null);
+                            const valid = agrees && continuous;
+                            finish(batch, at, valid ? {utc: combined, at} : null, valid ? 'OK' : 'DISAGREE');
                         });
-                        socket.send(request, 0, request.length, 123, address, error => { if (error) fail(); });
-                    } catch (error) { fail(); }
+                        socket.send(request, 0, request.length, 123, address, error => { if (error) fail('UDP'); });
+                    } catch (error) { fail('UDP'); }
                 });
-            } catch (error) { fail(); }
+            } catch (error) { fail('DNS'); }
         });
     }
 
@@ -165,10 +172,11 @@ function createNetworkUtc(options) {
             if (closed) return null;
             const mono = read();
             if (mono === null) return null;
-            if (anchor && mono - anchor.at >= expireAfterMs) anchor = null;
+            if (anchor && mono - anchor.at >= expireAfterMs) { anchor = null; status = 'EXPIRED'; }
             if (!active && mono >= nextProbe) probe(mono);
             return anchor ? Math.round(anchor.utc + mono - anchor.at) : null;
         },
+        status() { return status; },
         close() {
             closed = true;
             anchor = null;

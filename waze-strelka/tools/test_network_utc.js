@@ -96,6 +96,7 @@ function fixture(sourceUtc = actualUtc, initialWall = wrongWall) {
 
 function validate(f) {
     assert.strictEqual(f.clock.now(), null);
+    assert.strictEqual(f.clock.status(), 'PROBE');
     assert.deepStrictEqual(f.queries, Object.keys(addresses));
     assert.notDeepStrictEqual(f.sockets[0].nonce, f.sockets[1].nonce);
     f.advance(20);
@@ -104,8 +105,21 @@ function validate(f) {
     f.advance(30);
     f.reply(f.sockets[1]);
     assert.strictEqual(f.clock.now(), f.nowUtc());
+    assert.strictEqual(f.clock.status(), 'OK');
     assert(f.sockets.every(socket => socket.closed));
     assert.strictEqual(f.timers.size, 0);
+}
+
+for (const outcome of ['TIMEOUT', 'ONE_REPLY', 'BAD_REPLY', 'UDP']) {
+    const f = fixture();
+    f.clock.now();
+    f.advance(20);
+    if (outcome === 'ONE_REPLY') f.reply(f.sockets[0]);
+    if (outcome === 'BAD_REPLY') f.reply(f.sockets[0], {length:47});
+    if (outcome === 'UDP') f.sockets[0].emit('error', new Error('send failed'));
+    f.advance(2000);
+    assert.strictEqual(f.clock.now(), null);
+    assert.strictEqual(f.clock.status(), outcome);
 }
 
 {

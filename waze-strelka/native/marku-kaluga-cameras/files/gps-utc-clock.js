@@ -53,6 +53,7 @@ function createGpsClock(options) {
   const openNetwork = options.createNetworkUtc || createNetworkUtc;
   let network = null, closed = false;
   let previous = null, edge = null, edges = 0, nextPoll = 0;
+  let rtcStatus = null;
   let rmcHistory = [], lastSample = null, waitingSince = null;
   let source = null, epoch = 0;
 
@@ -60,6 +61,7 @@ function createGpsClock(options) {
   function closeNetwork() { if (network) network.close(); network = null; }
   function reset() {
     clearRtc(); closeNetwork(); nextPoll = 0; rmcHistory = []; waitingSince = null;
+    rtcStatus = null;
   }
   function pollRtc(m) {
     if (m < nextPoll) return;
@@ -67,7 +69,7 @@ function createGpsClock(options) {
     let value;
     try { value = read(); } catch (err) { value = null; }
     if (!plausible(value) || value % 1000 !== 0) {
-      clearRtc(); nextPoll = m + 60000; return;
+      clearRtc(); rtcStatus = 'NO_UTC'; nextPoll = m + 60000; return;
     }
     if (previous && previous.value !== value) {
       if (value === previous.value + 1000 && m - previous.m <= 650) {
@@ -77,6 +79,7 @@ function createGpsClock(options) {
       } else clearRtc();
     } else if (edge && m - edge.m > 1500) clearRtc();
     previous = { value, m };
+    rtcStatus = edges >= 2 ? 'OK' : 'CHECK';
   }
   function agrees(utc, m) {
     // Only compare UTC values that match this independent clock at receipt.
@@ -132,7 +135,8 @@ function createGpsClock(options) {
     return { referenceState:source === 'waiting' ? 'waiting' : 'ready',
       referenceSource:source === 'waiting' ? 'system' : source,
       referenceCandidate:source === 'waiting' ? referenceCandidate : null,
-      referenceUtcMs:utc, referenceEpoch:epoch, systemWallMs:wallMs };
+      referenceUtcMs:utc, referenceEpoch:epoch, systemWallMs:wallMs, rtcStatus,
+      networkStatus:network && typeof network.status === 'function' ? network.status() : null };
   }
   function observeRmc(utc) {
     if (closed || wall() < MAX_UTC || !Number.isSafeInteger(utc)) return;

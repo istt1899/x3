@@ -394,8 +394,8 @@ async function main() {
         .map(([id]) => diagnosticPage.components[id].name);
     assert.deepStrictEqual(controllerStops.filter((name) => /^cameraDiag_/.test(name)).sort(), diagnosticNames,
         'the controller can stop on every diagnostic data row, including all rows below GPS');
-    assert.deepStrictEqual(diagnosticRows.slice(0,9).map(([id]) => diagnosticPage.components[id].name),
-        ['cameraDiagTitle','cameraDiagSelector','cameraDiag_stamp','cameraDiag_versions','cameraDiag_page','cameraDiag_command','cameraDiag_commandMore',
+    assert.deepStrictEqual(diagnosticRows.slice(0,10).map(([id]) => diagnosticPage.components[id].name),
+        ['cameraDiagTitle','cameraDiagFreeze','cameraDiagSelector','cameraDiag_stamp','cameraDiag_versions','cameraDiag_page','cameraDiag_command','cameraDiag_commandMore',
             'cameraDiagResultMore','cameraGpsReset'],
         'page, snapshot identity and live command result precede report data');
     const uniqueRhmiIds = matches(XML, /<(?:container|layoutGroup|component) id="(\d+)"/g).map((m) => m[1]);
@@ -528,27 +528,31 @@ async function main() {
         byName.ST_OnlineApps_WazeStrelkaDiagnostics.emit('visible',{visible:true});
         const reportRows=()=>Array.from({length:10},(_,i)=>byName['cameraDiag_row'+(i+1)].text).join('\n');
         await until('summary reports accepted GPS',()=>reportRows().includes('позиция принята')&&reportRows().includes('READY'));
-        byName.cameraDiagFreeze.emit('action');
-        await until('snapshot frozen',()=>byName.cameraDiag_stamp.text.startsWith('Снимок S'));
-        const stamp=byName.cameraDiag_stamp.text;
         byName.cameraDiagSelector.pick(1);
         await until('GPS page opens',()=>byName.cameraDiag_page.text.startsWith('GPS 2/6'));
         assert(reportRows().includes('Часы приложения')&&reportRows().includes('Полный RMC UTC BMW'));
-        const frozenRows = reportRows();
+        const photoRows=()=>reportView.PHOTO_NAMES.map(name=>byName[name].text);
+        byName.cameraDiagFreeze.emit('action');
+        await until('photo opens',()=>rhmi.opened.includes('ST_OnlineApps_CameraDiagnosticPhoto'));
+        byName.ST_OnlineApps_WazeStrelkaDiagnostics.emit('visible',{visible:false});
+        byName.ST_OnlineApps_CameraDiagnosticPhoto.emit('visible',{visible:true});
+        const frozenRows = photoRows();
+        assert(frozenRows.join(' ').includes('READY'));
         cameraState.observedAtMs+=5000;cameraState.gpsFix.lat=54.518;
         Object.assign(cameraState.gpsInput.nmeaTiming, {rmcTime:'160305.250',ggaTime:'160305.350',gstTime:'160305.400',
             rmcGgaDeltaMs:100,ggaGstDeltaMs:50,pairReason:'RMC_GGA_OFFSET',lastRmcAgeMs:15,lastGgaAgeMs:10,lastGstAgeMs:5});
         cameraReply();await sleep(60);
-        assert.strictEqual(reportRows(),frozenRows,'frozen GPS page keeps old data');
-        assert.strictEqual(byName.cameraDiag_stamp.text,stamp);
+        assert.deepStrictEqual(photoRows(),frozenRows,'photo keeps old data');
+        byName.ST_OnlineApps_CameraDiagnosticPhoto.emit('visible',{visible:false});
+        byName.ST_OnlineApps_WazeStrelkaDiagnostics.emit('visible',{visible:true});
         cameraState.commandResult={id:'test-frozen',command:'display-test',phase:'finished',message:'Приборы: тест запрошен; HUD: отказ',timeMs:Date.now()};
         byName.cameraDiagTest.emit('action');
         await until('parked display test sent',()=>cameraCommands.some(m=>m.cmd==='display-test'));
         cameraState.commandResult.id='test-frozen-done';cameraReply();
         cameraState.commandResult.requestId=OnlineApp.instance._cameraPending.requestId;cameraReply();
-        await until('live command result despite frozen report',()=>byName.cameraDiag_command.text.includes('HUD: отказ'));
-        assert.strictEqual(byName.cameraDiag_stamp.text,stamp,'test does not discard frozen snapshot');
-        assert.strictEqual(reportRows(),frozenRows);
+        await until('live command result beside diagnostic report',()=>byName.cameraDiag_command.text.includes('HUD: отказ'));
+        assert(byName.cameraDiag_stamp.text.startsWith('Живые '));
+        assert.deepStrictEqual(photoRows(),frozenRows,'test does not discard frozen snapshot');
         // Intermediate ACKs retain the original six-second terminal watchdog.
         const app=OnlineApp.instance, realSetTimeout=global.setTimeout;
         let deadline=null;
@@ -592,8 +596,8 @@ async function main() {
         }
         assert.strictEqual(mainResult.filter(Boolean).join(' '),longResult,'main controller paging exposes every result character');
         assert.strictEqual(diagResult.filter(Boolean).join(' '),longResult,'diagnostic controller paging exposes every result character');
-        assert.strictEqual(byName.cameraDiag_stamp.text,stamp,'result paging preserves frozen report identity');
-        assert.strictEqual(reportRows(),frozenRows);
+      assert(byName.cameraDiag_stamp.text.startsWith('Живые '));
+      assert.deepStrictEqual(photoRows(),frozenRows,'result paging preserves the diagnostic photo');
         cameraState.commandResult={id:45,requestId:firstId,command:'database-check',phase:'finished',message:'СТАРАЯ КОМАНДА'};
         cameraReply();await sleep(30);
         assert.strictEqual(app._cameraFeedback.message,longResult,'late old completion cannot replace the displayed terminal result');
@@ -618,14 +622,12 @@ async function main() {
         byName.cameraDiagMore.emit('action');
         await until('second GPS block',()=>byName.cameraDiag_page.text.includes('строки 11'));
         const allGps=[];
-        const frozen=OnlineApp.instance._diagFrozen;
+        const frozen=exported;
         for(let b=0;b<reportView.reportPage(frozen,cameraState,'test',1,0).blocks;b++){
             const r=reportView.reportPage(frozen,cameraState,'test',1,b);allGps.push(Object.values(r.rows).join(' '));
         }
         assert(allGps.join(' ').includes('(GGA − RMC): -250 мс'));
         assert(allGps.join(' ').includes('(GST − GGA): 0 мс'));
-        OnlineApp.instance._lastPress.cameraDiagFreeze=0;byName.cameraDiagFreeze.emit('action');
-        await until('live diagnostics resumes',()=>OnlineApp.instance._diagFrozen===null);
         assert(byName.cameraDiag_stamp.text.startsWith('Живые '));
         byName.cameraUpdate.emit('action');
         await until('real database check request',()=>cameraCommands.some(m=>m.cmd==='database-check'));

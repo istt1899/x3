@@ -18,15 +18,18 @@ let m = 0, base = broken, enabled = true, opened = 0, closed = 0, offset = 0;
 const clock = createGpsClock({wallNow:() => base + m, monotonicNow:() => m,
   readRtc:() => null, createNetworkUtc:() => {
     opened++;
-    return { now:() => enabled ? utc + m + offset : null, close() { closed++; } };
+    return { now:() => enabled ? utc + m + offset : null, status:() => enabled ? 'OK' : 'TIMEOUT', close() { closed++; } };
   }});
 const snapshot = () => clock.snapshot();
 const advance = ms => { m += ms; return snapshot(); };
 const feed = (time = utc + m) => { clock.observeRmc(time); return snapshot(); };
 assert.strictEqual(snapshot().referenceState, 'waiting');
+assert.strictEqual(snapshot().rtcStatus, 'NO_UTC');
+assert.strictEqual(snapshot().networkStatus, null);
 assert.strictEqual(opened, 0);
 advance(4000);
 assert.strictEqual(opened, 1);
+assert.strictEqual(snapshot().networkStatus, 'OK');
 const oldRmc = utc - 14000;
 feed(oldRmc);
 advance(1000);
@@ -40,6 +43,7 @@ assert.strictEqual(clock.now(), utc + m);
 const activeEpoch = snapshot().referenceEpoch;
 enabled = false;
 assert.strictEqual(snapshot().referenceState, 'waiting');
+assert.strictEqual(snapshot().networkStatus, 'TIMEOUT');
 assert(snapshot().referenceEpoch > activeEpoch);
 advance(6000);
 assert.strictEqual(closed, 1);
