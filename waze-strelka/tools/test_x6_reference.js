@@ -214,6 +214,37 @@ async function main() {
         rejectPreview(state, command, 'STATIONARY_UNKNOWN');
     });
     for (const {source, rtcOffset} of [{source:'rtc', rtcOffset:0}, {source:'network', rtcOffset:null}]) {
+        await run('mixed-rmc-' + source, rtcOffset, ({state, command, tick, feed, utc, setNetwork, shown}) => {
+            command('outputs', {cluster:false, hud:true});
+            setNetwork(true);
+            const frozen = utc();
+            for (let i = 0; i < 6; i++) {
+                feed(i % 2 ? oldYear(frozen) : frozen);
+                tick(second, 100);
+            }
+            assert.strictEqual(state().clock.referenceState, 'waiting');
+            assert.strictEqual(state().clock.referenceCandidate, source);
+            rejectPreview(state, command, 'STATIONARY_UNKNOWN');
+
+            for (let i = 0; i < 5; i++) {
+                feed(i % 2 ? oldYear(utc()) : utc(), i < 3 ? 25 : 0);
+                tick(100, 100);
+                feed(oldYear(frozen));
+                tick(900, 100);
+            }
+            assert.strictEqual(state().clock.referenceSource, source, 'stale interleaved packets must not prevent corroboration');
+            assert.strictEqual(state().gpsFix.speedKmh, 0);
+            command('display-test', {target:'hud'});
+            assert.strictEqual(shown().test, true);
+            feed(oldYear(utc()), 25);
+            assert.strictEqual(shown(), null);
+            rejectPreview(state, command, 'MOVING');
+            const last = utc();
+            tick(3100, 100);
+            feed(last);
+            feed(oldYear(last));
+            rejectPreview(state, command, 'STATIONARY_UNKNOWN');
+        });
         await run('calendar-' + source, rtcOffset, ({state, command, tick, feed, utc, setNetwork, shown}) => {
             command('outputs', {cluster:false, hud:true});
             setNetwork(true);

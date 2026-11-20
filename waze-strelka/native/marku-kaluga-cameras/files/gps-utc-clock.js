@@ -5,6 +5,9 @@ const { createNetworkUtc } = require('./network-utc');
 const MIN_UTC = Date.UTC(2020, 0, 1);
 const MAX_UTC = Date.UTC(2100, 0, 1);
 const DAY_MS = 86400000;
+const MAX_RMC_STEP_MS = 3000;
+const MAX_RMC_AGE_MS = 1500;
+const RMC_HISTORY_MS = MAX_RMC_STEP_MS + MAX_RMC_AGE_MS + 500;
 
 function plausible(utc) {
   return Number.isSafeInteger(utc) && utc >= MIN_UTC && utc < MAX_UTC;
@@ -50,13 +53,13 @@ function createGpsClock(options) {
   const openNetwork = options.createNetworkUtc || createNetworkUtc;
   let network = null, closed = false;
   let previous = null, edge = null, edges = 0, nextPoll = 0;
-  let lastRmc = null, advancing = false, lastSample = null, waitingSince = null;
+  let rmcHistory = [], lastSample = null, waitingSince = null;
   let source = null, epoch = 0;
 
   function clearRtc() { previous = edge = null; edges = 0; }
   function closeNetwork() { if (network) network.close(); network = null; }
   function reset() {
-    clearRtc(); closeNetwork(); nextPoll = 0; lastRmc = null; advancing = false; waitingSince = null;
+    clearRtc(); closeNetwork(); nextPoll = 0; rmcHistory = []; waitingSince = null;
   }
   function pollRtc(m) {
     if (m < nextPoll) return;
@@ -76,14 +79,27 @@ function createGpsClock(options) {
     previous = { value, m };
   }
   function agrees(utc, m) {
-    if (!advancing) return false;
-    const age = m - lastRmc.m;
-    const referenceAtReceipt = utc - age;
-    return age <= 1500 && Math.abs(referenceAtReceipt - alignBmwRmc(lastRmc.utc, referenceAtReceipt)) <= 1250;
+    // Only compare UTC values that match this independent clock at receipt.
+    // An interleaved replay or a change of year must not break live progression.
+    const matching = [];
+    for (const sample of rmcHistory) {
+      const age = m - sample.m;
+      if (age < 0 || age > RMC_HISTORY_MS) continue;
+      const expected = utc - age;
+      const aligned = alignBmwRmc(sample.utc, expected);
+      if (Math.abs(expected - aligned) > 1250) continue;
+      if (age <= MAX_RMC_AGE_MS && matching.some(prior => {
+        const step = aligned - prior.utc;
+        const elapsed = sample.m - prior.m;
+        return step > 0 && step <= MAX_RMC_STEP_MS && elapsed >= 100 && Math.abs(step - elapsed) <= 500;
+      })) return true;
+      matching.push({utc: aligned, m: sample.m});
+    }
+    return false;
   }
   function snapshot() {
     const m = mono(), wallMs = wall();
-    let selected = 'system', utc = wallMs;
+    let selected = 'system', utc = wallMs, referenceCandidate = null;
     if (lastSample && (wallMs >= MAX_UTC || lastSample.wall >= MAX_UTC) &&
         (m < lastSample.m || m - lastSample.m > 5000 ||
         Math.abs(wallMs - lastSample.wall - (m - lastSample.m)) > 250)) {
@@ -97,13 +113,17 @@ function createGpsClock(options) {
       selected = 'waiting';
       pollRtc(m);
       const rtcUtc = edges >= 2 ? Math.round(edge.utc + m - edge.m) : null;
+      if (rtcUtc !== null) referenceCandidate = 'rtc';
       if (rtcUtc !== null && (source === 'rtc' || agrees(rtcUtc, m))) {
         selected = 'rtc'; utc = rtcUtc; closeNetwork();
       } else if (m - waitingSince >= 4000) {
         if (!network) network = openNetwork({ wallNow:wall, monotonicNow:mono });
         const networkUtc = network.now();
-        if (plausible(networkUtc) && (source === 'network' || agrees(networkUtc, m))) {
-          selected = 'network'; utc = networkUtc;
+        if (plausible(networkUtc)) {
+          if (referenceCandidate === null) referenceCandidate = 'network';
+          if (source === 'network' || agrees(networkUtc, m)) {
+            selected = 'network'; utc = networkUtc;
+          }
         }
       }
     } else if (waitingSince !== null) reset();
@@ -111,15 +131,16 @@ function createGpsClock(options) {
     source = selected;
     return { referenceState:source === 'waiting' ? 'waiting' : 'ready',
       referenceSource:source === 'waiting' ? 'system' : source,
+      referenceCandidate:source === 'waiting' ? referenceCandidate : null,
       referenceUtcMs:utc, referenceEpoch:epoch, systemWallMs:wallMs };
   }
   function observeRmc(utc) {
     if (closed || wall() < MAX_UTC || !Number.isSafeInteger(utc)) return;
     const m = mono();
-    if (lastRmc && utc === lastRmc.utc) return;
-    const step = lastRmc && utc - lastRmc.utc, elapsed = lastRmc && m - lastRmc.m;
-    advancing = !!lastRmc && step > 0 && step <= 3000 && elapsed >= 100 && Math.abs(step - elapsed) <= 500;
-    lastRmc = { utc, m };
+    rmcHistory = rmcHistory.filter(sample => m - sample.m <= RMC_HISTORY_MS);
+    if (rmcHistory.some(sample => sample.utc === utc)) return;
+    rmcHistory.push({utc, m});
+    if (rmcHistory.length > 64) rmcHistory.shift();
   }
   return { now:() => snapshot().referenceUtcMs, observeRmc, snapshot,
     bmwRmcUtc(utc, reference) {

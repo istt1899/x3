@@ -96,7 +96,10 @@ function clockRows(state) {
     const clockCause={UTC_MISMATCH:'UTC RMC BMW расходится с опорой GPS или данные устарели',
         RESET_BOUNDARY_FUTURE:'Граница сброса GPS позже текущей опоры'};
     const reason=clockCause[clock.issue]||clock.reason;
-    const referenceLine=waiting?'Опора GPS: ожидание независимых часов • UTC не подтверждён':
+    const candidate=clock.referenceCandidate==='rtc'?'RTC':clock.referenceCandidate==='network'?'NTP':null;
+    const pending=candidate?candidate+' есть • нет свежей пары RMC':
+        clock.referenceCandidate===null?'RTC и NTP пока не дали время':'ожидание независимых часов • UTC не подтверждён';
+    const referenceLine=waiting?'Опора GPS: '+pending:
         'Опора GPS: '+(reference||'не сообщается')+' • UTC '+knownUtc(clock.referenceUtc,clock.referenceUtcMs);
     return ['Отказ/статус: '+clean(action(s,'displayTest').code)+' • часы '+clean(clock.issue),
         'Часы приложения: '+knownUtc(app.wallUtc,app.wallMs),

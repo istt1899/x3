@@ -124,14 +124,15 @@ GpsDecoder.prototype.line = function (line) {
     // clock even when an earlier manual reset set the boundary to year 2179.
     if (this.observeRmc && number(time) && validCoordinates && p[2] === 'A' &&
         (!p[12] || ['A','D','P','R','F'].indexOf(p[12]) >= 0)) this.observeRmc(reportedTime, time);
-    if (this.admissionAfterUtc !== null && number(time) && time <= this.admissionAfterUtc) {
-      this.rmc = null; this.timing.pairReason = 'MANUAL_RESET_WAITING_SOURCE'; this.invalidate(source,'source UTC precedes manual reset boundary'); return parsed;
-    }
     // The position epoch is GGA's. Compare RMC only with prior RMC, never
-    // with a later, valid GGA epoch (e.g. RMC .000 / GGA .200).
+    // with a later, valid GGA epoch. A pre-reset replay also cannot clear
+    // a newer measurement already accepted past the reset boundary.
     if (this.lastRmcUtc !== null && number(time) && time < this.lastRmcUtc) {
       this.lastRejectReason = 'replayed RMC UTC'; this.timing.pairReason = 'INVALID_RMC';
       this.emit('quality', source + ': replayed RMC UTC'); return parsed;
+    }
+    if (this.admissionAfterUtc !== null && number(time) && time <= this.admissionAfterUtc) {
+      this.rmc = null; this.timing.pairReason = 'MANUAL_RESET_WAITING_SOURCE'; this.invalidate(source,'source UTC precedes manual reset boundary'); return parsed;
     }
     if (p[2] !== 'A' || (p[12] && ['A', 'D', 'P', 'R', 'F'].indexOf(p[12]) < 0)) {
       this.rmc = null; this.timing.pairReason = 'INVALID_RMC'; this.invalidate(source, 'RMC invalid or simulated'); return parsed;

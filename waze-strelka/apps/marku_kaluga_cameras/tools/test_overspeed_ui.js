@@ -154,6 +154,12 @@ function check(label,fn){fn();console.log('ok '+(++count)+' - '+label);}
         assert(report[2].includes('2179-06-05T21:04:00.000Z'));
         assert(report[8].includes('возраст неизвестно'));
         assert.strictEqual(report[10],'Опора GPS: ожидание независимых часов • UTC не подтверждён');
+        waiting.clock.referenceCandidate = null;
+        assert.strictEqual(diagnostics.clockRows(waiting)[10],'Опора GPS: RTC и NTP пока не дали время');
+        waiting.clock.referenceCandidate = 'rtc';
+        assert.strictEqual(diagnostics.clockRows(waiting)[10],'Опора GPS: RTC есть • нет свежей пары RMC');
+        waiting.clock.referenceCandidate = 'network';
+        assert.strictEqual(diagnostics.clockRows(waiting)[10],'Опора GPS: NTP есть • нет свежей пары RMC');
         assert(!/телефон|проверьте дату BMW/.test(rows(null,waiting,1)));
         press('cameraGpsReset');press('cameraGpsReset',true);
         assert.strictEqual(commands.length,0);
