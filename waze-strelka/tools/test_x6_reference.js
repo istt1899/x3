@@ -7,6 +7,9 @@ const os = require('os');
 const path = require('path');
 const service = require('../native/marku-kaluga-cameras/files/marku-kaluga-cameras');
 const { GpsProvider } = require('../native/marku-kaluga-cameras/files/gps-source');
+const { CameraControl } = require('../apps/marku_kaluga_cameras/src/control');
+const { BmwSpeedBridge } = require('../apps/marku_kaluga_cameras/src/bmw_speed_bridge');
+const view = require('../apps/marku_kaluga_cameras/src/diagnostics_view');
 
 const wrongWall = Date.parse('2179-06-05T21:03:27.000Z');
 const actualUtc = Date.parse('2026-11-20T07:08:23.000Z');
@@ -37,6 +40,14 @@ function packet(utc, speedKmh, rmcPosition) {
     ].join('\r\n');
 }
 
+async function until(check) {
+    const started = Date.now();
+    while (!check()) {
+        assert(Date.now() - started < 4500, 'timed out waiting for vehicle speed state');
+        await new Promise(resolve => setTimeout(resolve, 15));
+    }
+}
+
 async function run(label, rtcOffsetMs, test) {
     const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'strelka-x6-'));
     const socket = process.platform === 'win32' ? '\\\\.\\pipe\\strelka-x6-' + process.pid + '-' + label : path.join(dir, 'ctl.sock');
@@ -47,10 +58,12 @@ async function run(label, rtcOffsetMs, test) {
     const gps = new GpsProvider({ now: () => wrongWall + elapsed, monotonicNow: mono, nmeaPort: 0, port: 1,
         createNetworkUtc: () => ({now: () => networkAvailable ? utc() : null, close() {}}),
         readRtc: () => frozenRtc === null ? rtcNow() : frozenRtc });
-    let app, shown;
+    let app, shown, bootOffset = 0;
+    const controls = [];
     try {
         await new Promise((resolve, reject) => {
             app = service.start({ dataDir: dir, socket, gps, monotonicNow: mono, onListening: resolve, onError: reject,
+                bootSec: () => Math.floor(os.uptime()) + bootOffset,
                 database: path.join(dir, 'no-camera-database.json'), guidance: { evaluate: () => null },
                 display: { update: alert => { shown = alert; }, status: () => 'ready', close() {},
                     diagnostics: () => ({ connection: 'ready', hud: { target: 'shown', state: 'shown', rendering: 'verified' } }) },
@@ -67,8 +80,17 @@ async function run(label, rtcOffsetMs, test) {
             }
         };
         const feed = (time, speedKmh = 0, position) => command('vehicle-nmea', {data: packet(time, speedKmh, position)});
-        await test({ state, command, tick, feed, utc, freezeRtc: () => { frozenRtc = rtcNow(); }, setNetwork: enabled => { networkAvailable = enabled; }, shown: () => shown });
+        const control = async () => {
+            const client = new CameraControl({path: socket});
+            controls.push(client);
+            client.open();
+            await until(() => client.state);
+            return client;
+        };
+        await test({ state, command, tick, feed, utc, control, expireBoot: () => { bootOffset += 3; app.tick(); },
+            freezeRtc: () => { frozenRtc = rtcNow(); }, setNetwork: enabled => { networkAvailable = enabled; }, shown: () => shown });
     } finally {
+        controls.forEach(client => client.close());
         if (app) app.close();
         else gps.close();
         fs.readdirSync(dir).forEach(file => fs.unlinkSync(path.join(dir, file)));
@@ -85,6 +107,74 @@ function rejectPreview(state, command, code) {
 }
 
 async function main() {
+    await run('offline-display', null, async ({ state, command, tick, feed, utc, control, expireBoot, shown }) => {
+        command('outputs', {cluster:false, hud:true});
+        feed(oldYear(utc()));
+        tick(second);
+        feed(oldYear(utc()));
+        assert.strictEqual(state().clock.serviceWallMs, wrongWall + second);
+        assert.strictEqual(state().clock.issue, 'UTC_MISMATCH');
+        rejectPreview(state, command, 'STATIONARY_UNKNOWN');
+
+        const source = await control(), ui = await control();
+        let raw = 0, failRead = false, builds = 0;
+        const bridge = new BmwSpeedBridge({
+            buildAndInitTypedProxy(iface, instance) {
+                builds++;
+                assert.strictEqual(iface, 'de.bmw.infotainment.vehicle.Vehicle2');
+                assert.strictEqual(instance, '1');
+                return Promise.resolve({statusCarSpeed2: {
+                    getValue: () => failRead ? Promise.reject(new Error('no BMW response')) :
+                        Promise.resolve({speedVehicleCentreOfGravity: raw})
+                }});
+            }
+        }, source);
+        try {
+            bridge.start();
+            await until(() => ui.state.vehicleMotion.code === 'READY');
+            assert.strictEqual(ui.state.actions.displayTest.code, 'READY');
+            assert.strictEqual(ui.state.gpsFix, null);
+            assert.strictEqual(ui.state.alert, null);
+            const motionRow = view.photoRows(view.capture(ui.state, '0.9.8'), true, 'hud')[5];
+            assert(motionRow.replace(',', '.').includes('0.0 км/ч BMW'));
+            ui.send({cmd:'display-test', target:'hud'});
+            await until(() => ui.state.displayTest.active);
+            assert.strictEqual(shown().test, true);
+            assert.strictEqual(ui.state.alert, null);
+
+            raw = 65;
+            await until(() => ui.state.displayTest.stoppedReason === 'MOVING');
+            assert.strictEqual(shown(), null);
+            assert.strictEqual(ui.state.actions.displayTest.code, 'MOVING');
+            raw = 65535;
+            await until(() => ui.state.vehicleMotion.code === 'INVALID');
+            rejectPreview(state, command, 'STATIONARY_UNKNOWN');
+            const fakeSample = {cmd:'vehicle-speed', raw:0, sampledAtBootSec:Math.floor(os.uptime())};
+            ui.send(fakeSample);
+            await until(() => ui.commandError === 'VEHICLE_SPEED_SOURCE_INVALID');
+            raw = 0;
+            await until(() => state().actions.displayTest.code === 'READY');
+            command('calibration-test', {target:'hud'});
+            failRead = true;
+            await until(() => ui.state.displayTest.stoppedReason === 'STATIONARY_UNKNOWN');
+            assert.strictEqual(shown(), null);
+            failRead = false;
+            await until(() => state().actions.displayTest.code === 'READY');
+            bridge.stop();
+            source.send(Object.assign({}, fakeSample, {sampledAtBootSec:Math.floor(os.uptime()) - 2}));
+            await until(() => source.commandError === 'VEHICLE_SPEED_STALE');
+            assert.strictEqual(state().actions.displayTest.code, 'READY', 'delayed data do not replace the current sample');
+            assert.strictEqual(builds, 1);
+            command('display-test', {target:'hud'});
+            expireBoot();
+            await until(() => ui.state.vehicleMotion.code === 'NO_SIGNAL' && !ui.state.displayTest.active);
+            assert.strictEqual(shown(), null);
+            assert.strictEqual(ui.state.gpsFix, null);
+        } finally {
+            bridge.stop();
+        }
+    });
+
     await run('rtc', 0, ({ state, command, tick, feed, utc, freezeRtc, shown }) => {
         command('outputs', {cluster:false, hud:true});
         const frozen = utc();

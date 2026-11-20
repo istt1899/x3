@@ -114,7 +114,11 @@ function photoRows(report, serviceReady, target) {
     const selectedLayer = renderer[test.target || target] || {};
     const result = test.stoppedReason ? code(test.stoppedReason) : test.active ? 'АКТИВЕН' :
         selectedLayer.state === 'отказ' ? code(selectedLayer.targetReason || selectedLayer.reason) : '—';
-    const speed = s.gpsMotion ? s.gpsMotion.speedKmh : fix && fix.speedKmh;
+    const vehicleMotion = s.vehicleMotion || {};
+    const gpsSpeed = s.gpsMotion ? s.gpsMotion.speedKmh : fix && fix.speedKmh;
+    const speed = Number.isFinite(vehicleMotion.speedKmh) ? vehicleMotion.speedKmh : gpsSpeed;
+    const speedSource = Number.isFinite(vehicleMotion.speedKmh) ? 'BMW' : Number.isFinite(gpsSpeed) ? 'GPS' :
+        vehicleMotion.code === 'INVALID' ? 'BMW недейств.' : 'без скорости';
     const speedText = Number.isFinite(speed) && speed >= 0 && speed < 1000 ? n(speed, 1) : '—';
     const packetAge = Number.isFinite(clock.lastPacketAgeMs) ? clock.lastPacketAgeMs : input.lastPacketAgeMs;
     return [
@@ -124,7 +128,8 @@ function photoRows(report, serviceReady, target) {
         'Опора ' + ref + ' • RTC ' + code(clock.rtcStatus) + ' • NTP ' + code(clock.networkStatus),
         'GPS ' + (fix ? positionSources[fix.source] || 'есть' : 'нет') + ' • ' + code(clock.issue) + ' • пакет ' + ms(packetAge) + ' мс',
         'RMC приём/рост ' + ms(timing.lastRmcAgeMs) + '/' + ms(input.rmcAdvanceAgeMs) + ' мс • ' + code(timing.pairReason),
-        speedText + ' км/ч • тест ' + targetLabel + ' • ' + (display.allowed && !target ? 'OUTPUTS_OFF' : code(display.code)),
+        (speedText === '—' ? speedSource : speedText + ' км/ч ' + speedSource) +
+            ' • тест ' + targetLabel + ' • ' + (display.allowed && !target ? 'OUTPUTS_OFF' : code(display.code)),
         'HUD ' + targetStatus(outputs.hud, 'hud') + ' • Приб. ' + targetStatus(outputs.cluster, 'map') + ' • итог ' + result
     ];
 }

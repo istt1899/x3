@@ -2,7 +2,7 @@
   "build": "node ../../tools/build.js",
   "requires": {
     "waze-on-cluster": "0.9.14",
-    "marku-kaluga-cameras": "0.9.7",
+    "marku-kaluga-cameras": "0.9.8",
     "mgu-deploy": "0.7.11"
   },
   "uninstallable": true,

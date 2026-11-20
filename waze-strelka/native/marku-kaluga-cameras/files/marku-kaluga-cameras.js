@@ -1,5 +1,5 @@
 'use strict';
-var fs = require('fs'), net = require('net'), path = require('path');
+var fs = require('fs'), net = require('net'), path = require('path'), os = require('os');
 var GpsProvider = require('./gps-source').GpsProvider;
 var cameraInfo = require('./camera-info');
 var actionPolicy = require('./action-policy'), dataModule = require('./database-store');
@@ -97,7 +97,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.9.7', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.9.8', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -106,7 +106,7 @@ function start(options) {
     street: { name: null, source: 'BMW', state: 'unavailable', reason: 'Название улицы BMW ещё не получено', observedAtMs: null },
     audio: { available: false, reason: 'Безопасный звуковой канал BMW не подтверждён' },
     commandResult: null, actions: {}, databaseUpdate: { phase: 'idle', busy: false }, nearestCandidates: [],
-    hudDimming: 'unavailable', capabilities: { outputs: false, update: false, hudOpacity: false, displayTest: false, alertPreferences: true, overspeedPreferences: true, gpsReset: false },
+    hudDimming: 'unavailable', capabilities: { outputs: false, update: false, hudOpacity: false, displayTest: false, vehicleSpeedTest: true, alertPreferences: true, overspeedPreferences: true, gpsReset: false },
     rendererDetails: {}, displayTest: { active: false, pinned: false, target: null, calibration: false, untilMs: 0 },
     gps: 'Ожидание моста GPS BMW', gpsFix: null, gpsMotion: { state:'unknown', conflict:false, roadMismatch:false, sources:[] }, clock: clockSnapshot(Date.now(), null),
     gpsBridge: { state: 'stopped', errorCode: null, ageMs: null, reason: 'Мост не запущен: приложение не стартовало или остановлено' },
@@ -184,7 +184,21 @@ function start(options) {
     try { return gps.motionFixes(now); }
     catch (e) { state.error = 'GPS motion: ' + e.message; return []; }
   }
-  function actionsAt(now, fix) { return actionPolicy.policies(state, fix, now, motionFixes(now)); }
+  // Linux Node 8 floors OS uptime to whole seconds. An age of two whole
+  // seconds means strictly less than three seconds of elapsed time.
+  var bootSec = options.bootSec || function () { return Math.floor(os.uptime()); };
+  var vehicleSpeedSocket = null, vehicleSpeedSample = null;
+  function vehicleMotion() {
+    if (!vehicleSpeedSample) return { code: 'NO_SIGNAL', speedKmh: null };
+    var age = bootSec() - vehicleSpeedSample.sampledAtBootSec;
+    if (!(age >= 0 && age <= 2)) {
+      vehicleSpeedSample = null;
+      return { code: 'NO_SIGNAL', speedKmh: null };
+    }
+    var raw = vehicleSpeedSample.raw;
+    return raw === null ? { code: 'INVALID', speedKmh: null } : { code: 'READY', speedKmh: raw / 64 };
+  }
+  function actionsAt(now, fix) { return actionPolicy.policies(state, fix, now, motionFixes(now), vehicleMotion().speedKmh); }
   function requestToken(msg) {
     return msg && typeof msg.requestId === 'string' && /^[A-Za-z0-9._:-]{1,96}$/.test(msg.requestId) ? msg.requestId : null;
   }
@@ -395,7 +409,8 @@ function start(options) {
     state.gpsMotion = motion;
     if(state.gpsReset.phase==='waiting-new-fix'&&validPosition(fix,now)&&fix.timeMs>state.gpsReset.afterUtc)state.gpsReset.phase='receiving';
     if (state.street.observedAtMs !== null && Date.now() - state.street.observedAtMs > 15000) state.street = { name: null, source: 'BMW', state: 'stale', reason: 'Название улицы BMW устарело', observedAtMs: null };
-    state.actions = actionPolicy.policies(state, fix, now, motions);
+    state.vehicleMotion = vehicleMotion();
+    state.actions = actionPolicy.policies(state, fix, now, motions, state.vehicleMotion.speedKmh);
     state.clock = clockSnapshot(now, null);
     if (typeof gps.diagnostics === 'function') {
       var gpsDiagnostics = gps.diagnostics(now); state.gpsBridge = gpsDiagnostics.gpsBridge; state.gpsInput = gpsDiagnostics.gpsInput;
@@ -494,7 +509,7 @@ function start(options) {
       if(state.audio && state.audio.probeState)audioState.probeState=state.audio.probeState;
       state.audio=audioState;
     }
-    state.actions = actionPolicy.policies(state, fix, now, motions);
+    state.actions = actionPolicy.policies(state, fix, now, motions, state.vehicleMotion.speedKmh);
     if (dimmer) {
       try { dimmer.update(settings.hudOpacityPct); state.hudDimming = dimmer.status(); }
       catch (e) { state.hudDimming = 'error: ' + e.message; }
@@ -618,7 +633,20 @@ function start(options) {
     else throw new Error('Unsupported command');
     save(next); state.error = null; tick();
   }
-  function command(msg) {
+  function command(msg, sock) {
+    if (msg && msg.cmd === 'vehicle-speed') {
+      if (!sock || vehicleSpeedSocket && vehicleSpeedSocket !== sock) throw new Error('VEHICLE_SPEED_SOURCE_INVALID');
+      if (msg.raw !== null && (!Number.isInteger(msg.raw) || msg.raw < 0 || msg.raw >= 65535))
+        throw new Error('VEHICLE_SPEED_VALUE_INVALID');
+      if (!Number.isSafeInteger(msg.sampledAtBootSec) || msg.sampledAtBootSec < 0)
+        throw new Error('VEHICLE_SPEED_STALE');
+      var age = bootSec() - msg.sampledAtBootSec;
+      if (!(age >= 0 && age <= 1)) throw new Error('VEHICLE_SPEED_STALE');
+      vehicleSpeedSocket = sock;
+      vehicleSpeedSample = { raw: msg.raw, sampledAtBootSec: msg.sampledAtBootSec };
+      tick();
+      return;
+    }
     if (msg && msg.requestId !== undefined && !requestToken(msg)) throw new Error('Invalid requestId');
     var userCommand = msg && typeof msg.cmd === 'string' && ['status','vehicle-nmea','gps-bridge','vehicle-context','audio-played'].indexOf(msg.cmd)<0;
     if(userCommand) { commandResult(msg.cmd,'requested','Выполняется: ' + msg.cmd, null, requestToken(msg)); broadcast(true); }
@@ -632,7 +660,13 @@ function start(options) {
   server = net.createServer(function (sock) {
     if (clients.length >= 16) { sock.destroy(); return; }
     clients.push(sock); sock.setEncoding('utf8');
-    function drop() { clients = clients.filter(function (c) { return c !== sock; }); }
+    function drop() {
+      clients = clients.filter(function (c) { return c !== sock; });
+      if (vehicleSpeedSocket !== sock) return;
+      vehicleSpeedSocket = null;
+      vehicleSpeedSample = null;
+      tick();
+    }
     sock.on('error', drop); sock.on('close', drop); send(sock);
     var buffer = '';
     sock.on('data', function (chunk) {
@@ -645,7 +679,7 @@ function start(options) {
         if (Buffer.byteLength(line, 'utf8') > 8192) { sock.destroy(); return; }
         if (!line.trim()) continue;
         var message = null;
-        try { message = JSON.parse(line); command(message); }
+        try { message = JSON.parse(line); command(message, sock); }
         catch (e) { sock.write(JSON.stringify({ ev: 'error', error: e.message, requestId: requestToken(message) }) + '\n'); }
         send(sock);
       }

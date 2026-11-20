@@ -29,8 +29,10 @@ function stationary(fix, now, motionFixes) {
     if (motion.state === 'moving') return { allowed: false, code: 'MOVING', reason: 'Для теста остановитесь: скорость ' + motion.speedKmh.toFixed(1) + ' км/ч' };
     return { allowed: true, code: 'READY', reason: 'Свежая скорость не выше 1 км/ч' };
 }
-function policies(state, fix, now, motionFixes) {
-    const stop = stationary(fix, now, motionFixes), caps = state.capabilities || {}, outputs = state.outputs || {};
+function policies(state, fix, now, motionFixes, vehicleSpeedKmh) {
+    const displayMotion = Number.isFinite(vehicleSpeedKmh) ?
+        (motionFixes || [fix]).concat({ source: 'bmw-vehicle', motionTimeMs: now, speedKmh: vehicleSpeedKmh }) : motionFixes;
+    const stop = stationary(fix, now, displayMotion), caps = state.capabilities || {}, outputs = state.outputs || {};
     const no = (code, reason) => ({ allowed: false, code, reason });
     const test = !caps.displayTest ? no('DISPLAY_UNAVAILABLE', 'Вывод уведомлений недоступен') :
         !stop.allowed ? stop : !outputs.cluster && !outputs.hud ? no('OUTPUTS_OFF', 'Для теста включите приборы или HUD') : stop;
@@ -44,7 +46,7 @@ function policies(state, fix, now, motionFixes) {
         // The test exists to confirm the channel: it is allowed whenever the
         // sound module lives; an unconfirmed remote channel simply publishes
         // its request and times out honestly without a HMI answer.
-        audioTest: state.audio && state.audio.phase !== 'closed' ? stop : no('AUDIO_UNAVAILABLE', state.audio && state.audio.reason || 'Безопасный канал звуковых уведомлений не подтверждён'),
+        audioTest: state.audio && state.audio.phase !== 'closed' ? stationary(fix, now, motionFixes) : no('AUDIO_UNAVAILABLE', state.audio && state.audio.reason || 'Безопасный канал звуковых уведомлений не подтверждён'),
         databaseCheck: check,
         databaseRollback: check.allowed && update.canRollback ? { allowed: true, code: 'READY', reason: 'Вернуть предыдущую проверенную базу' } : no('ROLLBACK_UNAVAILABLE', update.busy ? 'Дождитесь завершения проверки базы' : 'Предыдущая версия базы недоступна'),
         diagnosticExport: { allowed: true, code: 'READY', reason: 'Сохранить локальный отчёт по отдельному действию' } };

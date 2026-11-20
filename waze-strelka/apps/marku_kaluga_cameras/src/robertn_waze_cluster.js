@@ -65,6 +65,7 @@ const cameraView = require('./view_model.js');
 const cameraDiagnostics = require('./diagnostics_view.js');
 const { BmwGpsBridge } = require('./bmw_gps_bridge.js');
 const { BmwNavigationBridge } = require('./bmw_navigation_bridge.js');
+const { BmwSpeedBridge } = require('./bmw_speed_bridge.js');
 const { BmwHoldBridge } = require('./bmw_hold_bridge.js');
 const { BmwGongPlayer } = require('./bmw_gong_player.js');
 const { CameraMoveRepeater } = require('./camera_move_repeater.js');
@@ -207,6 +208,7 @@ class WazeClusterApp extends OnlineApp {
         this._gongPlayer = new BmwGongPlayer({ builders: someipBuilders });
         this._lastAudioSeq = null;
         this._navigationBridge = new BmwNavigationBridge({builders:someipBuilders,control:this._gpsBridge.control});
+        this._speedBridge = new BmwSpeedBridge(someipBuilders, this._gpsBridge.control);
         this._gpsBridge.on('change', () => this._syncActivity());
         this._holdBridge=new BmwHoldBridge({builders:someipBuilders});
         this._moveRepeater=new CameraMoveRepeater({guard:context=>this._cameraHeldMoveGuard(context),pending:()=>this._cameraPending,
@@ -250,7 +252,7 @@ class WazeClusterApp extends OnlineApp {
         this._profiles.start();
         // Never await GPS for RHMI startup. Its separate local IPC client and
         // background hold survive leaving this screen for CarPlay.
-        Promise.resolve().then(() => { this._gpsBridge.start(); this._navigationBridge.start(); this._holdBridge.start(); }).catch(() => logger.warn('BMW context bridge start failed'));
+        Promise.resolve().then(() => { this._gpsBridge.start(); this._speedBridge.start(); this._navigationBridge.start(); this._holdBridge.start(); }).catch(() => logger.warn('BMW context bridge start failed'));
         Promise.resolve().then(() => this._gongPlayer.probe()).catch(() => logger.warn('BMW gong probe failed'));
         if (!this.rhmiApplication) {
             logger.info('no RhmiApplication for this start reason; initializing without a screen');
@@ -1416,6 +1418,7 @@ class WazeClusterApp extends OnlineApp {
         this._control.close();
         this._logs.close();
         this._cameras.close();
+        this._speedBridge.stop();
         this._gpsBridge.stop();
         this._navigationBridge.stop();
         this._moveRepeater.close();this._holdBridge.close();
