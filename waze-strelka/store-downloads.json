@@ -176,6 +176,22 @@
       "size": 1432329,
       "sha256": "0e66e6458bfb0530b238cb8ed8fde7825447090c80eeafe9d94e92d3d0388902",
       "url": "https://raw.githubusercontent.com/istt1899/x3/b3717281543afd48010584f7b6a3930d8f45ff1e/marku-kaluga-cameras%400.9.3.tgz"
+    },
+    {
+      "id": "marku_kaluga_cameras",
+      "version": "0.9.4",
+      "name": "marku_kaluga_cameras@0.9.4.tgz",
+      "size": 153889,
+      "sha256": "a4f0c103cce8f9224d55e2248095553aafbd51ad4bdeba218a44b8cae0913fc0",
+      "url": "https://raw.githubusercontent.com/istt1899/x3/8c232ea5bdaaeaa42cdc53dd5c5f1197a65c44ca/marku_kaluga_cameras%400.9.4.tgz"
+    },
+    {
+      "id": "marku-kaluga-cameras",
+      "version": "0.9.4",
+      "name": "marku-kaluga-cameras@0.9.4.tgz",
+      "size": 1432724,
+      "sha256": "4e4b578006690128ab0fb584bae0bb891ec88ec091d6ad93c3afb840c72c2aa3",
+      "url": "https://raw.githubusercontent.com/istt1899/x3/8c232ea5bdaaeaa42cdc53dd5c5f1197a65c44ca/marku-kaluga-cameras%400.9.4.tgz"
     }
   ]
 }

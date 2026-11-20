@@ -47,20 +47,20 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "eee085fb11d2ac5a540919210efdad72003955909021cad4cf0b9e90f383edbf"
+      "sha256": "23cb2e275221282ca50d8184da9f05b09877e24ae3e93d45308c2727dbcd798d"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
     }
   },
   "catalog_update": {
-    "date": "2026-11-19",
-    "reason": "Waze Strelka 0.9.3 automatically recovers the GPS time reference using the head unit RTC or two network time sources cross-checked against progressing BMW RMC.",
-    "previous_sha256": "b72a6fddd280a6d2fd4c50ffd58c1a1fc0a6cd41a0cb73e817132c8dcf9479d3",
-    "package_commit": "b3717281543afd48010584f7b6a3930d8f45ff1e",
+    "date": "2026-11-20",
+    "reason": "Waze Strelka 0.9.4 checks advancing BMW RMC with an obsolete year against independent UTC when the MGU system date is invalid.",
+    "previous_sha256": "eee085fb11d2ac5a540919210efdad72003955909021cad4cf0b9e90f383edbf",
+    "package_commit": "8c232ea5bdaaeaa42cdc53dd5c5f1197a65c44ca",
     "updated_components": {
-      "marku-kaluga-cameras": "0.9.3",
-      "marku_kaluga_cameras": "0.9.3"
+      "marku-kaluga-cameras": "0.9.4",
+      "marku_kaluga_cameras": "0.9.4"
     },
     "hardware_scope": "ID7 package. Physical HUD output on the reported X6 remains to be verified."
   }
