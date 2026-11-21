@@ -52,6 +52,22 @@ assert.strictEqual(merged.openSpeedcamCount, 1);
 assert.strictEqual(provider.nearExistingRecord, 1, 'near an existing record the community point is skipped');
 assert.strictEqual(provider.nearCommunityPoint, 1, 'a near-duplicate community point is skipped');
 assert.strictEqual(merged.records.length, 2);
+// A latitude band boundary neither hides a duplicate nor changes the
+// 60 m base-record and 15 m community-point distance rules.
+var boundaryBase = base();
+boundaryBase.records[0].position.lat = 54.4999;
+var boundary = clone(mini);
+boundary.records = [
+  point('2'.repeat(24), 'static_cam', { position: { lat: 54.5004, lon: 36.2 } }),
+  point('3'.repeat(24), 'static_cam', { position: { lat: 54.5005, lon: 36.2 } }),
+  point('4'.repeat(24), 'static_cam', { position: { lat: 55.49995, lon: 37.5 } }),
+  point('5'.repeat(24), 'static_cam', { position: { lat: 55.50005, lon: 37.5 } }),
+  point('6'.repeat(24), 'static_cam', { position: { lat: 55.5001, lon: 37.5 } })
+];
+boundary.counts = { fetched: 5, imported: 5, excluded: 0 };
+var acrossBands = api.augment(boundaryBase, boundary);
+assert.deepStrictEqual(acrossBands.records.slice(1).map(function (r) { return r.id; }),
+  [boundary.records[1].id, boundary.records[2].id, boundary.records[4].id]);
 // Speed-limit ledger totals stay honest for the appended layer.
 var ledger = clone(base());
 ledger.speedLimitMetadata = { counts: { existingNumeric: 1, cameraTag: 0, enforcementRelation: 0, sharedRoadNode: 0, addressRoad: 0, unresolved: 0 } };

@@ -82,19 +82,39 @@ function distanceM(a, b) {
   var x = (b.lon - a.lon) * 111320 * Math.cos((a.lat + b.lat) * Math.PI / 360), y = (b.lat - a.lat) * 111320;
   return Math.sqrt(x * x + y * y);
 }
+// Each latitude band spans 111.32 m. Both deduplication radii are
+// smaller, so only this band and its two neighbours can contain matches.
+function latitudeBand(position) { return Math.floor(position.lat * 1000); }
+function indexPosition(bands, position) {
+  var band = latitudeBand(position);
+  if (!bands[band]) bands[band] = [];
+  bands[band].push(position);
+}
+function hasNearbyPosition(bands, position, radiusM) {
+  var band = latitudeBand(position);
+  for (var adjacent = band - 1; adjacent <= band + 1; adjacent++) {
+    var candidates = bands[adjacent];
+    if (candidates && candidates.some(function (candidate) { return distanceM(candidate, position) <= radiusM; })) return true;
+  }
+  return false;
+}
 function augment(database, snapshotData) {
   if (!object(database) || database.region !== 'RU-KLU' || !Array.isArray(database.records) || database.records.length > 20000) fail('OSC_DATABASE');
   var snapshot = validateSnapshot(snapshotData), result = clone(database), ids = Object.create(null);
-  result.records.forEach(function (r) { if (!r || !text(r.id, 128) || ids[r.id]) fail('OSC_DATABASE_ID'); ids[r.id] = true; });
-  var basePositions = result.records.map(function (r) { return r.position; }), addedPositions = [];
+  var basePositions = Object.create(null), addedPositions = Object.create(null);
+  result.records.forEach(function (r) {
+    if (!r || !text(r.id, 128) || ids[r.id]) fail('OSC_DATABASE_ID');
+    ids[r.id] = true;
+    indexPosition(basePositions, r.position);
+  });
   var accepted = 0, audit = { nearExistingRecord: [], nearCommunityPoint: [] };
   snapshot.records.forEach(function (r) {
     if (ids[r.id]) fail('OSC_DUPLICATE_SOURCE');
-    if (basePositions.some(function (p) { return distanceM(p, r.position) <= 60; })) { audit.nearExistingRecord.push(r.id); ids[r.id] = true; return; }
-    if (addedPositions.some(function (p) { return distanceM(p, r.position) <= 15; })) { audit.nearCommunityPoint.push(r.id); ids[r.id] = true; return; }
+    if (hasNearbyPosition(basePositions, r.position, 60)) { audit.nearExistingRecord.push(r.id); ids[r.id] = true; return; }
+    if (hasNearbyPosition(addedPositions, r.position, 15)) { audit.nearCommunityPoint.push(r.id); ids[r.id] = true; return; }
     ids[r.id] = true;
     var record = toRecord(r);
-    result.records.push(record); addedPositions.push(record.position); accepted++;
+    result.records.push(record); indexPosition(addedPositions, record.position); accepted++;
   });
   if (result.records.length > 20000) fail('OSC_DATABASE_SIZE');
   // The speed-limit evidence ledger counts every bundle record; keep its

@@ -24,7 +24,7 @@ function cleanup(dir) {
 }
 async function delayedStartup() {
   var socket = socketPath(), child;
-  var pending = probe({ socket: socket, checkPermissions: false, version: VERSION, timeoutMs: 5000, retryMs: 30 });
+  var pending = probe({ socket: socket, checkPermissions: false, version: VERSION, retryMs: 30 });
   var start = setTimeout(function () { child = launch(socket, path.join(root, 'normal')); }, 150);
   try {
     var state = await pending;
@@ -39,7 +39,7 @@ async function badStorage() {
   var obstacle = path.join(root, 'blocked-data'); fs.writeFileSync(obstacle, 'file');
   var socket = socketPath(), child = launch(socket, obstacle);
   try {
-    var state = await probe({ socket: socket, checkPermissions: false, version: VERSION, timeoutMs: 5000, retryMs: 30 });
+    var state = await probe({ socket: socket, checkPermissions: false, version: VERSION, retryMs: 30 });
     assert.strictEqual(state.database.count, 14200);
     assert.strictEqual(state.database.osmCount, 150); assert.strictEqual(state.database.reportedCount, 1);
     assert.strictEqual(state.storage.persistent, false);
@@ -59,7 +59,7 @@ async function activeSocket() {
     var timeout = new Promise(function (_, reject) {
       // The daemon assembles its bundled camera data before checking the socket.
       // Allow the production probe's startup budget, then bound shutdown separately.
-      deadline = setTimeout(function () { reject(new Error('duplicate process did not report control socket refusal')); }, 8000);
+      deadline = setTimeout(function () { reject(new Error('duplicate process did not report control socket refusal')); }, 60000);
       detectRefusal = function () {
         if (!refusal.test(child.output)) return;
         child.stderr.removeListener('data', detectRefusal);
@@ -86,7 +86,7 @@ async function staleSocket() {
   cp.execFileSync('python3', ['-c', 'import socket,sys;s=socket.socket(socket.AF_UNIX);s.bind(sys.argv[1]);s.close()', socket]);
   var child = launch(socket, path.join(root, 'stale'));
   try {
-    var state = await probe({ socket: socket, checkPermissions: false, version: VERSION, timeoutMs: 5000, retryMs: 30 });
+    var state = await probe({ socket: socket, checkPermissions: false, version: VERSION, retryMs: 30 });
     assert.strictEqual(state.database.count, 14200);
     assert.strictEqual(state.database.osmCount, 150); assert.strictEqual(state.database.reportedCount, 1);
     console.log('PASS stale Unix socket is replaced after a refused connection');

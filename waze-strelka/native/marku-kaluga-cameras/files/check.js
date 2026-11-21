@@ -20,7 +20,9 @@ function probe(options) {
   options = options || {};
   return new Promise(function (resolve, reject) {
     var socket = options.socket || CONTROL, sock, retry, deadline, buffer = '', done = false;
-    var timeoutMs = options.timeoutMs || 8000, lastError = new Error('No service status');
+    // An upgrade loads the regional database and may persist a migrated
+    // copy before the daemon can answer on a socket that is already open.
+    var timeoutMs = options.timeoutMs || 60000, lastError = new Error('No service status');
     function finish(err, state) {
       if (done) return; done = true; clearTimeout(deadline); clearTimeout(retry); if (sock) sock.destroy();
       if (err) reject(err); else resolve(state);
@@ -34,7 +36,7 @@ function probe(options) {
     function connect() {
       if (done) return;
       var current = net.connect(socket); sock = current; buffer = '';
-      current.setEncoding('utf8'); current.setTimeout(Math.min(timeoutMs, 1500));
+      current.setEncoding('utf8'); current.setTimeout(Math.min(timeoutMs, 5000));
       current.on('connect', function () {
         if (done || sock !== current) return;
         try { if (options.checkPermissions !== false) permissions(socket); }
@@ -53,8 +55,8 @@ function probe(options) {
           try { msg = JSON.parse(line); } catch (e) { continue; }
           if (msg.ev !== 'status' || !msg.state) continue;
           var state = msg.state, db = state.database;
-          if (!db || db.state !== 'ready' || !(db.count > 0)) { finish(new Error('Database not ready: ' + (db && db.error || 'empty'))); return; }
           if (options.version && state.serviceVersion !== options.version) { again(new Error('Wrong running service version')); return; }
+          if (!db || db.state !== 'ready' || !(db.count > 0)) { finish(new Error('Database not ready: ' + (db && db.error || 'empty'))); return; }
           finish(null, state); return;
         }
       });
@@ -81,8 +83,9 @@ if (require.main === module) {
   probe({ version: expected }).then(function (state) {
     console.log('Waze Strelka camera service ' + state.serviceVersion + ': app socket OK; database ' + state.database.count + ' objects; GPS checked separately');
   }, function (err) {
-    console.error('Camera service check: ' + err.message);
     systemdDiagnostics().forEach(function (line) { console.error(line); });
+    // mgu-deploy uses the last output line for the Store error card.
+    console.error('Camera service check: ' + err.message.replace(/\s+/g, ' '));
     process.exitCode = 1;
   });
 }
