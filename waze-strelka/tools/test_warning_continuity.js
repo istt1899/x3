@@ -59,6 +59,20 @@ assert.strictEqual(step(slow, -172, 6000, null, {speedKmh: 5, headingDeg: 270}),
 const notAdmittedSlow = create(); step(notAdmittedSlow, -200, 1000, null, {speedKmh: 5});
 assert.strictEqual(step(notAdmittedSlow, -199, 2000, null, {speedKmh: 5}), null);
 
+// Reproduce the driver's 180 m → blank → 160 m, with a lateral BMW fix
+// shift at the light and a held distance while stopped or on a duplicate.
+const light = create();
+assert.strictEqual(step(light, -200, 1000), null);
+assert.strictEqual(Math.round(checkId(step(light, -180, 2000), 'a').displayDistanceM), 180);
+const parked = {lat: position(0, 7).lat, speedKmh: 0, headingDeg: null};
+assert.strictEqual(Math.round(checkId(step(light, -181, 3000, null, parked), 'a').displayDistanceM), 180);
+assert.strictEqual(light.diagnostic().reason, 'STOPPED_APPROACH');
+assert.strictEqual(Math.round(checkId(step(light, -189, 4000, null, parked), 'a').displayDistanceM), 180);
+assert.strictEqual(Math.round(checkId(step(light, -179, 5000, null, {speedKmh: 2, headingDeg: null}), 'a').displayDistanceM), 179);
+assert.strictEqual(Math.round(checkId(step(light, -160, 6000), 'a').displayDistanceM), 160);
+assert.strictEqual(Math.round(checkId(light.evaluate(fix(-154, 6000), 6100, true), 'a').displayDistanceM), 160);
+assert.strictEqual(Math.round(checkId(step(light, -162, 7000), 'a').displayDistanceM), 160);
+
 // Strict safety gates are not part of hysteresis.
 const offRoad = admitted(); assert.strictEqual(step(offRoad, -480, 3000, null, {lat: position(0, 7).lat}), null); assert.strictEqual(offRoad.diagnostic().lastClear.reason, 'OFF_ROAD');
 const turn = admitted(); assert.strictEqual(step(turn, -480, 3000, null, {headingDeg: 135}), null); assert.strictEqual(turn.diagnostic().lastClear.reason, 'HEADING_MISMATCH');
@@ -69,6 +83,25 @@ assert.strictEqual(step(ambiguous, -170, 3000, null, {accuracyM: 10, lat: positi
 const wrongWayRoads = [roads[0], {id: 2, dir: 0, cam: -1, pts: [[-1600, 40], [300, 40]]}];
 const wrongRoad = admitted({zones: [zone('a', 0, wrongWayRoads)]});
 assert.strictEqual(step(wrongRoad, -480, 3000, null, {lat: position(0, 40).lat}), null); assert.strictEqual(wrongRoad.diagnostic().lastClear.reason, 'CAMERA_WAY_MISSING');
+
+// The mapped adjacent road takes precedence over the proximity shortcut,
+// even when its separation would otherwise fit the admission corridor.
+const parallelRoads = [roads[0], {id: 3, dir: 0, cam: -1, pts: [[-500, 16], [300, 16]]}];
+const parallel = create({nearby: true, zones: [zone('a', 0, parallelRoads)]});
+const parallelFix = {lat: position(0, 16).lat};
+for (let t = 1; t <= 12; t++) {
+    assert.strictEqual(step(parallel, -215 + t * 20, t * 1000, null, parallelFix), null);
+    assert.strictEqual(parallel.diagnostic().reason, 'CAMERA_WAY_MISSING');
+}
+assert.strictEqual(step(parallel, 25, 13000, null, Object.assign({}, parallelFix, {speedKmh: 0, headingDeg: null})), null);
+const correctRoad = create({nearby: true, zones: [zone('a', 0, parallelRoads)]});
+step(correctRoad, -200, 1000);
+assert(checkId(step(correctRoad, -180, 2000), 'a').roadConfirmed);
+assert.strictEqual(step(correctRoad, -160, 3000, null, parallelFix), null, 'A lane change to a mapped parallel road withdraws the alert');
+const unzonedParallel = create({nearby: true, zones: []});
+for (let t = 1; t <= 12; t++) {
+    assert.strictEqual(step(unzonedParallel, -240 + t * 20, t * 1000, null, {lat: position(0, 28).lat}), null);
+}
 
 const accuracy = create(); assert.strictEqual(step(accuracy, -520, 1000), null);
 assert.strictEqual(step(accuracy, -500, 2000, null, {accuracyM: 15.001}), null, 'Admission quality remains 15 m');

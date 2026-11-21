@@ -30,6 +30,20 @@ function project(road, x, y) {
     }
     return nearest;
 }
+// A connecting approach can end at the camera's junction without containing
+// the camera node. Its endpoint must be ahead, close to the actual device,
+// and in a permitted travel direction.
+function connectsAtCamera(hit, fix, travel) {
+    const forward = diff(hit.bearing, fix.headingDeg) <= 32;
+    const reverse = diff((hit.bearing + 180) % 360, fix.headingDeg) <= 32;
+    if (!forward && !reverse) return false;
+    const road = hit.road, sign = forward ? 1 : -1;
+    if (road.dir && road.dir !== sign) return false;
+    const end = forward ? road.segments[road.segments.length - 1] : road.segments[0];
+    const x = end.x + (forward ? end.dx : 0), y = end.y + (forward ? end.dy : 0);
+    const bearing = (end.bearing + (forward ? 0 : 180)) % 360;
+    return Math.hypot(x, y) <= 10 && travel.some(h => diff(h, bearing) <= 35);
+}
 function candidate(z, fix, range, diagnostic, tracking) {
     const x = (fix.lon - z.lon) * 111320 * Math.cos(z.lat * Math.PI / 180), y = (fix.lat - z.lat) * 111320;
     const reject = reason => { if (diagnostic) diagnostic.reason = reason; return null; };
@@ -38,8 +52,17 @@ function candidate(z, fix, range, diagnostic, tracking) {
     if (diagnostic && hit) { diagnostic.way = hit.road.id; diagnostic.lateralErrorM = hit.error; }
     // Retention never expands the source road corridor or its heading gates.
     if (!hit || hit.error > Math.min(12, Math.max(6, fix.accuracyM))) return reject('OFF_ROAD');
-    if (hit.road.cam === null) return reject('CAMERA_WAY_MISSING');
-    if (hits.slice(1).some(other => other.error - hit.error < Math.max(8, fix.accuracyM + 3))) return reject('AMBIGUOUS_ROAD');
+    if (hit.road.cam === null) {
+        if (diagnostic) diagnostic.connectingWay = connectsAtCamera(hit, fix, z.travel);
+        return reject('CAMERA_WAY_MISSING');
+    }
+    const tied = hits.slice(1).filter(other => other.error - hit.error < Math.max(8, fix.accuracyM + 3));
+    if (tied.length) {
+        if (diagnostic) diagnostic.unrelatedWay = tied.some(other =>
+            other.road.cam === null && other.error - hit.error <= 4 &&
+            !connectsAtCamera(other, fix, z.travel));
+        return reject('AMBIGUOUS_ROAD');
+    }
     if (tracking && hit.road.id !== tracking.way) return reject('ROAD_CHANGED');
     const offset = hit.road.cam - hit.s, sign = tracking ? tracking.sign : offset > 0 ? 1 : -1;
     const signedDistance = offset * sign, distanceM = Math.max(0, signedDistance);
@@ -64,6 +87,7 @@ const RETENTION_ACCURACY_M = 30;
  * camera facing our stream when known; release needs the camera behind, a
  * recede beyond the jitter margin, or three consecutive growing distances.
  * Closer than AT_CAMERA the bearing is noise: the car is at the point. */
+const NEARBY_ADMISSION_LATERAL_M = 18, NEARBY_RETENTION_LATERAL_M = 32;
 const NEARBY_AHEAD_MAX_DEG = 40, NEARBY_BEHIND_DEG = 100, NEARBY_FACING_DEG = 45, NEARBY_AT_CAMERA_M = 15, NEARBY_GROWTH_EXIT = 3;
 function validPosition(f, now, accuracyLimit) {
     return f && [f.timeMs, f.lat, f.lon, f.accuracyM, now].every(Number.isFinite) &&
@@ -160,8 +184,9 @@ function createGuidance(data) {
         // Nearby (0.8.6) admission pre-pass: one rejection reason per in-range
         // enabled record, shared by the status, the candidate list and the
         // selection below. Out-of-range records are not candidates at all.
-        const anchoredStop = stopped && anchor && distance(f, anchor) <= Math.max(15, f.accuracyM * 2);
-        const course = trackingMoving ? f.headingDeg : anchoredStop && Number.isFinite(heading) ? heading : null;
+        const anchored = previous && anchor && distance(f, anchor) <= Math.max(15, Math.min(25, f.accuracyM * 2));
+        const stationary = stopped && f.speedKmh <= 1;
+        const course = trackingMoving ? f.headingDeg : stopped && anchored && Number.isFinite(heading) ? heading : null;
         const nearbyBlockReason = (r, d) => {
             if (!moving) return 'STATIONARY';
             if (course === null) return 'COURSE_UNKNOWN';
@@ -171,6 +196,7 @@ function createGuidance(data) {
             const delta = diff(angle(dx, dy), course);
             if (delta > NEARBY_BEHIND_DEG) return 'BEHIND';
             if (delta > NEARBY_AHEAD_MAX_DEG) return 'OFF_COURSE';
+            if (d * Math.sin(delta * Math.PI / 180) > NEARBY_ADMISSION_LATERAL_M) return 'OFF_ROUTE';
             // 0.8.7: warn from either side; a camera verified to look across
             // the road (not at our stream) is rejected as DIRECTION.
             const { capture, cameraFacing } = describeCamera(r);
@@ -205,17 +231,23 @@ function createGuidance(data) {
         const roadCandidates = moving ? zones.filter(z => byId[z.id] && preferences.matches(byId[z.id], prefs)).map(z => candidate(z, f, range)).filter(Boolean).sort((a, b) => a.distanceM - b.distanceM) : [];
         let selected = null, retained = false, clearReason = null;
         if (previous && !preferences.matches(byId[previous.id], prefs)) clearReason = 'TYPE_DISABLED';
-        else if (previous && previous.distanceM > range + 0.000001 && !fresh) clearReason = 'OUT_OF_RANGE';
-        if (previous && previous.roadConfirmed && !clearReason) {
+        else if (previous && previous.distanceM > range + 0.000001 && (!fresh || stationary)) clearReason = 'OUT_OF_RANGE';
+        if (previous && stationary && !clearReason) {
+            // Parked fixes can wander outside the road corridor. Keep the last
+            // accepted geometry and distance within the stationary anchor.
+            if (anchored) {
+                selected = Object.assign({}, previous, { stopped: true });
+                retained = true;
+                if (previous.roadConfirmed) state.approachSamples = 2;
+            } else clearReason = 'POSITION_JUMP';
+        }
+        if (previous && previous.roadConfirmed && !selected && !clearReason) {
             const detail = {}, zone = zoneById[previous.id];
             let tracking = null;
-            if (trackingMoving && zone) tracking = candidate(zone, f, range, detail, previous);
-            else if (stopped && zone && anchor && Number.isFinite(heading) && distance(f, anchor) <= Math.max(15, f.accuracyM * 2)) {
-                tracking = candidate(zone, Object.assign({}, f, { headingDeg: heading }), range, detail, previous);
-                if (tracking) tracking.stopped = true;
-            } else detail.reason = 'WAITING_MOTION';
+            if (course !== null && zone) tracking = candidate(zone, Object.assign({}, f, { headingDeg: course }), range, detail, previous);
+            else detail.reason = 'WAITING_MOTION';
             if (tracking && closest !== null && tracking.distanceM > closest + jitter(f)) detail.reason = 'APPROACH_LOST';
-            else if (tracking && fresh && trackingMoving && dt > 0 && !plausible(previous, tracking, f, dt)) detail.reason = 'POSITION_JUMP';
+            else if (tracking && fresh && dt > 0 && !plausible(previous, tracking, f, dt)) detail.reason = 'POSITION_JUMP';
             else if (tracking) { selected = tracking; retained = true; state.approachSamples = 2; }
             if (!selected) {
                 clearReason = detail.reason || 'APPROACH_LOST';
@@ -231,7 +263,7 @@ function createGuidance(data) {
             selected = nextRoad; retained = false; state.approachSamples = 2; delete passed[nextRoad.id];
         } else if (!selected && roadCandidates.length) state.approachSamples = fresh && prior[key(roadCandidates[0])] ? 2 : 1;
         const nearbyCandidates = [];
-        if (!selected && (!data || data.nearby !== false)) {
+        if (!selected && !(previous && stationary) && (!data || data.nearby !== false)) {
             const possible = [];
             for (const item of enabledRecords) {
                 const r = item.record, d = item.distanceM;
@@ -240,20 +272,28 @@ function createGuidance(data) {
                 if (holding && !tracked) continue;
                 const next = { id: r.id, distanceM: d, confidence: 'nearby', roadConfirmed: false, limitKmh: null };
                 if (zoneById[r.id]) {
-                    // Zoned cameras keep the proven tight-cone fallback for the
-                    // metres where road geometry rejects the corridor end.
+                    if (course === null) continue;
+                    const detail = {};
+                    candidate(zoneById[r.id], Object.assign({}, f, { headingDeg: course }), range, detail);
+                    // A positive match onto a different road vetoes proximity,
+                    // including near the device where the angle alone is weak.
+                    const differentRoad = detail.reason === 'CAMERA_WAY_MISSING' && !detail.connectingWay;
+                    const wrongDirection = ['ONEWAY_MISMATCH', 'HEADING_MISMATCH', 'CAMERA_DIRECTION'].indexOf(detail.reason) >= 0;
+                    if (differentRoad || detail.unrelatedWay || wrongDirection) {
+                        if (tracked) clearReason = detail.reason;
+                        continue;
+                    }
                     const dx = (r.position.lon - f.lon) * Math.cos(f.lat * Math.PI / 180), dy = r.position.lat - f.lat;
-                    const anchoredStop = stopped && anchor && distance(f, anchor) <= Math.max(15, f.accuracyM * 2);
-                    const trackingCourse = trackingMoving ? f.headingDeg : anchoredStop && Number.isFinite(heading) ? heading : null;
-                    const delta = trackingCourse === null ? null : diff(angle(dx, dy), trackingCourse);
-                    const immediate = d <= 120 && (stopped || moving && (d <= 0.000001 || delta <= 100));
-                    const entry = moving && delta <= 25 && d * Math.sin(delta * Math.PI / 180) <= Math.max(18, f.accuracyM * 1.5);
+                    const delta = diff(angle(dx, dy), course);
+                    const lateral = d * Math.sin(delta * Math.PI / 180);
+                    const aligned = lateral <= NEARBY_ADMISSION_LATERAL_M;
+                    const immediate = moving && d <= 120 && aligned && (d <= 0.000001 || delta <= NEARBY_AHEAD_MAX_DEG);
+                    const entry = moving && delta <= 25 && aligned;
                     const approaching = fresh && entry && approaches(priorNearby[r.id], next, f, dt);
                     if (entry) nearbyCandidates.push(next);
-                    const closeTracking = d <= 120 && (d <= 0.000001 || trackingCourse === null && stopped || trackingCourse !== null && delta <= 100);
-                    const continuation = tracked && trackingCourse !== null && delta <= 32 && d * Math.sin(delta * Math.PI / 180) <= Math.max(18, f.accuracyM * 1.5) + Math.min(10, f.accuracyM);
+                    const continuation = delta <= NEARBY_AHEAD_MAX_DEG && lateral <= NEARBY_RETENTION_LATERAL_M;
                     const stable = tracked && !clearReason && closest !== null && d <= closest + jitter(f) &&
-                        (closeTracking || continuation) && (!fresh || anchoredStop || plausible(previous, next, f, dt));
+                        continuation && (!fresh || plausible(previous, next, f, dt));
                     if (stable) { next.retained = true; possible.push(next); }
                     else if ((!tracked && immediate && !passed[r.id] || approaching) && !(previous && previous.roadConfirmed && previous.id === r.id && clearReason)) {
                         if (approaching) delete passed[r.id];
@@ -261,7 +301,7 @@ function createGuidance(data) {
                     } else if (tracked && !clearReason) {
                         clearReason = d > (closest === null ? d : closest) + jitter(f) ? 'APPROACH_LOST' : 'BEARING_CHANGED'; passed[r.id] = true;
                     }
-                    if (tracked && trackingCourse !== null && delta > 100) passed[r.id] = true;
+                    if (tracked && delta > NEARBY_BEHIND_DEG) passed[r.id] = true;
                     continue;
                 }
                 if (tracked) {
@@ -270,12 +310,15 @@ function createGuidance(data) {
                     // three fresh samples in a row. Stationary keeps it.
                     let reject = null;
                     const dx = (r.position.lon - f.lon) * Math.cos(f.lat * Math.PI / 180), dy = r.position.lat - f.lat;
-                    const delta = d <= NEARBY_AT_CAMERA_M && course !== null ? 0 : course === null ? null : diff(angle(dx, dy), course);
+                    const delta = course === null ? null : diff(angle(dx, dy), course);
+                    const passedCamera = delta !== null && delta > NEARBY_BEHIND_DEG &&
+                        (d > NEARBY_AT_CAMERA_M || d * Math.cos(delta * Math.PI / 180) < -Math.min(5, Math.max(2, f.accuracyM / 2)));
                     // Release distance is the owner's range plus the accuracy
                     // jitter; an all-time-minimum ratchet would flicker under
                     // ±10 m GNSS noise.
-                    if (delta !== null && delta > NEARBY_BEHIND_DEG) reject = 'BEHIND';
+                    if (passedCamera) reject = 'BEHIND';
                     else if (d > range + jitter(f)) reject = 'OUT_OF_RANGE';
+                    else if (delta !== null && d * Math.sin(delta * Math.PI / 180) > NEARBY_RETENTION_LATERAL_M) reject = 'OFF_ROUTE';
                     else if (fresh) {
                         if (previous && d > previous.distanceM + 0.000001) nearbyGrowth++;
                         else nearbyGrowth = 0;
@@ -286,8 +329,8 @@ function createGuidance(data) {
                         // Three-second show floor: geometry noise must not
                         // blink the card right after it appeared. Passing the
                         // camera (BEHIND) and impossible jumps stay critical.
-                        if (activeSinceMs !== null && f.timeMs - activeSinceMs < 3000 && reject !== 'BEHIND' && reject !== 'POSITION_JUMP' &&
-                            d <= range + jitter(f) && (delta === null || delta <= NEARBY_BEHIND_DEG)) reject = null;
+                        if (activeSinceMs !== null && f.timeMs - activeSinceMs < 3000 && reject !== 'BEHIND' && reject !== 'POSITION_JUMP' && reject !== 'OFF_ROUTE' &&
+                            d <= range + jitter(f) && !passedCamera) reject = null;
                     }
                     if (reject) {
                         if (reject === 'BEHIND') passed[r.id] = true;
@@ -322,6 +365,11 @@ function createGuidance(data) {
         if (active) {
             const same = previous && previous.id === active.id && mode(previous) === mode(active);
             closest = same && closest !== null ? Math.min(closest, active.distanceM) : active.distanceM;
+            active.displayDistanceM = active.distanceM;
+            if (previous && previous.id === active.id) {
+                active.displayDistanceM = previous.displayDistanceM;
+                if (fresh && !stationary) active.displayDistanceM = Math.min(active.displayDistanceM, active.distanceM);
+            }
             state.mode = mode(active);
             state.reason = active.stopped ? 'STOPPED_APPROACH' : active.roadConfirmed ? retained ? 'TRACKING_APPROACH' : 'ROAD_APPROACH' : retained ? 'NEARBY_TRACKING' : 'NEARBY_ONLY';
             if (active.roadConfirmed) state.roadReason = state.reason;
@@ -330,7 +378,7 @@ function createGuidance(data) {
             if (active.roadConfirmed) {
                 state.way = active.way;
             }
-            if (trackingMoving && fresh) { anchor = { lat: f.lat, lon: f.lon }; heading = f.headingDeg; }
+            if (!stationary && course !== null && fresh) { anchor = { lat: f.lat, lon: f.lon }; heading = course; }
             else if (!same) { anchor = { lat: f.lat, lon: f.lon }; heading = null; }
             state.candidates.forEach(c => { if (c.id === active.id) c.reason = state.reason; });
         } else {

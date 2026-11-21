@@ -97,7 +97,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.9.10', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.9.11', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -453,7 +453,11 @@ function start(options) {
     // to keep the current card — a lost fix never admits a new camera.
     state.gpsHold = { active: false, sinceMs: null, ageMs: null, reason: null };
     var evalFix = fix;
-    if (fix && validPosition(fix, now)) {
+    // A partial RMC speed can arrive before its matching position. Keep the
+    // last visual card within the existing freshness window while it assembles.
+    var holdMotion = motion.roadMismatch && !motion.conflict && state.alert &&
+      validRetainedPosition(lastGoodFix, now) && validRetainedPosition(fix, now);
+    if (!roadBlocked && validPosition(fix, now)) {
       lastGoodFix = { lat: fix.lat, lon: fix.lon, speedKmh: fix.speedKmh, headingDeg: fix.headingDeg,
         accuracyM: fix.accuracyM, timeMs: fix.timeMs, source: fix.source };
     } else if (state.alert && lastGoodFix && !roadBlocked &&
@@ -475,10 +479,12 @@ function start(options) {
     }
     // Guidance validates the source itself and needs the rejected measurement
     // to explain accuracy/UTC failures. The native output gate below remains.
-    try { if (guidance) alert = guidance.evaluate(database && !roadBlocked ? evalFix : null, now, settings.enabled, settings.alertPreferences); }
-    catch (e) { state.error = 'Guidance: ' + e.message; }
+    try {
+      if (holdMotion) alert = state.alert;
+      else if (guidance) alert = guidance.evaluate(database && !roadBlocked ? evalFix : null, now, settings.enabled, settings.alertPreferences);
+    } catch (e) { state.error = 'Guidance: ' + e.message; }
     if (state.gpsHold.reason === 'GPS_LOST') alert = null;
-    if (!settings.enabled || !(alert ? validRetainedPosition(evalFix, now) : validPosition(evalFix, now)) || !database || roadBlocked) alert = null;
+    if (!settings.enabled || !(alert ? validRetainedPosition(evalFix, now) : validPosition(evalFix, now)) || !database || (roadBlocked && !holdMotion)) alert = null;
     if (alert && (!alertPreferences.matches(alert, settings.alertPreferences) || !Number.isFinite(alert.distanceM) || alert.distanceM < 0 || alert.distanceM > settings.alertPreferences.warningDistanceM + 0.000001)) alert = null;
     state.guidance = guidance && typeof guidance.diagnostic === 'function' ? guidance.diagnostic() : null;
     state.nearestCandidates = state.nearestCandidates.map(function(item){
@@ -486,17 +492,17 @@ function start(options) {
       return Object.assign({},item,{reason:!validPosition(fix,now)?'GPS_INVALID':detail?detail.reason:'NO_ROAD_ZONE',way:detail&&detail.way||null});
     });
     state.observedAtMs = now;
-    state.alert = alert ? Object.assign({}, alert, { filterMatched: true, limit: alert.limitKmh, distance: Math.round(alert.distanceM), stage: alert.stage || (alert.roadConfirmed ? 'approach' : 'nearby') }) : null;
+    state.alert = alert ? Object.assign({}, alert, { filterMatched: true, limit: alert.limitKmh, distance: Math.round(Number.isFinite(alert.displayDistanceM) ? alert.displayDistanceM : alert.distanceM), stage: alert.stage || (alert.roadConfirmed ? 'approach' : 'nearby') }) : null;
     // Extrapolation holds the card only; speed-based warnings still demand
     // the real, strict-quality fix.
-    state.speedWarning = warningPolicy.evaluate(state.alert,fix,now,settings.overspeedPreferences);
+    state.speedWarning = warningPolicy.evaluate(state.alert,roadBlocked ? null : fix,now,settings.overspeedPreferences);
     if(roadBlocked)state.speedWarning.reason=motion.conflict?'MOTION_CONFLICT':'MOTION_EPOCH_MISMATCH';
     else if(!settings.enabled)state.speedWarning.reason='DISABLED';
     else if(state.gpsHold.reason==='GPS_LOST')state.speedWarning.reason='GPS_LOST';
     else if(!validPosition(evalFix,now))state.speedWarning.reason=evalFix?'GPS_INVALID':'GPS_MISSING';
     else if(!state.alert&&state.nearest&&state.nearest.filterMatched===false)state.speedWarning.reason='TYPE_DISABLED';
-    if (state.alert) { state.alert.speedKmh = evalFix && evalFix.speedKmh; state.alert.overspeed = state.speedWarning.overspeed; state.alert.speedWarning = state.speedWarning;
-      if (evalFix && Number.isFinite(evalFix.headingDeg)) state.alert.captureClass = captureData.classify(state.alert.capture, evalFix.headingDeg, state.alert.cameraFacing); }
+    if (state.alert) { state.alert.speedKmh = !roadBlocked && evalFix ? evalFix.speedKmh : null; state.alert.overspeed = state.speedWarning.overspeed; state.alert.speedWarning = state.speedWarning;
+      if (!roadBlocked && evalFix && Number.isFinite(evalFix.headingDeg)) state.alert.captureClass = captureData.classify(state.alert.capture, evalFix.headingDeg, state.alert.cameraFacing); }
     if (state.displayTest.active && (!state.actions.displayTest.allowed || !testTargetEnabled(state.displayTest.target))) stopDisplayTest(!state.actions.displayTest.allowed ? state.actions.displayTest.code : 'OUTPUTS_OFF');
     var displayAlert = state.displayTest.active ? { id: '__display_test__', test: true, title: 'ТЕСТ УВЕДОМЛЕНИЯ',
       description: 'Проверка приборов и HUD', controls: ['redlight','speed'], distanceM: 150, roadConfirmed: true, limitKmh: 60, speedKmh: fix && fix.speedKmh, confidence: 'test', calibration: !!state.displayTest.calibration } : state.alert;
@@ -505,7 +511,7 @@ function start(options) {
     } : settings.outputs;
     updateDisplay(displayAlert, displayOutputs);
     if (previewRequest && state.displayTest.active && settlePreview()) updateDisplay(state.alert, settings.outputs);
-    if (audio) { audio.configure(settings.overspeedPreferences); audio.update(state.alert, fix, now); var audioState = audio.status();
+    if (audio) { audio.configure(settings.overspeedPreferences); audio.update(roadBlocked ? null : state.alert, fix, now); var audioState = audio.status();
       if(state.audio && state.audio.probeState)audioState.probeState=state.audio.probeState;
       state.audio=audioState;
     }

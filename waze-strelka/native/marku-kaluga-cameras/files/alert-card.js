@@ -25,7 +25,8 @@ function presentation(alert) {
         alert.captureDirectionVerified === true && ['front','rear'].indexOf(alert.captureDirection) >= 0 ? alert.captureDirection : 'unknown';
     return { controls, extraControls: Math.max(0,known.length-controls.length), limit, limitScope, speed,
         speedText:speed===null?'—':hiddenBoundary===null?String(speed):'>'+hiddenBoundary, direction, captureClass: direction,
-        distance: Number.isFinite(alert.distanceM) && alert.distanceM >= 0 ? Math.round(alert.distanceM/10)*10 : null,
+        distance: Number.isFinite(alert.displayDistanceM) ? Math.round(alert.displayDistanceM) :
+            Number.isFinite(alert.distanceM) && alert.distanceM >= 0 ? Math.round(alert.distanceM) : null,
         mode: alert.positionKind === 'intersection' ? 'Ориентир' : alert.roadConfirmed === true ? (alert.controlScope === 'enforcement-location' ? 'Рубеж' : 'По дороге') : 'Рядом',
         test: alert.test === true, calibration: alert.calibration === true, decoy: !!(alert.decoyReport && alert.decoyReport.state === 'reported'),
         overspeed, flashActive:overspeed&&warning.flashActive===true, flashPhase:overspeed&&warning.flashActive===true&&warning.flashPhase===true };
