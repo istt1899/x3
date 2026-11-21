@@ -93,18 +93,23 @@ var routes = fixture.routes.filter(function (r) { return r.approachAllowed; });
 assert.strictEqual(routes.length, 3);
 var totalRoadApproaches = 0;
 routes.forEach(function (route, routeIndex) {
-    var guidance = createGuidance(bundle), current = null, notices = 0, road = 0;
+    var guidance = createGuidance(bundle), current = null, notices = 0, road = 0, previous = null;
     var first = startTime + routeIndex * 100000;
     for (var i = 0; i <= 38; i++) {
         var now = first + i * 500;
         current = guidance.evaluate(routeSample(route, 220 - i * 5, now), now, true);
         if (current) {
             notices++;
+            if (previous && !previous.roadConfirmed && current.roadConfirmed && current.officialSourceRecordId === previous.id) {
+                assert.strictEqual(current.displayId, previous.displayId, 'A reviewed site promotion preserves the displayed approach');
+                assert(current.displayDistanceM <= previous.displayDistanceM, 'Road confirmation cannot increase the displayed distance');
+            }
             if (current.roadConfirmed) {
                 road++;
                 assert(fixture.cameraIds.indexOf(current.id) >= 0, 'A known corridor must retain its original camera ID');
             }
         }
+        previous = current;
     }
     assert(notices > 0 && current, 'No notice on synthetic legal approach ' + route.firstWay);
     // Proximity tracking may retain the exact separately reviewed official

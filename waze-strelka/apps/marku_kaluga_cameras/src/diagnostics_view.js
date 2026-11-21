@@ -128,15 +128,23 @@ function photoRows(report, serviceReady, target) {
     const warningReason = (s.speedWarning || {}).reason;
     const roadBlock = ['DISABLED', 'GPS_LOST', 'MOTION_CONFLICT', 'MOTION_EPOCH_MISMATCH', 'TYPE_DISABLED'];
     const roadReason = roadBlock.indexOf(warningReason) >= 0 ? warningReason : guidance.gpsReason || guidance.reason || warningReason;
-    const cameraDistance = s.alert && s.alert.distanceM;
+    const alert = s.alert || {};
+    const lastClear = guidance.lastClear || {};
+    const holdReason = s.gpsHold && s.gpsHold.active ? s.gpsHold.reason : guidance.holdReason;
+    const cameraId = alert.id || lastClear.cameraId;
+    // The source ID is available in full under the detailed camera report.
+    const cameraSuffix = typeof cameraId === 'string' ? cameraId.slice(-8) : '';
+    const cameraDistance = Number.isFinite(alert.displayDistanceM) ? alert.displayDistanceM : alert.distanceM;
     const cameraStatus = Number.isFinite(cameraDistance) && cameraDistance >= 0 && cameraDistance <= 10000 ?
         n(cameraDistance, 0) + ' м' : code(roadReason);
+    const cameraSummary = cameraSuffix && (alert.id ? 'Кам. ' + cameraSuffix + ' • ' + cameraStatus +
+        (holdReason ? ' • ' + code(holdReason) : '') : 'Снята ' + cameraSuffix + ' • ' + code(lastClear.reason));
     const gpsStatus = !fix || (clock.issue && clock.issue !== 'NONE') ? code(clock.issue) : 'кам. ' + cameraStatus;
     return [
         'Прил. ' + version(report.appVersion) + ' • Сервис ' + version(s.serviceVersion) + ' • ' + (serviceReady ? 'связь OK' : 'нет связи'),
         'UTC MGU ' + shortUtc(clock.serviceWallUtc || app.wallUtc, clock.serviceWallMs) +
             ' • RMC ' + shortUtc(clock.rawSourceUtc || clock.sourceUtc, clock.sourceUtcMs),
-        'Опора ' + ref + ' • RTC ' + code(clock.rtcStatus) + ' • NTP ' + code(clock.networkStatus),
+        cameraSummary || 'Опора ' + ref + ' • RTC ' + code(clock.rtcStatus) + ' • NTP ' + code(clock.networkStatus),
         'GPS ' + (fix ? positionSources[fix.source] || 'есть' : 'нет') + ' • ' + gpsStatus + ' • пакет ' + ms(packetAge) + ' мс',
         'RMC приём/рост ' + ms(timing.lastRmcAgeMs) + '/' + ms(input.rmcAdvanceAgeMs) + ' мс • ' + code(timing.pairReason),
         (speedText === '—' ? speedSource : speedText + ' км/ч ' + speedSource) +

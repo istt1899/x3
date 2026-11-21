@@ -63,7 +63,7 @@ const missing=db.records.find(r=>!zones.some(z=>z.id===r.id));
 const g=createGuidance({zones:[],records:[missing]});
 let fix={lat:missing.position.lat+.00025,lon:missing.position.lon,timeMs:now,speedKmh:0,headingDeg:null,accuracyM:5};
 assert.strictEqual(g.evaluate(fix,now,true),null,'A stationary fix must not admit a new nearby warning');
-fix=Object.assign({},fix,{speedKmh:36,headingDeg:180});
+now+=1000;fix=Object.assign({},fix,{timeMs:now,speedKmh:36,headingDeg:180});
 const notice=g.evaluate(fix,now,true);assert(notice&&notice.confidence==='nearby'&&notice.roadConfirmed===false&&notice.limitKmh===null);
 assert.strictEqual(g.evaluate(Object.assign({},fix,{accuracyM:null}),now,true),null);
 assert.strictEqual(g.evaluate(fix,now,false),null);

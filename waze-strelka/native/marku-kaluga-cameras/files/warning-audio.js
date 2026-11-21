@@ -12,7 +12,7 @@ function prefsOf(a,b){
 }
 function createAudio(adapter,options){
  adapter=adapter&&typeof adapter.play==='function'?adapter:null; options=options||{};
- var timeoutMs=options.timeoutMs||1500,enabled=false,threshold=0,repeatSec=5,appear=false,closed=false,generation=0,flight=null,records=Object.create(null),lastNow=null,admittedKey=null,seq=0,lastAppearId=null,globalLast=null;
+ var timeoutMs=options.timeoutMs||1500,enabled=false,threshold=0,repeatSec=5,appear=false,closed=false,generation=0,flight=null,records=Object.create(null),lastNow=null,admittedKey=null,seq=0,lastAppearId=null,globalLast=null,suspended=false;
  // A remote (vehicle) channel is honest only after a confirmed playback;
  // an in-process adapter is a test stub and starts ready.
  var remote=!!options.remote,confirmed=!!adapter&&!remote;
@@ -34,7 +34,7 @@ function createAudio(adapter,options){
   },timeoutMs);
   Promise.resolve().then(function(){
    if(closed)throw new Error('Звуковой канал закрыт');
-   if(!test&&kind!=='appear'&&(!enabled||gen!==generation||admittedKey!==key))throw new Error('Допуск к звуку отозван');
+   if(!test&&(!enabled||suspended||gen!==generation||(kind==='appear'?lastAppearId!==key:admittedKey!==key)))throw new Error('Допуск к звуку отозван');
    return adapter.play({test:!!test,durationMs:250,kind:kind||'overspeed',seq:id});
   }).then(function(value){
    var success=!!value&&value.played===true;
@@ -65,7 +65,8 @@ function createAudio(adapter,options){
    if(flight&&enabled) {state.phase='outcome-unknown';state.reason='Предыдущий звуковой запрос ещё не завершён';}
    else if(!flight&&adapter&&!closed){state.phase=confirmed?'ready':'unavailable';state.reason=confirmed?null:unconfirmedReason;}
   },
-  update:function(alert,fix,now){
+  update:function(alert,fix,now,held){
+   suspended=!!held;
    if(!tickClock(now)){admittedKey=null;return;}
    Object.keys(records).forEach(function(k){if((!alert||k!==alert.id+':'+(alert.sign||'road'))&&now-records[k].lastSeen>30000)delete records[k];});
    if(!alert){admittedKey=null;lastAppearId=null;return;}
@@ -73,10 +74,12 @@ function createAudio(adapter,options){
    if(record&&now-record.lastSeen>30000){delete records[key];record=null;}
    if(!record)record=records[key]={lastSeen:now,success:false,attempts:0,lastAttempt:null,latched:false,rearmed:false};
    record.lastSeen=now;
+   var appearId=alert.displayId||alert.id;
+   if(suspended){admittedKey=null;lastAppearId=appearId;return;}
    var decision=policy.evaluate(alert,fix,now,{soundOffsetKmh:threshold});
    admittedKey=enabled&&decision.soundExceeded?key:null;
    // Optional short signal when a camera appears, regardless of overspeed.
-   if(appear&&lastAppearId!==alert.id){lastAppearId=alert.id;if(enabled&&adapter&&!closed&&!flight){globalLast=now;play(false,'appear',now,null,null).catch(function(){});}}
+   if(appear&&lastAppearId!==appearId){lastAppearId=appearId;if(enabled&&adapter&&!closed&&!flight){globalLast=now;play(false,'appear',now,alert.id,null).catch(function(){});}}
    // Hysteresis: the latch drops only 3 km/h below the boundary.
    if(record.latched&&(!Number.isFinite(decision.soundBoundaryKmh)||!fix||!Number.isFinite(fix.speedKmh)||fix.speedKmh<=decision.soundBoundaryKmh-3)){
     record.latched=false;record.success=false;record.attempts=0;record.lastAttempt=null;record.rearmed=true;

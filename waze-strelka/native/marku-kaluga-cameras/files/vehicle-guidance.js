@@ -67,7 +67,6 @@ function candidate(z, fix, range, diagnostic, tracking) {
     if (tracking && hit.road.id !== tracking.way) return reject('ROAD_CHANGED');
     const offset = hit.road.cam - hit.s, sign = tracking ? tracking.sign : offset > 0 ? 1 : -1;
     const signedDistance = offset * sign, distanceM = Math.max(0, signedDistance);
-    if (tracking && signedDistance < -0.000001) return reject('CAMERA_PASSED');
     // A confirmed approach continues up to the actual point. Admission still
     // needs a camera at least eight metres ahead, not a just-passed point.
     if ((!tracking && distanceM < 8) || distanceM > range + 0.000001) return reject('OUT_OF_RANGE');
@@ -76,6 +75,10 @@ function candidate(z, fix, range, diagnostic, tracking) {
     const end = hit.road.cam - sign;
     const at = hit.road.segments.find(s => s.s <= end && end <= s.s + s.len);
     if (!at || !z.travel.some(h => diff(h, (at.bearing + (sign < 0 ? 180 : 0)) % 360) <= 35)) return reject('CAMERA_DIRECTION');
+    if (tracking && signedDistance < -Math.min(5, Math.max(2, fix.accuracyM / 2))) {
+        if (diagnostic) diagnostic.pastCamera = -signedDistance;
+        return reject('CAMERA_PASSED');
+    }
     return { id: z.id, way: hit.road.id, sign, distanceM, limitKmh: z.limit, confidence: 'road', roadConfirmed: true };
 }
 const ADMISSION_ACCURACY_M = 15;
@@ -104,12 +107,15 @@ function plausible(previous, next, fix, dt) {
 function approaches(previous, next, fix, dt) {
     return plausible(previous, next, fix, dt) && previous.distanceM - next.distanceM > .5;
 }
-/* Nearby retention tolerates the GPS-hold horizon: an extrapolated fix may
- * arrive five seconds after the last accepted epoch, so the plausibility
- * window matches the hold instead of the fresh-fix three seconds. */
-function plausibleHold(previous, next, fix, dt) {
-    return previous && dt > 0 && dt <= 5.5 &&
-        Math.abs(previous.distanceM - next.distanceM) <= fix.speedKmh / 3.6 * Math.min(dt, 5) * 2 + 6;
+// An accepted position may precede a brief gap in accuracy. Bound progress
+// by both endpoint speeds and by the elapsed time since that position.
+function reachable(from, to) {
+    const seconds = (to.timeMs - from.timeMs) / 1000;
+    const speed = Math.max(from.speedKmh || 0, to.speedKmh || 0) / 3.6;
+    return seconds > 0 && distance(from, to) <= speed * seconds * 1.5 + 8;
+}
+function travelBearing(from, to) {
+    return angle((to.lon - from.lon) * Math.cos(from.lat * Math.PI / 180), to.lat - from.lat);
 }
 function createGuidance(data) {
     const suppliedZones = (data || pack).zones;
@@ -127,10 +133,10 @@ function createGuidance(data) {
     const describeCamera = info.createDescriber(records);
     let prior = {}, priorNearby = {}, active = null, anchor = null, closest = null, heading = null, lastTime = null, lastSource = null, settingsKey = null;
     // A passed or wrong-road camera cannot instantly return via proximity.
-    let passed = {}, lastTransition = null, lastClear = null;
+    let passed = {}, passedRoad = {}, lastTransition = null, lastClear = null;
     // Consecutive fresh samples with a growing distance for the retained
     // nearby camera; three in a row release the warning.
-    let nearbyGrowth = 0;
+    let nearbyGrowth = 0, pendingExit = null;
     /* 0.8.7 anti-flicker floor: a shown card lives at least this long unless
      * the camera was physically passed. */
     let activeSinceMs = null;
@@ -140,7 +146,7 @@ function createGuidance(data) {
         const code = active ? !previous ? 'ENTERED' : 'SWITCHED' : previous ? 'CLEARED_' + reason : 'WAITING';
         if (changed || !lastTransition) lastTransition = { from: mode(previous), to: mode(active), reason: code,
             cameraId: active ? active.id : previous ? previous.id : null, timeMs: f && Number.isFinite(f.timeMs) ? f.timeMs : null };
-        if (previous && !active) {
+        if (previous && (!active || previous.id !== active.id)) {
             lastClear = { reason, cameraId: previous.id, timeMs: f && Number.isFinite(f.timeMs) ? f.timeMs : null };
             if (gpsReason) lastClear.gpsReason = gpsReason;
         }
@@ -151,12 +157,14 @@ function createGuidance(data) {
     function clear(reason, f, restart, gpsReason) {
         const previous = active;
         prior = {}; priorNearby = {}; active = anchor = closest = heading = null;
-        if (restart) { lastTime = lastSource = null; settingsKey = null; passed = {}; lastTransition = lastClear = null; nearbyGrowth = 0; activeSinceMs = null; }
+        pendingExit = null; nearbyGrowth = 0; activeSinceMs = null;
+        if (restart) { lastTime = lastSource = null; settingsKey = null; passed = {}; passedRoad = {}; lastTransition = lastClear = null; nearbyGrowth = 0; activeSinceMs = null; }
         state = { mode: 'none', reason, zoneCount: zones.length, cameraCount: records.length };
         if (f && Number.isFinite(f.timeMs)) state.fixTimeMs = f.timeMs;
         transition(previous, reason, f, gpsReason); return null;
     }
     return { evaluate(f, now, enabled, rawPreferences) {
+        if (f && Number.isFinite(f.extrapolatedMs)) return enabled ? active : clear('DISABLED', f);
         if (!enabled) return clear('DISABLED', f);
         const accuracyLimit = active ? RETENTION_ACCURACY_M : ADMISSION_ACCURACY_M;
         if (!validPosition(f, now, accuracyLimit)) {
@@ -166,19 +174,20 @@ function createGuidance(data) {
             clear('GPS_INVALID', f, false, why); state.gpsReason = why;
             return null;
         }
-        const holding = Number.isFinite(f.extrapolatedMs);
-        if (!holding && lastTime !== null && f.timeMs < lastTime) return clear('GPS_REPLAY', f);
         const prefs = preferences.normalize(rawPreferences), signature = JSON.stringify(prefs);
         const changedSettings = settingsKey !== null && signature !== settingsKey;
         if (changedSettings) { prior = {}; priorNearby = {}; nearbyGrowth = 0; }
         settingsKey = signature;
-        // A projected position may keep the active card through a short gap.
-        // Admission history and replay checks use only received positions.
-        const fresh = !holding && (lastTime === null || f.timeMs > lastTime);
+        const fresh = lastTime === null || f.timeMs > lastTime;
         const dt = fresh && lastTime !== null ? (f.timeMs - lastTime) / 1000 : 0;
-        if (!holding && !fresh && lastSource && distance(f, lastSource) > jitter(f)) {
-            clear('GPS_REPLAY', f, false, 'SOURCE_CHANGED'); state.gpsReason = 'SOURCE_CHANGED';
-            return null;
+        if (!fresh) {
+            if (active && !preferences.matches(byId[active.id], prefs)) return clear('TYPE_DISABLED', f);
+            if (active && active.distanceM > prefs.warningDistanceM + 0.000001) return clear('OUT_OF_RANGE', f);
+            const replay = f.timeMs < lastTime || distance(f, lastSource) > jitter(f);
+            if (replay && active && lastTime <= now + 500 && now - lastTime <= 3000) {
+                state = Object.assign({}, state, { holdReason: 'GPS_REPLAY', observedAtMs: now });
+            } else if (replay) return clear('GPS_REPLAY', f);
+            return active;
         }
         if (fresh) { lastTime = f.timeMs; lastSource = { lat: f.lat, lon: f.lon }; }
         const previous = active, range = prefs.warningDistanceM;
@@ -238,9 +247,11 @@ function createGuidance(data) {
                 way: detail.way || null, lateralErrorM: detail.lateralErrorM === undefined ? null : detail.lateralErrorM };
         });
         const roadCandidates = moving ? zones.filter(z => byId[z.id] && preferences.matches(byId[z.id], prefs)).map(z => candidate(z, f, range)).filter(Boolean).sort((a, b) => a.distanceM - b.distanceM) : [];
-        let selected = null, retained = false, clearReason = null;
+        let selected = null, retained = false, clearReason = null, pastCamera = null;
+        const whyJump = previous && anchor && fresh && !stationary && !reachable(anchor, f);
         if (previous && !preferences.matches(byId[previous.id], prefs)) clearReason = 'TYPE_DISABLED';
-        else if (previous && previous.distanceM > range + 0.000001 && (!fresh || stationary)) clearReason = 'OUT_OF_RANGE';
+        else if (previous && previous.distanceM > range + 0.000001 && changedSettings) clearReason = 'OUT_OF_RANGE';
+        else if (whyJump) clearReason = 'POSITION_JUMP';
         if (previous && stationary && !clearReason) {
             // Parked fixes can wander outside the road corridor. Keep the last
             // accepted geometry and distance within the stationary anchor.
@@ -256,20 +267,28 @@ function createGuidance(data) {
             if (course !== null && zone) tracking = candidate(zone, Object.assign({}, f, { headingDeg: course }), range, detail, previous);
             else detail.reason = 'WAITING_MOTION';
             if (tracking && closest !== null && tracking.distanceM > closest + jitter(f)) detail.reason = 'APPROACH_LOST';
-            else if (tracking && fresh && dt > 0 && !plausible(previous, tracking, f, dt)) detail.reason = 'POSITION_JUMP';
             else if (tracking) { selected = tracking; retained = true; state.approachSamples = 2; }
             if (!selected) {
                 clearReason = detail.reason || 'APPROACH_LOST';
-                if (['CAMERA_PASSED', 'ROAD_CHANGED', 'CAMERA_WAY_MISSING', 'ONEWAY_MISMATCH', 'HEADING_MISMATCH', 'CAMERA_DIRECTION'].indexOf(clearReason) >= 0) {
-                    passed[previous.id] = true;
-                }
+                pastCamera = detail.pastCamera;
             }
         }
         // Independent histories avoid nearest-camera switching resetting entry.
-        const confirmed = fresh ? roadCandidates.filter(next => approaches(prior[key(next)], next, f, dt)) : [];
-        const nextRoad = confirmed[0] || null;
-        if (nextRoad && (!selected || nextRoad.id !== selected.id && nextRoad.distanceM + jitter(f) < selected.distanceM)) {
-            selected = nextRoad; retained = false; state.approachSamples = 2; delete passed[nextRoad.id];
+        const canAdmit = !whyJump && validPosition(f, now);
+        const confirmed = fresh && canAdmit ? roadCandidates.filter(next => {
+            const traversal = key(next);
+            return !passedRoad[traversal] && approaches(prior[traversal], next, f, dt);
+        }) : [];
+        // A reviewed official location can be upgraded to its verified OSM
+        // approach. Distinct cameras remain locked to their own warnings.
+        const upgrade = previous && !previous.roadConfirmed && confirmed.find(next => {
+            const context = byId[next.id].officialSiteContext;
+            return next.id === previous.id || context && context.scope === 'enforcement-location' &&
+                context.sourceRecordId === previous.id;
+        });
+        const nextRoad = upgrade || confirmed[0] || null;
+        if (nextRoad && (!previous || clearReason || upgrade) && !selected) {
+            selected = nextRoad; retained = false; state.approachSamples = 2;
         } else if (!selected && roadCandidates.length) state.approachSamples = fresh && prior[key(roadCandidates[0])] ? 2 : 1;
         const nearbyCandidates = [];
         if (!selected && !(previous && stationary) && (!data || data.nearby !== false)) {
@@ -278,7 +297,7 @@ function createGuidance(data) {
                 const r = item.record, d = item.distanceM;
                 if (d > range + 0.000001) continue;
                 const tracked = previous && !previous.roadConfirmed && previous.id === r.id;
-                if (holding && !tracked) continue;
+                if (tracked ? clearReason === 'POSITION_JUMP' || clearReason === 'OUT_OF_RANGE' && changedSettings : !canAdmit) continue;
                 const next = { id: r.id, distanceM: d, confidence: 'nearby', roadConfirmed: false, limitKmh: null };
                 const zone = zoneById[r.id];
                 if (zone) {
@@ -303,15 +322,14 @@ function createGuidance(data) {
                     if (entry) nearbyCandidates.push(next);
                     const continuation = delta <= NEARBY_AHEAD_MAX_DEG && lateral <= NEARBY_RETENTION_LATERAL_M;
                     const stable = tracked && !clearReason && closest !== null && d <= closest + jitter(f) &&
-                        continuation && (!fresh || plausible(previous, next, f, dt));
+                        continuation;
                     if (stable) { next.retained = true; possible.push(next); }
                     else if ((!tracked && immediate && !passed[r.id] || approaching) && !(previous && previous.roadConfirmed && previous.id === r.id && clearReason)) {
                         if (approaching) delete passed[r.id];
                         possible.push(next);
                     } else if (tracked && !clearReason) {
-                        clearReason = d > (closest === null ? d : closest) + jitter(f) ? 'APPROACH_LOST' : 'BEARING_CHANGED'; passed[r.id] = true;
+                        clearReason = d > (closest === null ? d : closest) + jitter(f) ? 'APPROACH_LOST' : 'BEARING_CHANGED';
                     }
-                    if (tracked && delta > NEARBY_BEHIND_DEG) passed[r.id] = true;
                     continue;
                 }
                 if (tracked) {
@@ -326,14 +344,19 @@ function createGuidance(data) {
                     // Release distance is the owner's range plus the accuracy
                     // jitter; an all-time-minimum ratchet would flicker under
                     // ±10 m GNSS noise.
-                    if (passedCamera) reject = 'BEHIND';
+                    if (passedCamera) {
+                        const alongApproach = anchor && Number.isFinite(heading) && diff(heading, course) <= 55;
+                        const consistentMotion = pendingExit && pendingExit.reason === 'BEHIND' ? pendingExit.fix : anchor;
+                        const forward = consistentMotion && distance(consistentMotion, f) > 0.5 &&
+                            diff(travelBearing(consistentMotion, f), course) <= 55;
+                        reject = alongApproach && forward ? 'BEHIND' : 'BEARING_CHANGED';
+                    }
                     else if (d > range + jitter(f)) reject = 'OUT_OF_RANGE';
                     else if (delta !== null && d * Math.sin(delta * Math.PI / 180) > NEARBY_RETENTION_LATERAL_M) reject = 'OFF_ROUTE';
                     else if (fresh) {
                         if (previous && d > previous.distanceM + 0.000001) nearbyGrowth++;
                         else nearbyGrowth = 0;
                         if (nearbyGrowth >= NEARBY_GROWTH_EXIT) reject = 'RECEEDING';
-                        else if (!plausibleHold(previous, next, f, dt)) reject = 'POSITION_JUMP';
                     }
                     if (reject) {
                         // Three-second show floor: geometry noise must not
@@ -343,7 +366,6 @@ function createGuidance(data) {
                             d <= range + jitter(f) && !passedCamera) reject = null;
                     }
                     if (reject) {
-                        if (reject === 'BEHIND') passed[r.id] = true;
                         clearReason = clearReason || reject;
                         nearbyGrowth = 0;
                     } else { next.retained = true; possible.push(next); }
@@ -356,17 +378,58 @@ function createGuidance(data) {
                 }
             }
             const old = possible.find(item => previous && !previous.roadConfirmed && item.id === previous.id && item.retained);
-            const first = possible[0] || null;
-            const sameControls = first && old && info.controls(byId[first.id]).filter(type => prefs.cameraTypes[type]).sort().join(',') ===
-                info.controls(byId[old.id]).filter(type => prefs.cameraTypes[type]).sort().join(',');
-            // Distinct controls must not be hidden by ID hysteresis: a closer
-            // red-light record still supersedes a nearby speed-only record.
-            selected = old && (!first || sameControls && first.distanceM + jitter(f) >= old.distanceM) ? old : first;
+            const waitingForRoad = !previous && roadCandidates.some(item => {
+                const traversal = key(item);
+                return !passedRoad[traversal] && !prior[traversal];
+            });
+            const first = waitingForRoad ? null : possible[0] || null;
+            selected = old || first;
             if (selected) { retained = !!selected.retained; delete selected.retained; }
             else nearbyGrowth = 0;
         } else nearbyGrowth = 0;
+        const promoted = upgrade && selected === upgrade;
+        if (previous && (!selected || selected.id !== previous.id && !promoted)) {
+            const immediate = clearReason === 'TYPE_DISABLED' || changedSettings && clearReason === 'OUT_OF_RANGE' || clearReason === 'RECEEDING';
+            const reason = clearReason || 'APPROACH_LOST';
+            const routeDeparture = ['OFF_ROAD', 'AMBIGUOUS_ROAD', 'ROAD_CHANGED', 'CAMERA_WAY_MISSING', 'OFF_ROUTE',
+                'HEADING_MISMATCH', 'ONEWAY_MISMATCH', 'CAMERA_DIRECTION', 'DIRECTION', 'BEARING_CHANGED',
+                'APPROACH_LOST', 'OUT_OF_RANGE'];
+            const sameDeparture = pendingExit && routeDeparture.includes(reason) && routeDeparture.includes(pendingExit.reason);
+            const last = pendingExit && (pendingExit.reason === reason || sameDeparture) ? pendingExit.fix : null;
+            const confirmedProgress = reason !== 'CAMERA_PASSED' || pendingExit && pastCamera > pendingExit.pastCamera + 0.5;
+            const confirms = reason !== 'POSITION_JUMP' && last && f.timeMs - last.timeMs <= 3000 &&
+                reachable(last, f) && confirmedProgress;
+            if (!immediate && !confirms) {
+                if (fresh) {
+                    pendingExit = { reason, fix: f, pastCamera };
+                    if (!whyJump) {
+                        prior = {}; roadCandidates.forEach(item => { prior[key(item)] = item; });
+                        priorNearby = {}; nearbyCandidates.forEach(item => { priorNearby[item.id] = item; });
+                    }
+                }
+                state.mode = mode(previous); state.reason = reason; state.holdReason = reason;
+                state.cameraId = previous.id; state.distanceM = previous.distanceM;
+                state.way = previous.way || null;
+                transition(previous, reason, f);
+                return previous;
+            }
+            if (reason === 'BEHIND' || reason === 'CAMERA_PASSED') {
+                passed[previous.id] = true;
+                if (previous.displayId) passed[previous.displayId] = true;
+                if (previous.roadConfirmed) passedRoad[key(previous)] = previous.id;
+            }
+            clearReason = reason;
+        }
+        if (fresh) pendingExit = null;
         if (fresh) {
             prior = {}; roadCandidates.forEach(item => { prior[key(item)] = item; });
+            // A later return outside the approach range permits a new visit.
+            Object.keys(passed).forEach(id => {
+                if (distance(f, byId[id].position) > range + 20) delete passed[id];
+            });
+            Object.keys(passedRoad).forEach(traversal => {
+                if (!passed[passedRoad[traversal]]) delete passedRoad[traversal];
+            });
             priorNearby = {}; nearbyCandidates.forEach(item => { priorNearby[item.id] = item; });
         }
         active = selected ? Object.assign({}, describeCamera(byId[selected.id]), selected) : null;
@@ -375,8 +438,10 @@ function createGuidance(data) {
         if (active) {
             const same = previous && previous.id === active.id && mode(previous) === mode(active);
             closest = same && closest !== null ? Math.min(closest, active.distanceM) : active.distanceM;
+            const sameDisplay = previous && (previous.id === active.id || promoted);
+            active.displayId = sameDisplay ? previous.displayId : active.id;
             active.displayDistanceM = active.distanceM;
-            if (previous && previous.id === active.id) {
+            if (sameDisplay) {
                 active.displayDistanceM = previous.displayDistanceM;
                 if (fresh && !stationary) active.displayDistanceM = Math.min(active.displayDistanceM, active.distanceM);
             }
@@ -388,8 +453,11 @@ function createGuidance(data) {
             if (active.roadConfirmed) {
                 state.way = active.way;
             }
-            if (!stationary && course !== null && fresh) { anchor = { lat: f.lat, lon: f.lon }; heading = course; }
-            else if (!same) { anchor = { lat: f.lat, lon: f.lon }; heading = null; }
+            if (fresh && !stationary) {
+                anchor = f;
+                if (course !== null) heading = course;
+            }
+            else if (!same) { anchor = f; heading = null; }
             state.candidates.forEach(c => { if (c.id === active.id) c.reason = state.reason; });
         } else {
             anchor = closest = heading = null;

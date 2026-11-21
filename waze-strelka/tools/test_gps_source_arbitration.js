@@ -204,7 +204,10 @@ async function main() {
         assert.strictEqual(app.state().gpsMotion.state, 'stopped');
         assert(/^Для теста скорость BMW 0\.0 км\/ч \(UTC \d{4}-\d{2}-\d{2}T/.test(app.state().gps),
             'GPS page explains which fresh BMW speed permits a preview');
-        assert.strictEqual(app.state().alert, null, 'partial new epoch cannot enable a road alert');
+        assert.strictEqual(app.state().alert && app.state().alert.id, 'low-accuracy-proof',
+            'partial new epoch only retains the existing card');
+        assert.strictEqual(app.state().gpsHold.active, true);
+        assert.strictEqual(app.state().speedWarning.eligible, false);
         forceAlert = false;
 
         now += 3001;

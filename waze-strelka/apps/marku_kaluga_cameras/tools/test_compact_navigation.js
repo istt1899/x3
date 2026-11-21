@@ -171,7 +171,18 @@ let count=0;function ok(text){console.log('ok '+(++count)+' - '+text);}
     h.setState(null);press('cameraDiagFreeze');assert.strictEqual(h.current(),N.photo);
     assert(photo()[0].includes('нет связи'));assert(photo()[5].includes('SERVICE_UNAVAILABLE'));
     await h.back();assert.strictEqual(h.current(),N.diag);
-    ok('first action opens seven fixed photo rows for the X6 failure, a healthy fix and an unavailable service');
+    h.setState(state({
+        alert:{id:'osc:abcdef123456',distanceM:80,displayDistanceM:49},
+        gpsHold:{active:true,reason:'ACCURACY_MISSING'}
+    }));
+    press('cameraDiagFreeze');
+    assert.strictEqual(photo()[2],'Кам. ef123456 • 49 м • ACCURACY_MISSING');
+    await h.back();
+    h.setState(state({guidance:{lastClear:{cameraId:'osc:abcdef123456',reason:'CAMERA_PASSED'}}}));
+    press('cameraDiagFreeze');
+    assert.strictEqual(photo()[2],'Снята ef123456 • CAMERA_PASSED');
+    await h.back();
+    ok('first action opens seven fixed photo rows with clock, camera hold and passage evidence');
 
     // Exercise the actual read-only CCU bridge, source event, native arrow handler
     // and application rollback handling together, rather than assigning held=true.

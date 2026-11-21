@@ -1,5 +1,5 @@
 'use strict';
-// 0.8.7: an active card survives a brief GPS loss by honest extrapolation,
+// 0.8.7: an active card survives a brief GPS loss at the last accepted distance,
 // withdraws after five seconds with GPS_LOST, and never admits a new camera
 // without a fresh fix.
 const assert = require('assert'), fs = require('fs'), os = require('os'), path = require('path'), EventEmitter = require('events');
@@ -44,7 +44,7 @@ let app;
     delete gps.motionFixes;
     gps.fix = Object.assign({}, movingFix, { timeMs: clock + 250, motionTimeMs: clock + 250 });
     tick(250);
-    // GPS stream dies: 3 s without a fix — the card holds by extrapolation.
+    // GPS stream dies: 3 s without a fix — the card holds the last accepted distance.
     const last = gps.fix.timeMs;
     tick(1500); gps.fix.timeMs = gps.fix.motionTimeMs = last; tick(1600);
     assert(app.state().alert && app.state().alert.id === 'hold-nearby', 'a 3 s fix loss keeps the active card');
@@ -71,10 +71,10 @@ let app;
     });
     tick(350);
     assert(app.state().alert && app.state().alert.id === 'hold-nearby',
-        'a newer real fix survives even when its UTC precedes the last projected position');
+        'a newer real fix advances the card even when received during an earlier hold');
     assert.strictEqual(app.state().gpsHold.active, false);
     app.close();
     Date.now = realNow;
     fs.readdirSync(dir).forEach(n => fs.unlinkSync(path.join(dir, n))); fs.rmdirSync(dir);
-    console.log('PASS gps hold: active card extrapolated through a 3 s fix loss, GPS_LOST withdrawal at 5 s, no new admission without a fix, clean resume; real service process');
+    console.log('PASS gps hold: active card held through a 3 s fix loss, GPS_LOST withdrawal at 5 s, no new admission without a fix, clean resume; real service process');
 })().catch(e => { if (app) app.close(); Date.now = realNow; console.error(e.stack); process.exitCode = 1; });

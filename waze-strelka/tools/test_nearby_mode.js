@@ -1,5 +1,5 @@
 'use strict';
-// 0.8.6 nearby mode: the owner's contract, synthetic engine replays only.
+// Nearby mode against the real guidance engine with synthetic GPS fixes.
 // Covered: approach/hold/pass without flicker, owner cameras, behind/facing
 // rejection, stationary admission ban, road priority, boundary noise, zones.
 const assert = require('assert');
@@ -8,7 +8,7 @@ const preferences = require('../native/marku-kaluga-cameras/files/alert-preferen
 const captureData = require('../native/marku-kaluga-cameras/files/capture-data');
 const cos = Math.cos(54 * Math.PI / 180);
 function position(x, y) { return { lat: 54 + (y || 0) / 111320, lon: 36 + x / (111320 * cos) }; }
-function fix(x, t, extra) { return Object.assign(position(x, 0), { timeMs: t, accuracyM: 5, speedKmh: 36, headingDeg: 90 }, extra); }
+function fix(x, t, extra) { return Object.assign(position(x, 0), { timeMs: t, accuracyM: 5, speedKmh: 72, headingDeg: 90 }, extra); }
 function record(id, x, y, controls, extra) { return Object.assign({ id, position: position(x || 0, y || 0), type: 'speed', controls: controls || ['speed'], limitKmh: 60 }, extra || {}); }
 function zone(id, x) { return Object.assign({ id, travel: [90], limit: 60 }, position(x || 0, 0), { roads: [{ id: 'road-' + id, dir: 0, cam: 1, pts: [[-1600, 0], [0, 0], [300, 0]] }] }); }
 function step(g, x, t, prefs, extra) { return g.evaluate(fix(x, t, extra), t, true, prefs); }
@@ -17,20 +17,23 @@ function checkId(value, id, message) { assert(value && value.id === id, message 
 // 2. A zone-less camera warns in advance, holds through the pass and clears.
 {
     const g = engine.createGuidance({ zones: [], records: [record('n', 0, 0)], nearby: true });
-    assert.strictEqual(step(g, -1200, 1000), null, 'Beyond the warning distance no notice');
-    checkId(step(g, -400, 2000), 'n', 'The warning appears in advance inside the distance');
+    assert.strictEqual(step(g, -1020, 1000), null, 'Beyond the warning distance no notice');
+    checkId(step(g, -980, 3000), 'n', 'The warning appears in advance inside the distance');
     let seen = null;
-    for (let x = -380, t = 3000; x <= 0; x += 20, t += 1000) seen = checkId(step(g, x, t), 'n', 'Notice lost at ' + x + ' m');
+    for (let x = -960, t = 4000; x <= 0; x += 20, t += 1000) seen = checkId(step(g, x, t), 'n', 'Notice lost at ' + x + ' m');
     assert.strictEqual(seen.roadConfirmed, false, 'A zone-less camera stays an honest nearby notice');
-    assert.strictEqual(step(g, 20, 42000), null, 'The warning clears right after the pass');
+    checkId(step(g, 20, 53000), 'n', 'One fix behind the camera holds the warning');
+    checkId(g.evaluate(fix(20, 53000), 53100, true), 'n', 'Repeating that fix does not confirm passage');
+    assert.strictEqual(step(g, 40, 54000), null, 'Two forward fixes confirm passage');
     assert.strictEqual(g.diagnostic().lastClear.reason, 'BEHIND');
 }
 // 2b. Passing does not resurrect: standing near the passed camera stays silent.
 {
     const g = engine.createGuidance({ zones: [], records: [record('n', 0, 0)], nearby: true });
     for (let x = -200, t = 1000; x <= 0; x += 20, t += 1000) step(g, x, t);
-    assert.strictEqual(step(g, 20, 12000), null);
-    assert.strictEqual(step(g, 25, 13000, null, { speedKmh: 0, headingDeg: null }), null, 'A passed camera never returns at a stop');
+    checkId(step(g, 20, 12000), 'n');
+    assert.strictEqual(step(g, 35, 13000), null);
+    assert.strictEqual(step(g, 40, 14000, null, { speedKmh: 0, headingDeg: null }), null, 'A passed camera never returns at a stop');
 }
 // 3. The owner's reported camera warns even with every type switch off.
 {
@@ -74,16 +77,29 @@ function checkId(value, id, message) { assert(value && value.id === id, message 
     assert.strictEqual(standing, null, 'No new nearby warning at a standstill');
     assert.strictEqual(g.diagnostic().nearestReject, 'STATIONARY');
 }
-// 6. A confirmed road warning wins over any nearby candidate.
+// 6. A plausible road candidate gets its confirmation sample before a nearby
+// camera can take the card. Rejected road candidates do not delay the notice.
 {
-    const g = engine.createGuidance({ zones: [zone('r', 0)], records: [record('r', 0, 0), record('n', 30, 0)], nearby: true });
-    step(g, -300, 1000);
+    const records = [record('r', 0, 0), record('n', -30, 0)];
+    const g = engine.createGuidance({ zones: [zone('r', 0)], records, nearby: true });
+    assert.strictEqual(step(g, -300, 1000), null, 'Wait for a plausible road candidate to confirm');
+    assert.strictEqual(g.evaluate(fix(-300, 1000), 1100, true), null, 'A duplicate cannot confirm the road');
     const road = checkId(step(g, -280, 2000), 'r', 'The road candidate confirms on the second sample');
     assert.strictEqual(road.roadConfirmed, true);
     for (let x = -260, t = 3000; x <= 0; x += 20, t += 1000) {
         const alert = step(g, x, t);
         assert(alert && alert.id === 'r' && alert.roadConfirmed, 'Road keeps priority over the nearby camera at ' + x);
     }
+    const wrongDirection = Object.assign(zone('r', 0), { travel: [270] });
+    const fallback = engine.createGuidance({ zones: [wrongDirection], records, nearby: true });
+    assert.strictEqual(checkId(step(fallback, -300, 1000), 'n').roadConfirmed, false);
+
+    const noProgress = engine.createGuidance({ zones: [zone('r', 0)], records, nearby: true });
+    const creeping = { speedKmh: 9 };
+    assert.strictEqual(step(noProgress, -300, 1000, null, creeping), null, 'The first valid road candidate gets one sample to confirm');
+    const notice = checkId(step(noProgress, -300, 2000, null, creeping), 'n', 'A fresh fix without progress releases the nearby notice');
+    assert.strictEqual(notice.roadConfirmed, false);
+    assert.strictEqual(noProgress.diagnostic().candidates.find(item => item.id === 'r').reason, 'WAITING_APPROACH');
 }
 // 7. GPS noise of ±10 m at the boundary does not flicker the warning, and
 // alternating grow/shrink never reaches the three-sample recede exit.
@@ -92,13 +108,14 @@ function checkId(value, id, message) { assert(value && value.id === id, message 
     checkId(step(g, -220, 1000), 'n');
     let t = 2000;
     for (let i = 0; i < 10; i++) {
-        checkId(step(g, -220 + (i % 2 ? 9 : -9), t), 'n', 'Noise must not flicker the warning');
+        const alert = checkId(step(g, -220 + (i % 2 ? 9 : -9), t, null, { speedKmh: 36 }), 'n', 'Noise must not flicker the warning');
+        assert(Math.round(alert.displayDistanceM) <= 220, 'Noise cannot increase the displayed distance');
         t += 1000;
     }
     assert.strictEqual(g.diagnostic().mode, 'nearby');
 }
 // 7b. Anti-flicker floor: right after the card appears, three quick distance
-// growths (noise, a turn) may not withdraw it; passing (BEHIND) still clears.
+// growths (noise, a turn) may not withdraw it; confirmed passing still clears.
 {
     const g = engine.createGuidance({ zones: [], records: [record('n', 0, 0)], nearby: true });
     checkId(step(g, -220, 1000), 'n');
@@ -110,8 +127,9 @@ function checkId(value, id, message) { assert(value && value.id === id, message 
     assert.strictEqual(step(g, -300, 6000), null, 'past the floor the release applies');
     assert.strictEqual(g.diagnostic().lastClear.reason, 'RECEEDING');
     const pass = engine.createGuidance({ zones: [], records: [record('n', 0, 0)], nearby: true });
-    checkId(step(pass, -50, 1000), 'n');
-    assert.strictEqual(step(pass, 30, 1500), null, 'passing the camera clears inside the floor');
+    checkId(step(pass, -14, 1000), 'n');
+    checkId(step(pass, 6, 2000), 'n');
+    assert.strictEqual(step(pass, 26, 3000), null, 'confirmed passage clears inside the floor');
     assert.strictEqual(pass.diagnostic().lastClear.reason, 'BEHIND');
 }
 // 8. The 19 road zones still work unchanged with nearby mode enabled.
@@ -122,4 +140,4 @@ function checkId(value, id, message) { assert(value && value.id === id, message 
     assert(road && road.roadConfirmed === true && road.confidence === 'road', 'Road confirmation is unchanged');
     assert.strictEqual(g.diagnostic().zoneCount, 1);
 }
-console.log('PASS nearby mode 0.8.6: advance/hold/pass without flicker, no resurrection at a stop, owner cameras with all types off, behind/facing rejection, stationary ban, road priority, ±10 m boundary noise, road zones unchanged; synthetic only');
+console.log('PASS nearby mode: advance/hold/confirmed passage, no resurrection at a stop, owner cameras, behind/facing rejection, stationary ban, road priority, and distance jitter; synthetic only');

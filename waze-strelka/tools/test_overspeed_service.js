@@ -35,7 +35,7 @@ async function main(){
  assert.strictEqual(app.state().alertPreferences.warningDistanceM,900);assert.strictEqual(app.state().alertPreferences.cameraTypes.belt,false);assert.strictEqual(JSON.stringify(app.state().cardLayout),originalLayouts);assert.strictEqual(app.state().hudOpacityPct,55);
  run.gps.fix.timeMs=clock;app.tick();
  clock+=4000;app.tick();
- assert(app.state().alert&&app.state().alert.id==='C','a stale fix holds the active card by honest extrapolation');
+ assert(app.state().alert&&app.state().alert.id==='C','a stale fix holds the active card at the last displayed distance');
  assert.strictEqual(app.state().gpsHold.active,true);
  assert.strictEqual(app.state().speedWarning.reason,'GPS_STALE','warnings still demand the real fix');
  clock+=2000;app.tick();

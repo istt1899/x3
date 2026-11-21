@@ -47,7 +47,7 @@ async function main(){
  assert.deepStrictEqual(app.state().cardLayout,customLayouts,'Preferences and unrelated commands preserve both customized output profiles');
  assert.strictEqual(app.state().alertPreferences.cameraTypes.belt,false);assert.strictEqual(app.state().alertPreferences.warningDistanceM,900);
  app.command({cmd:'alert-preferences',warningDistanceM:50});assert.strictEqual(app.state().alert,null);
- assert.strictEqual(run.step(-75),null);run.step(-40);assert(run.step(-20));assert.strictEqual(run.step(20),null,'The camera is removed after passing');
+ assert.strictEqual(run.step(-75),null);run.step(-40);assert(run.step(-20));assert(run.step(5));assert.strictEqual(run.step(20),null,'The camera is removed after passing');
  var client=net.connect(run.endpoint),buffer='',replies=[];sockets.push(client);client.setEncoding('utf8');client.on('error',function(){});
  client.on('data',function(bytes){buffer+=bytes;var at;while((at=buffer.indexOf('\n'))>=0){replies.push(JSON.parse(buffer.slice(0,at)));buffer=buffer.slice(at+1);}});
  await until(function(){return replies.length>0;});

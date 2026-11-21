@@ -37,25 +37,34 @@ for (let metres = 980; metres >= 0; metres -= 20) {
     }
 }
 assert.strictEqual(highway.diagnostic().reason, 'TRACKING_APPROACH');
-clock += 1000; assert.strictEqual(step(highway, 5, clock), null, 'The warning must end immediately after passing');
+clock += 1000; checkId(step(highway, 5, clock), 'a', 'One fix beyond the camera does not confirm passage');
+assert.strictEqual(highway.diagnostic().holdReason, 'CAMERA_PASSED');
+checkId(highway.evaluate(fix(5, clock), clock + 100, true), 'a', 'Repeating that fix cannot confirm passage');
+clock += 1000; assert.strictEqual(step(highway, 20, clock), null, 'A second progressing fix confirms passage');
 assert.strictEqual(highway.diagnostic().lastClear.reason, 'CAMERA_PASSED');
 const passedTransition = highway.diagnostic().transition;
-clock += 1000; step(highway, 20, clock);
+clock += 1000; step(highway, 40, clock);
 assert.deepStrictEqual(highway.diagnostic().transition, passedTransition, 'WAITING ticks must preserve the reason for withdrawal');
 
 // Cumulative recession has a fixed bound relative to the closest source fix.
 const recoil = admitted(); checkId(step(recoil, -491, 3000), 'a'); checkId(step(recoil, -496, 4000), 'a');
-assert.strictEqual(step(recoil, -503, 5000), null); assert.strictEqual(recoil.diagnostic().lastClear.reason, 'APPROACH_LOST');
-const jump = admitted(); assert.strictEqual(step(jump, -200, 3000), null, 'An impossible position jump cannot be retained');
-assert.strictEqual(jump.diagnostic().lastClear.reason, 'POSITION_JUMP');
+checkId(step(recoil, -503, 5000), 'a');
+assert.strictEqual(recoil.diagnostic().holdReason, 'APPROACH_LOST');
+assert.strictEqual(step(recoil, -508, 6000), null); assert.strictEqual(recoil.diagnostic().lastClear.reason, 'APPROACH_LOST');
+const jump = admitted();
+assert.strictEqual(Math.round(checkId(step(jump, -200, 3000), 'a').displayDistanceM), 500);
+assert.strictEqual(jump.diagnostic().holdReason, 'POSITION_JUMP');
+assert.strictEqual(jump.diagnostic().lastClear, null);
+assert.strictEqual(Math.round(checkId(step(jump, -460, 4000), 'a').displayDistanceM), 460);
 
 // Slow traffic uses current valid heading for tracking only; new admission
 // still requires >=8 km/h. Fresh stopped fixes use the bounded prior anchor.
-const slow = create(); step(slow, -200, 1000, null, {speedKmh: 36}); checkId(step(slow, -175, 2000, null, {speedKmh: 36}), 'a');
+const slow = create(); step(slow, -190, 1000, null, {speedKmh: 36}); checkId(step(slow, -175, 2000, null, {speedKmh: 36}), 'a');
 checkId(step(slow, -174, 3000, null, {speedKmh: 5}), 'a');
 checkId(step(slow, -173, 4000, null, {speedKmh: 3}), 'a');
 assert(checkId(step(slow, -173, 5000, null, {speedKmh: 0, headingDeg: null}), 'a').stopped);
-assert.strictEqual(step(slow, -172, 6000, null, {speedKmh: 5, headingDeg: 270}), null, 'A turn must end road tracking even while creeping');
+checkId(step(slow, -174, 6000, null, {speedKmh: 5, headingDeg: 270}), 'a');
+assert.strictEqual(step(slow, -175, 7000, null, {speedKmh: 5, headingDeg: 270}), null, 'A confirmed turn ends road tracking even while creeping');
 const notAdmittedSlow = create(); step(notAdmittedSlow, -200, 1000, null, {speedKmh: 5});
 assert.strictEqual(step(notAdmittedSlow, -199, 2000, null, {speedKmh: 5}), null);
 
@@ -73,16 +82,23 @@ assert.strictEqual(Math.round(checkId(step(light, -160, 6000), 'a').displayDista
 assert.strictEqual(Math.round(checkId(light.evaluate(fix(-154, 6000), 6100, true), 'a').displayDistanceM), 160);
 assert.strictEqual(Math.round(checkId(step(light, -162, 7000), 'a').displayDistanceM), 160);
 
-// Strict safety gates are not part of hysteresis.
-const offRoad = admitted(); assert.strictEqual(step(offRoad, -480, 3000, null, {lat: position(0, 7).lat}), null); assert.strictEqual(offRoad.diagnostic().lastClear.reason, 'OFF_ROAD');
-const turn = admitted(); assert.strictEqual(step(turn, -480, 3000, null, {headingDeg: 135}), null); assert.strictEqual(turn.diagnostic().lastClear.reason, 'HEADING_MISMATCH');
+// Geometry still prevents admission and confirms withdrawal after repeated deviation.
+const offRoadPoint = {lat: position(0, 7).lat};
+const offRoad = admitted(); checkId(step(offRoad, -480, 3000, null, offRoadPoint), 'a');
+assert.strictEqual(step(offRoad, -460, 4000, null, offRoadPoint), null); assert.strictEqual(offRoad.diagnostic().lastClear.reason, 'OFF_ROAD');
+const turn = admitted(); checkId(step(turn, -505, 3000, null, {speedKmh: 18, headingDeg: 270}), 'a');
+assert.strictEqual(step(turn, -510, 4000, null, {speedKmh: 18, headingDeg: 270}), null); assert.strictEqual(turn.diagnostic().lastClear.reason, 'HEADING_MISMATCH');
 const roads = [{id: 1, dir: 0, cam: 1, pts: [[-1600, 0], [0, 0], [300, 0]]}, {id: 2, dir: 0, cam: -1, pts: [[-1600, 25], [300, 25]]}];
 const ambiguous = create({zones: [zone('a', 0, roads)]}); step(ambiguous, -200, 1000, null, {accuracyM: 10});
 assert(step(ambiguous, -180, 2000, null, {accuracyM: 10}));
-assert.strictEqual(step(ambiguous, -170, 3000, null, {accuracyM: 10, lat: position(0, 9).lat}), null); assert.strictEqual(ambiguous.diagnostic().lastClear.reason, 'AMBIGUOUS_ROAD');
+const ambiguousPoint = {accuracyM: 10, lat: position(0, 9).lat};
+checkId(step(ambiguous, -170, 3000, null, ambiguousPoint), 'a');
+assert.strictEqual(step(ambiguous, -150, 4000, null, ambiguousPoint), null); assert.strictEqual(ambiguous.diagnostic().lastClear.reason, 'AMBIGUOUS_ROAD');
 const wrongWayRoads = [roads[0], {id: 2, dir: 0, cam: -1, pts: [[-1600, 40], [300, 40]]}];
 const wrongRoad = admitted({zones: [zone('a', 0, wrongWayRoads)]});
-assert.strictEqual(step(wrongRoad, -480, 3000, null, {lat: position(0, 40).lat}), null); assert.strictEqual(wrongRoad.diagnostic().lastClear.reason, 'CAMERA_WAY_MISSING');
+const wrongPoint = {lat: position(0, 40).lat};
+checkId(step(wrongRoad, -480, 5000, null, wrongPoint), 'a');
+assert.strictEqual(step(wrongRoad, -460, 6000, null, wrongPoint), null); assert.strictEqual(wrongRoad.diagnostic().lastClear.reason, 'CAMERA_WAY_MISSING');
 
 // The mapped adjacent road takes precedence over the proximity shortcut,
 // even when its separation would otherwise fit the admission corridor.
@@ -97,7 +113,8 @@ assert.strictEqual(step(parallel, 25, 13000, null, Object.assign({}, parallelFix
 const correctRoad = create({nearby: true, zones: [zone('a', 0, parallelRoads)]});
 step(correctRoad, -200, 1000);
 assert(checkId(step(correctRoad, -180, 2000), 'a').roadConfirmed);
-assert.strictEqual(step(correctRoad, -160, 3000, null, parallelFix), null, 'A lane change to a mapped parallel road withdraws the alert');
+checkId(step(correctRoad, -160, 3000, null, parallelFix), 'a');
+assert.strictEqual(step(correctRoad, -140, 4000, null, parallelFix), null, 'A confirmed lane change to a mapped parallel road withdraws the alert');
 const unzonedParallel = create({nearby: true, zones: []});
 for (let t = 1; t <= 12; t++) {
     assert.strictEqual(step(unzonedParallel, -240 + t * 20, t * 1000, null, {lat: position(0, 28).lat}), null);
@@ -119,18 +136,27 @@ const expiry = admitted(), valid = fix(-500, 2000); assert.strictEqual(expiry.ev
 assert.strictEqual(expiry.diagnostic().lastClear.gpsReason, 'UTC_EXPIRED');
 assert.strictEqual(expiry.evaluate(valid, 5500, true), null);
 const future = admitted(); assert.strictEqual(future.evaluate(fix(-480, 4000), 3499, true), null); assert.strictEqual(future.diagnostic().lastClear.gpsReason, 'UTC_FUTURE');
-const replay = admitted(); assert.strictEqual(replay.evaluate(fix(-510, 1000), 2100, true), null);
-assert.strictEqual(replay.evaluate(fix(-509, 1000), 2200, true), null, 'A rejected replay cannot reset the source UTC high-water mark');
+const replay = admitted();
+assert.strictEqual(Math.round(checkId(replay.evaluate(fix(-510, 1000), 2100, true), 'a').displayDistanceM), 500);
+assert.strictEqual(replay.diagnostic().holdReason, 'GPS_REPLAY');
+assert.strictEqual(Math.round(checkId(replay.evaluate(fix(-509, 1000), 2200, true), 'a').displayDistanceM), 500,
+    'A rejected replay cannot change the accepted position');
+assert.strictEqual(Math.round(checkId(step(replay, -480, 3000), 'a').displayDistanceM), 480);
 
 // Repeated UTC never confirms an approach. Small position/quality refreshes
 // are allowed against the immutable first position, not a moving baseline.
 const duplicate = create(), first = fix(-200, 1000); duplicate.evaluate(first, 1000, true);
 for (let now = 1100; now <= 2900; now += 100) assert.strictEqual(duplicate.evaluate(first, now, true), null);
-const source = create(); step(source, -200, 1000, null, {speedKmh: 36}); checkId(step(source, -175, 2000, null, {speedKmh: 36}), 'a');
-for (const x of [-172, -169, -166]) checkId(source.evaluate(fix(x, 2000, {speedKmh: 36, accuracyM: 5}), 2100, true), 'a');
-assert.strictEqual(source.evaluate(fix(-163, 2000, {speedKmh: 36}), 2200, true), null);
-assert.strictEqual(source.diagnostic().lastClear.gpsReason, 'SOURCE_CHANGED');
-const hugeSameTime = admitted(); assert.strictEqual(hugeSameTime.evaluate(fix(-5, 2000), 2100, true), null);
+const source = create(); step(source, -190, 1000, null, {speedKmh: 36}); checkId(step(source, -175, 2000, null, {speedKmh: 36}), 'a');
+for (const x of [-172, -169, -166]) {
+    const sameTime = checkId(source.evaluate(fix(x, 2000, {speedKmh: 36}), 2100, true), 'a');
+    assert.strictEqual(Math.round(sameTime.displayDistanceM), 175);
+}
+assert.strictEqual(Math.round(checkId(source.evaluate(fix(-163, 2000, {speedKmh: 36}), 2200, true), 'a').displayDistanceM), 175);
+assert.strictEqual(source.diagnostic().holdReason, 'GPS_REPLAY');
+const hugeSameTime = admitted();
+assert.strictEqual(Math.round(checkId(hugeSameTime.evaluate(fix(-5, 2000), 2100, true), 'a').displayDistanceM), 500);
+assert.strictEqual(hugeSameTime.diagnostic().lastClear, null);
 
 // Settings are always rechecked, including on the same source timestamp.
 const settings = admitted(); assert.strictEqual(settings.evaluate(fix(-500, 2000), 2100, true, {warningDistanceM: 450}), null);
@@ -150,20 +176,28 @@ filterKeys.forEach(type => {
 // without an empty frame or carrying the old way/sign into the new record.
 const nextCamera = create({zones: [zone('a'), zone('b', 20)], records: [record('a'), record('b', 20, 0, ['redlight'])]});
 step(nextCamera, -60, 1000); checkId(step(nextCamera, -40, 2000), 'a'); checkId(step(nextCamera, -20, 3000), 'a'); checkId(step(nextCamera, 0, 4000), 'a');
-const handed = checkId(step(nextCamera, 5, 5000), 'b'); assert.strictEqual(handed.way, 'road-b'); assert.strictEqual(nextCamera.diagnostic().transition.reason, 'SWITCHED');
+checkId(step(nextCamera, 5, 5000), 'a');
+const handed = checkId(step(nextCamera, 10, 6000), 'b');
+assert.strictEqual(handed.way, 'road-b'); assert.deepStrictEqual(handed.controls, ['redlight']);
+assert.strictEqual(nextCamera.diagnostic().transition.reason, 'SWITCHED');
 const passFallback = admitted({nearby: true}); step(passFallback, -480, 3000);
 // Use plausible, continuous approach fixes rather than a jump to the camera.
 for (let x = -460, t = 4000; x <= 0; x += 20, t += 1000) step(passFallback, x, t);
-assert.strictEqual(step(passFallback, 5, 28000), null); assert.strictEqual(step(passFallback, 6, 29000, null, {speedKmh: 0, headingDeg: null}), null, 'Proximity fallback must not resurrect a passed camera at a stop');
+checkId(step(passFallback, 5, 28000), 'a');
+assert.strictEqual(step(passFallback, 10, 29000), null);
+assert.strictEqual(step(passFallback, 10, 30000, null, {speedKmh: 0, headingDeg: null}), null, 'Proximity fallback must not resurrect a passed camera at a stop');
 
 // Nearby (zone-less) entry and exit follow the 0.8.6 contract: motion plus the
 // 40° ahead cone admit; the camera behind, the release margin, or three
 // consecutive growing distances release. Lateral drift inside the cone keeps.
 const vicinity = create({zones: [], nearby: true});
-checkId(step(vicinity, -500, 1000, null, {lat: position(0, 16).lat}), 'a');
-checkId(step(vicinity, -480, 2000, null, {lat: position(0, 19).lat}), 'a', 'Lateral jitter inside the cone keeps the warning');
+checkId(step(vicinity, -68, 1000, null, {lat: position(0, 16).lat}), 'a');
+checkId(step(vicinity, -48, 2000, null, {lat: position(0, 19).lat}), 'a', 'Lateral jitter inside the cone keeps the warning');
 assert.strictEqual(vicinity.diagnostic().reason, 'NEARBY_TRACKING');
-assert.strictEqual(step(vicinity, 20, 3000, null, {lat: position(0, 16).lat}), null, 'A passed camera ends the warning');
+const vicinityLat = {lat: position(0, 16).lat};
+for (let x = -28, t = 3000; x <= 12; x += 20, t += 1000) checkId(step(vicinity, x, t, null, vicinityLat), 'a');
+assert.strictEqual(vicinity.diagnostic().holdReason, 'BEHIND');
+assert.strictEqual(step(vicinity, 32, 6000, null, vicinityLat), null, 'A genuine pass ends the warning');
 assert.strictEqual(vicinity.diagnostic().lastClear.reason, 'BEHIND');
 const recede = create({zones: [], nearby: true});
 checkId(step(recede, -200, 1000, null, {accuracyM: 8}), 'a');
@@ -177,13 +211,15 @@ checkId(step(angular, -200, 2000, null, {headingDeg: 86}), 'a');
 checkId(step(angular, -180, 3000, null, {headingDeg: 84}), 'a');
 checkId(step(angular, -160, 4000, null, {headingDeg: 80}), 'a', 'A course inside the 40° cone keeps the warning');
 
-// Stable nearby identity applies only to the same control set. A closer
-// record with different controls must retain its original metadata and win.
+// Small lateral shifts change which record is nearest. The displayed ID and
+// its control metadata remain stable, including when the records differ.
 function nearbyPair(controls) { return create({zones: [], nearby: true, records: [record('a', 0, -10), record('b', 0, 10, controls)]}); }
 const pair = nearbyPair(); step(pair, -520, 1000, null, {lat: position(0, -4).lat}); checkId(step(pair, -500, 2000, null, {lat: position(0, -4).lat}), 'a');
 checkId(step(pair, -480, 3000, null, {lat: position(0, 4).lat}), 'a');
 const different = nearbyPair(['redlight']); step(different, -520, 1000, null, {lat: position(0, -4).lat}); checkId(step(different, -500, 2000, null, {lat: position(0, -4).lat}), 'a');
-assert.deepStrictEqual(checkId(step(different, -480, 3000, null, {lat: position(0, 4).lat}), 'b').controls, ['redlight']);
+assert.deepStrictEqual(checkId(step(different, -480, 3000, null, {lat: position(0, 4).lat}), 'a').controls, ['speed']);
+const redlight = nearbyPair(['redlight']);
+assert.deepStrictEqual(checkId(step(redlight, -480, 1000, null, {lat: position(0, 4).lat}), 'b').controls, ['redlight']);
 // Source ways 137476266 (Tsiolkovskogo) and 87083178 (Kaluga-Bor).
 // The saved database has the point but no road for it. A direct bearing to
 // the Kaluga-Bor point overlaps the Tsiolkovskogo heading for a full block.

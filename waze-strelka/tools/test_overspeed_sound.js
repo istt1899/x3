@@ -57,6 +57,9 @@ assert.strictEqual(policy.evaluate(alert('in', { distanceM: 150 }), fix(now, 90)
     assert.strictEqual(calls.length, 4, 'a new camera appearance rings once by setting');
     assert.strictEqual(calls[3].kind, 'appear');
     queue[3].resolve({ played: true }); await wait(1);
+    a.update(alert('B', { limitKmh: 60 }), null, now + 4250, true); await wait(1);
+    a.update(alert('B', { limitKmh: 60 }), fix(now + 4500, 40), now + 4500); await wait(1);
+    assert.strictEqual(calls.length, 4, 'resuming the same alert after a display hold is silent');
     a.close();
     // Unknown limit through the scheduler: no ring.
     const silent = [];

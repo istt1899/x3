@@ -97,7 +97,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.9.12', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.9.13', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -448,61 +448,61 @@ function start(options) {
     }).filter(Boolean).sort(function(a,b){return a.distanceM-b.distanceM;}).slice(0,3) : [];
     state.nearest = state.nearestCandidates[0] || null;
     var alert = null;
-    // 0.8.7: hold an active card through a brief GPS loss. The position is
-    // extrapolated from the last good fix at its last speed and course, only
-    // to keep the current card — a lost fix never admits a new camera.
-    state.gpsHold = { active: false, sinceMs: null, ageMs: null, reason: null };
-    var evalFix = fix;
-    // A partial RMC speed can arrive before its matching position. Keep the
-    // last visual card within the existing freshness window while it assembles.
-    var holdMotion = motion.roadMismatch && !motion.conflict && state.alert &&
-      validRetainedPosition(lastGoodFix, now) && validRetainedPosition(fix, now);
-    if (!roadBlocked && validPosition(fix, now)) {
-      lastGoodFix = { lat: fix.lat, lon: fix.lon, speedKmh: fix.speedKmh, headingDeg: fix.headingDeg,
-        accuracyM: fix.accuracyM, timeMs: fix.timeMs, source: fix.source };
-    } else if (state.alert && lastGoodFix && !roadBlocked &&
-        (!fix || !Number.isFinite(fix.timeMs) || now - fix.timeMs > 3000 || fix.timeMs > now + 500)) {
-      // Only a missing or stale fix triggers the hold: a fresh but poor fix
-      // goes to guidance untouched so the normal quality gates decide.
-      var anchor = lastGoodFix, age = now - anchor.timeMs;
-      if (age >= 0 && age <= 5000 && Number.isFinite(anchor.lat) && Number.isFinite(anchor.lon)) {
-        var movedM = (Number.isFinite(anchor.speedKmh) ? anchor.speedKmh : 0) / 3.6 * (age / 1000);
-        var headingRad = (Number.isFinite(anchor.headingDeg) ? anchor.headingDeg : 0) * Math.PI / 180;
-        evalFix = { lat: anchor.lat + movedM * Math.cos(headingRad) / 111320,
-          lon: anchor.lon + movedM * Math.sin(headingRad) / (111320 * Math.cos(anchor.lat * Math.PI / 180)),
-          timeMs: now, speedKmh: anchor.speedKmh, headingDeg: anchor.headingDeg, accuracyM: anchor.accuracyM,
-          source: anchor.source, extrapolatedMs: age };
-        state.gpsHold = { active: true, sinceMs: anchor.timeMs, ageMs: age, reason: null };
-      } else {
-        state.gpsHold = { active: false, sinceMs: anchor.timeMs, ageMs: age, reason: 'GPS_LOST' };
-      }
+    var previousAlert = state.alert;
+    var withinSettings = function (item) {
+      return !!(item && settings.enabled && alertPreferences.matches(item, settings.alertPreferences) &&
+        Number.isFinite(item.distanceM) && item.distanceM >= 0 && item.distanceM <= settings.alertPreferences.warningDistanceM + 0.000001);
+    };
+    var goodPosition = validRetainedPosition(fix, now);
+    if (lastGoodFix && lastGoodFix.timeMs > now + 500) lastGoodFix = null;
+    var age = lastGoodFix ? now - lastGoodFix.timeMs : null;
+    // The decoder publishes a position without GST only after pairing fresh
+    // RMC/GGA. Use that fact for a bounded display hold, never for geometry.
+    var partialPosition = !roadBlocked && !goodPosition && fix && lastGoodFix &&
+      fix.source === 'bmw-nmea' && lastGoodFix.source === fix.source &&
+      !Number.isFinite(fix.accuracyM) && Number.isFinite(fix.motionTimeMs) &&
+      Math.abs(fix.motionTimeMs - fix.timeMs) <= 500 &&
+      fix.timeMs > lastGoodFix.timeMs && now - fix.timeMs <= 3000 && fix.timeMs <= now + 500;
+    var holdReason = null;
+    if (withinSettings(previousAlert) && lastGoodFix && age >= 0 && !motion.conflict) {
+      if (motion.roadMismatch && age <= 3000) holdReason = 'MOTION_EPOCH_MISMATCH';
+      else if (partialPosition && age <= 15000) holdReason = 'ACCURACY_MISSING';
+      else if (!roadBlocked && !goodPosition && age <= 5000) holdReason = 'GPS_HOLD';
+      else if (!roadBlocked && !goodPosition) holdReason = 'GPS_LOST';
     }
-    // Guidance validates the source itself and needs the rejected measurement
-    // to explain accuracy/UTC failures. The native output gate below remains.
+    var holding = holdReason !== null && holdReason !== 'GPS_LOST';
+    state.gpsHold = { active: holding, sinceMs: holdReason ? lastGoodFix.timeMs : null,
+      ageMs: holdReason ? age : null, reason: holdReason };
     try {
-      if (holdMotion) alert = state.alert;
-      else if (guidance) alert = guidance.evaluate(database && !roadBlocked ? evalFix : null, now, settings.enabled, settings.alertPreferences);
+      if (holding) alert = previousAlert;
+      else if (guidance) {
+        if (previousAlert && !withinSettings(previousAlert) && !goodPosition) {
+          guidance.evaluate(null, now, settings.enabled, settings.alertPreferences);
+        } else alert = guidance.evaluate(database && !roadBlocked ? fix : null, now, settings.enabled, settings.alertPreferences);
+      }
     } catch (e) { state.error = 'Guidance: ' + e.message; }
-    if (state.gpsHold.reason === 'GPS_LOST') alert = null;
-    if (!settings.enabled || !(alert ? validRetainedPosition(evalFix, now) : validPosition(evalFix, now)) || !database || (roadBlocked && !holdMotion)) alert = null;
-    if (alert && (!alertPreferences.matches(alert, settings.alertPreferences) || !Number.isFinite(alert.distanceM) || alert.distanceM < 0 || alert.distanceM > settings.alertPreferences.warningDistanceM + 0.000001)) alert = null;
+    if (!database || !withinSettings(alert) || (!holding && (!goodPosition || roadBlocked))) alert = null;
     state.guidance = guidance && typeof guidance.diagnostic === 'function' ? guidance.diagnostic() : null;
+    var guidanceHeld = !!(alert && state.guidance && state.guidance.holdReason);
+    if (alert && !holding && !guidanceHeld && !roadBlocked && goodPosition && (!lastGoodFix || fix.timeMs > lastGoodFix.timeMs)) {
+      lastGoodFix = { timeMs: fix.timeMs, source: fix.source };
+    }
+    var warningFix = !roadBlocked && !holding && !guidanceHeld ? fix : null;
     state.nearestCandidates = state.nearestCandidates.map(function(item){
       var detail=state.guidance && state.guidance.candidates && state.guidance.candidates.find(function(c){return c.id===item.id;});
       return Object.assign({},item,{reason:!validPosition(fix,now)?'GPS_INVALID':detail?detail.reason:'NO_ROAD_ZONE',way:detail&&detail.way||null});
     });
     state.observedAtMs = now;
     state.alert = alert ? Object.assign({}, alert, { filterMatched: true, limit: alert.limitKmh, distance: Math.round(Number.isFinite(alert.displayDistanceM) ? alert.displayDistanceM : alert.distanceM), stage: alert.stage || (alert.roadConfirmed ? 'approach' : 'nearby') }) : null;
-    // Extrapolation holds the card only; speed-based warnings still demand
-    // the real, strict-quality fix.
-    state.speedWarning = warningPolicy.evaluate(state.alert,roadBlocked ? null : fix,now,settings.overspeedPreferences);
+    state.speedWarning = warningPolicy.evaluate(state.alert,warningFix,now,settings.overspeedPreferences);
     if(roadBlocked)state.speedWarning.reason=motion.conflict?'MOTION_CONFLICT':'MOTION_EPOCH_MISMATCH';
     else if(!settings.enabled)state.speedWarning.reason='DISABLED';
     else if(state.gpsHold.reason==='GPS_LOST')state.speedWarning.reason='GPS_LOST';
-    else if(!validPosition(evalFix,now))state.speedWarning.reason=evalFix?'GPS_INVALID':'GPS_MISSING';
+    else if(state.gpsHold.reason==='GPS_HOLD' && (!fix || now - fix.timeMs > 3000))state.speedWarning.reason='GPS_STALE';
+    else if(!validPosition(warningFix,now))state.speedWarning.reason=fix?'GPS_INVALID':'GPS_MISSING';
     else if(!state.alert&&state.nearest&&state.nearest.filterMatched===false)state.speedWarning.reason='TYPE_DISABLED';
-    if (state.alert) { state.alert.speedKmh = !roadBlocked && evalFix ? evalFix.speedKmh : null; state.alert.overspeed = state.speedWarning.overspeed; state.alert.speedWarning = state.speedWarning;
-      if (!roadBlocked && evalFix && Number.isFinite(evalFix.headingDeg)) state.alert.captureClass = captureData.classify(state.alert.capture, evalFix.headingDeg, state.alert.cameraFacing); }
+    if (state.alert) { state.alert.speedKmh = warningFix ? warningFix.speedKmh : null; state.alert.overspeed = state.speedWarning.overspeed; state.alert.speedWarning = state.speedWarning;
+      if (warningFix && Number.isFinite(warningFix.headingDeg)) state.alert.captureClass = captureData.classify(state.alert.capture, warningFix.headingDeg, state.alert.cameraFacing); }
     if (state.displayTest.active && (!state.actions.displayTest.allowed || !testTargetEnabled(state.displayTest.target))) stopDisplayTest(!state.actions.displayTest.allowed ? state.actions.displayTest.code : 'OUTPUTS_OFF');
     var displayAlert = state.displayTest.active ? { id: '__display_test__', test: true, title: 'ТЕСТ УВЕДОМЛЕНИЯ',
       description: 'Проверка приборов и HUD', controls: ['redlight','speed'], distanceM: 150, roadConfirmed: true, limitKmh: 60, speedKmh: fix && fix.speedKmh, confidence: 'test', calibration: !!state.displayTest.calibration } : state.alert;
@@ -511,7 +511,7 @@ function start(options) {
     } : settings.outputs;
     updateDisplay(displayAlert, displayOutputs);
     if (previewRequest && state.displayTest.active && settlePreview()) updateDisplay(state.alert, settings.outputs);
-    if (audio) { audio.configure(settings.overspeedPreferences); audio.update(roadBlocked ? null : state.alert, fix, now); var audioState = audio.status();
+    if (audio) { audio.configure(settings.overspeedPreferences); audio.update(state.alert, warningFix, now, holding || guidanceHeld); var audioState = audio.status();
       if(state.audio && state.audio.probeState)audioState.probeState=state.audio.probeState;
       state.audio=audioState;
     }
