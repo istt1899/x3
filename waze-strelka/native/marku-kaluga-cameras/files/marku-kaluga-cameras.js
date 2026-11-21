@@ -97,7 +97,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.9.9', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.9.10', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -496,7 +496,7 @@ function start(options) {
     else if(!validPosition(evalFix,now))state.speedWarning.reason=evalFix?'GPS_INVALID':'GPS_MISSING';
     else if(!state.alert&&state.nearest&&state.nearest.filterMatched===false)state.speedWarning.reason='TYPE_DISABLED';
     if (state.alert) { state.alert.speedKmh = evalFix && evalFix.speedKmh; state.alert.overspeed = state.speedWarning.overspeed; state.alert.speedWarning = state.speedWarning;
-      if (evalFix && Number.isFinite(evalFix.headingDeg)) state.alert.captureClass = captureData.classify(state.alert.capture, evalFix.headingDeg); }
+      if (evalFix && Number.isFinite(evalFix.headingDeg)) state.alert.captureClass = captureData.classify(state.alert.capture, evalFix.headingDeg, state.alert.cameraFacing); }
     if (state.displayTest.active && (!state.actions.displayTest.allowed || !testTargetEnabled(state.displayTest.target))) stopDisplayTest(!state.actions.displayTest.allowed ? state.actions.displayTest.code : 'OUTPUTS_OFF');
     var displayAlert = state.displayTest.active ? { id: '__display_test__', test: true, title: 'ТЕСТ УВЕДОМЛЕНИЯ',
       description: 'Проверка приборов и HUD', controls: ['redlight','speed'], distanceM: 150, roadConfirmed: true, limitKmh: 60, speedKmh: fix && fix.speedKmh, confidence: 'test', calibration: !!state.displayTest.calibration } : state.alert;
@@ -535,7 +535,7 @@ function start(options) {
       tick();
       var now = gpsNow(); state.actions = actionsAt(now, gps.current(now));
       var policy = state.actions[msg.cmd === 'display-test' ? 'displayTest' : 'calibrationTest'];
-      if(!policy.allowed)throw new Error(policy.reason);
+      if(!policy.allowed)throw Object.assign(new Error(policy.reason), { code: policy.code });
       var target = msg.target === undefined ? null : cardLayout.validateTarget(msg.target);
       if(!testTargetEnabled(target))throw new Error('Включите выход «' + (target === 'hud' ? 'HUD' : 'Приборы') + '» для камер');
       previewRequest = { result: state.commandResult, deadline: monotonicNow() + 10000 };
@@ -655,7 +655,17 @@ function start(options) {
       if(userCommand && state.commandResult.phase==='requested' && ['display-test','calibration-test','database-check','database-rollback','audio-test'].indexOf(msg.cmd)<0)
         commandResult(msg.cmd,'finished',state.storage.settingsSaved === false && ['card-layout','card-layout-reset','card-move','alert-preferences','overspeed-preferences'].indexOf(msg.cmd) >= 0 ? 'Настройка действует временно: хранилище недоступно' : 'Настройка применена',state.commandResult.id);
       if(userCommand)broadcast(true);return answer;
-    } catch(error) { if(userCommand){commandResult(msg.cmd,'error',error.message,state.commandResult.id);broadcast(true);}throw error; }
+    } catch(error) {
+      if (userCommand) {
+        commandResult(msg.cmd, 'error', error.message, state.commandResult.id);
+        if (msg.cmd === 'display-test' || msg.cmd === 'calibration-test') {
+          state.commandResult.code = error.code || 'TEST_ERROR';
+          state.displayTest.result = state.commandResult;
+        }
+        broadcast(true);
+      }
+      throw error;
+    }
   }
   server = net.createServer(function (sock) {
     if (clients.length >= 16) { sock.destroy(); return; }

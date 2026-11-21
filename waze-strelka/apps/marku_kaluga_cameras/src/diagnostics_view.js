@@ -112,8 +112,11 @@ function photoRows(report, serviceReady, target) {
         return scene[layer.rendering] || layerState[layer.state] || 'вкл';
     };
     const selectedLayer = renderer[test.target || target] || {};
-    const result = test.stoppedReason ? code(test.stoppedReason) : test.active ? 'АКТИВЕН' :
-        selectedLayer.state === 'отказ' ? code(selectedLayer.targetReason || selectedLayer.reason) : '—';
+    const attempt = test.result || {};
+    const phaseLabel = {requested:'запрошен', shown:'сцена OK', unconfirmed:'без подтв.', error:'ошибка'};
+    const result = attempt.code ? code(attempt.code) : test.stoppedReason ? code(test.stoppedReason) :
+        phaseLabel[attempt.phase] || (test.active ? 'АКТИВЕН' :
+            selectedLayer.state === 'отказ' ? code(selectedLayer.targetReason || selectedLayer.reason) : 'запуска нет');
     const vehicleMotion = s.vehicleMotion || {};
     const gpsSpeed = s.gpsMotion ? s.gpsMotion.speedKmh : fix && fix.speedKmh;
     const speed = Number.isFinite(vehicleMotion.speedKmh) ? vehicleMotion.speedKmh : gpsSpeed;
@@ -121,12 +124,20 @@ function photoRows(report, serviceReady, target) {
         vehicleMotion.code === 'INVALID' ? 'BMW недейств.' : 'без скорости';
     const speedText = Number.isFinite(speed) && speed >= 0 && speed < 1000 ? n(speed, 1) : '—';
     const packetAge = Number.isFinite(clock.lastPacketAgeMs) ? clock.lastPacketAgeMs : input.lastPacketAgeMs;
+    const guidance = s.guidance || {};
+    const warningReason = (s.speedWarning || {}).reason;
+    const roadBlock = ['DISABLED', 'GPS_LOST', 'MOTION_CONFLICT', 'MOTION_EPOCH_MISMATCH', 'TYPE_DISABLED'];
+    const roadReason = roadBlock.indexOf(warningReason) >= 0 ? warningReason : guidance.gpsReason || guidance.reason || warningReason;
+    const cameraDistance = s.alert && s.alert.distanceM;
+    const cameraStatus = Number.isFinite(cameraDistance) && cameraDistance >= 0 && cameraDistance <= 10000 ?
+        n(cameraDistance, 0) + ' м' : code(roadReason);
+    const gpsStatus = !fix || (clock.issue && clock.issue !== 'NONE') ? code(clock.issue) : 'кам. ' + cameraStatus;
     return [
         'Прил. ' + version(report.appVersion) + ' • Сервис ' + version(s.serviceVersion) + ' • ' + (serviceReady ? 'связь OK' : 'нет связи'),
         'UTC MGU ' + shortUtc(clock.serviceWallUtc || app.wallUtc, clock.serviceWallMs) +
             ' • RMC ' + shortUtc(clock.rawSourceUtc || clock.sourceUtc, clock.sourceUtcMs),
         'Опора ' + ref + ' • RTC ' + code(clock.rtcStatus) + ' • NTP ' + code(clock.networkStatus),
-        'GPS ' + (fix ? positionSources[fix.source] || 'есть' : 'нет') + ' • ' + code(clock.issue) + ' • пакет ' + ms(packetAge) + ' мс',
+        'GPS ' + (fix ? positionSources[fix.source] || 'есть' : 'нет') + ' • ' + gpsStatus + ' • пакет ' + ms(packetAge) + ' мс',
         'RMC приём/рост ' + ms(timing.lastRmcAgeMs) + '/' + ms(input.rmcAdvanceAgeMs) + ' мс • ' + code(timing.pairReason),
         (speedText === '—' ? speedSource : speedText + ' км/ч ' + speedSource) +
             ' • тест ' + targetLabel + ' • ' + (display.allowed && !target ? 'OUTPUTS_OFF' : code(display.code)),

@@ -476,9 +476,16 @@ GpsProvider.prototype.motionFixes = function (now) {
   var result = [], self = this;
   [['gpsd', this.decoder], [this.decoder.nmeaSource, this.decoder],
     [this.bmwDecoder.nmeaSource, this.bmwDecoder]].forEach(function (entry) {
-    var fix = entry[1].last[entry[0]];
+    var source = entry[0], decoder = entry[1], fix = decoder.last[source];
+    // BMW RMC supplies its own speed. A delayed GGA must not hide fresh
+    // motion or make a road position from an unpaired measurement.
+    var rmc = decoder === self.bmwDecoder && decoder.rmc;
+    if (rmc && number(rmc.speedKmh) && fresh(rmc.timeMs, now) && fresh(rmc.received, now)) {
+      result.push({ source: source, timeMs: rmc.timeMs, motionTimeMs: rmc.timeMs, speedKmh: rmc.speedKmh });
+      return;
+    }
     if (!fix || !fresh(fix.timeMs, now)) return;
-    var prior = entry[1].lastMotion[entry[0]], motion = fix;
+    var prior = decoder.lastMotion[source], motion = fix;
     // A partial new epoch may omit speed. For stationary checks only, use the
     // last fresh speed from this source at its own UTC, even if accuracy was
     // worse than road guidance permits. Never graft it onto a new position.

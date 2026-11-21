@@ -90,6 +90,13 @@ async function main() {
     assert.strictEqual(rejected.current(now), null, 'stale and future source UTC remains rejected');
     assert.deepStrictEqual(rejected.motionFixes(now), []);
 
+    const rmcOnly = provider();
+    rmcOnly.inputNmea(nmeaSentences(0, now - 100)[0]);
+    assert.strictEqual(rmcOnly.current(now), null, 'RMC alone supplies no road position');
+    assert.strictEqual(decision(rmcOnly).code, 'READY', 'fresh RMC speed does not wait for GGA');
+    rmcOnly.inputNmea(nmeaSentences(4, now - 50)[0]);
+    assert.strictEqual(decision(rmcOnly).code, 'MOVING');
+
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'x6-camera-gps-'));
     const socket = process.platform === 'win32' ? '\\\\.\\pipe\\x6-camera-gps-' + process.pid : path.join(dir, 'ctl.sock');
     let app, lastGuidanceFix, forceAlert = false;
@@ -102,17 +109,47 @@ async function main() {
                     { id: 'low-accuracy-proof', type: 'speed', distanceM: 150, limitKmh: 60, roadConfirmed: true } : null; },
                     diagnostic: () => ({}) },
                 display: { update: () => {}, status: () => 'ready',
-                    diagnostics: () => ({ connection: 'ready', map: { state: 'shown' } }), close: () => {} },
+                    diagnostics: () => ({ connection: 'ready', map: { state: 'shown' },
+                        hud: { state: 'shown', target: 'shown', rendering: 'unobservable' } }), close: () => {} },
                 dimmer: { update: () => {}, status: () => 'off', close: () => {} },
                 onListening: resolve, onError: reject });
         });
         assert(app.state().database.count > 0, 'test must run against a loaded camera bundle');
-        app.command({ cmd: 'outputs', cluster: true, hud: false });
+        app.command({ cmd: 'outputs', cluster: true, hud: true });
         assert.strictEqual(app.state().actions.displayTest.code, 'READY');
-        app.command({ cmd: 'display-test', target: 'map' });
+        const photo = () => diagnostics.photoRows(diagnostics.capture(app.state(), app.state().serviceVersion, now), true, 'hud');
+        assert.strictEqual(photo().length, 7);
+        assert(photo()[6].endsWith('итог запуска нет'));
+        const roadReport = diagnostics.capture(app.state(), app.state().serviceVersion, now);
+        roadReport.state.guidance = { reason: 'NO_ROAD_ZONE' };
+        assert(diagnostics.photoRows(roadReport, true, 'hud')[3].includes('кам. NO_ROAD_ZONE'));
+        roadReport.state.alert = { distanceM: 150 };
+        assert(diagnostics.photoRows(roadReport, true, 'hud')[3].includes('кам. 150 м'));
+        const completeAt = now - 300;
+        now = completeAt + 3001;
+        gps.decoder.invalidate('gpsd', 'test source withdrawal');
+        const stoppedRmc = nmeaSentences(0, now - 100)[0];
+        gps.inputNmea(stoppedRmc);
+        assert.strictEqual(gps.current(now), null, 'the complete BMW epoch expires while RMC keeps advancing');
+        app.command({ cmd: 'display-test', target: 'hud' });
         assert.strictEqual(app.state().displayTest.active, true);
+        assert(photo()[6].endsWith('итог без подтв.'), 'accepted request does not imply visible pixels');
+        assert.strictEqual(lastGuidanceFix, null);
+        gps.inputNmea(nmeaSentences(11, now - 50)[0]);
+        app.tick();
+        assert.strictEqual(app.state().displayTest.stoppedReason, 'MOVING');
+        const movingAt = now - 50;
+        now = movingAt + 3001;
+        gps.inputNmea(nmeaSentences(11, movingAt)[0]);
+        app.tick();
+        assert.strictEqual(app.state().actions.displayTest.code, 'STATIONARY_UNKNOWN');
+        assert.throws(() => app.command({ cmd: 'display-test', target: 'hud' }), /дождитесь свежего измерения скорости/);
+        assert(photo()[6].endsWith('итог STATIONARY_UNKNOWN'), 'photo retains the refused command outcome');
+        gps.bmwDecoder.resetEpoch(now - 1200);
+        feedBmw(gps, 0, now - 300);
+        app.command({ cmd: 'display-test', target: 'map' });
 
-        now = Date.now();
+        now += 1000;
         feedGpsd(gps, 0, now - 100); feedBmw(gps, 11, now - 300);
         assert.strictEqual(gps.current(now).source, 'gpsd', 'both complete positions retain newest-source selection');
         app.tick();
@@ -136,7 +173,7 @@ async function main() {
         assert.strictEqual(lastGuidanceFix, null, 'road guidance cannot use a stopped fix while BMW reports motion');
         assert.throws(() => app.command({ cmd: 'display-test', target: 'map' }), /Источники скорости расходятся/);
 
-        now = Date.now();
+        now += 1000;
         gps.decoder.invalidate('gpsd', 'test source withdrawal');
         gps.bmwDecoder.resetEpoch(now - 1200);
         feedBmw(gps, 0, now - 900);
@@ -151,7 +188,7 @@ async function main() {
         assert.strictEqual(app.state().speedWarning.reason, 'MOTION_EPOCH_MISMATCH');
         assert(app.state().gps.indexOf('РАЗНЫЕ ЭПОХИ') >= 0, 'GPS diagnostics explains the road gate');
 
-        now = Date.now();
+        now += 1000;
         gps.bmwDecoder.resetEpoch(now - 1200);
         forceAlert = true;
         feedBmw(gps, 0, now - 300, 3, 9.2);

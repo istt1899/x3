@@ -8,7 +8,7 @@ const bundle = require('./build-camera-database').bundle();
 const regionOsm = require(path.join(base, 'region-osm'));
 const osc = require(path.join(base, 'openspeedcam-data'));
 
-assert.strictEqual(bundle.version, '2026.11.19.1');
+assert.strictEqual(bundle.version, '2026.11.21.1');
 assert(Array.isArray(bundle.regions) && bundle.regions.indexOf('RU-MOW') >= 0, 'the bundle declares the Moscow region');
 assert(bundle.records.length > 10000, 'Moscow coverage is real: ' + bundle.records.length + ' records');
 
@@ -40,6 +40,15 @@ assert(snapshot.excluded.some(e => e.reason === 'other-region'), 'neighbouring r
 const validated = osc.validateSnapshot(snapshot);
 assert.strictEqual(validated.records.length, snapshot.records.length);
 
+// A real point from the source was excluded as other-region because of casing.
+const restoredId = 'osc:6a807622a79ee00eafa4a8e8';
+const restored = bundle.records.find(r => r.id === restoredId);
+assert(restored && restored.region === 'RU-KLU' && restored.limitKmh === 60);
+const { pathToFileURL } = require('url');
+const raw = require('../data/source-snapshots/osc-moscow-raw-2026-11-18.json');
+const rawRestored = raw.find(point => 'osc:' + point._id === restoredId);
+assert.strictEqual(rawRestored.region, 'Калужская Область');
+
 // Guidance sees Moscow cameras: a synthetic approach to a Moscow OSC point
 // produces an honest nearby notice (no road zones for Moscow).
 const { createGuidance } = require(path.join(base, 'vehicle-guidance'));
@@ -50,4 +59,13 @@ const approach = { lat: mowRecord.position.lat - 200 / 111320, lon: mowRecord.po
 const notice = g.evaluate(approach, 1000, true);
 assert(notice && notice.id === mowRecord.id, 'a Moscow camera warns in nearby mode');
 assert.strictEqual(notice.roadConfirmed, false);
-console.log('PASS moscow region: OSC whitelist (MOW ' + byRegion['RU-MOW'] + ', MOS ' + byRegion['RU-MOS'] + '), OSM merge ' + moscowSnapshot.records.length + ', idempotent merge, no neighbour leakage, nearby warnings work; total ' + bundle.records.length);
+import(pathToFileURL(path.join(__dirname, 'import-openspeedcam.mjs')).href).then(({ normalizeSnapshot }) => {
+    const normalized = normalizeSnapshot(raw, snapshot);
+    assert.deepStrictEqual(normalized, snapshot, 'the committed snapshot matches the offline import');
+    const spaced = normalizeSnapshot([Object.assign({}, rawRestored, { region: '  КАЛУЖСКАЯ ОБЛАСТЬ  ' })], snapshot);
+    assert.strictEqual(spaced.records[0].region, 'RU-KLU');
+    console.log('PASS moscow region: OSC whitelist (MOW ' + byRegion['RU-MOW'] + ', MOS ' + byRegion['RU-MOS'] + '), OSM merge ' + moscowSnapshot.records.length + ', idempotent merge, no neighbour leakage, nearby warnings work; total ' + bundle.records.length);
+}).catch(error => {
+    console.error(error);
+    process.exitCode = 1;
+});

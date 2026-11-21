@@ -47,8 +47,19 @@ let app;
     app.tick();
     assert(app.state().alert && app.state().alert.id === 'hold-nearby', 'a fresh fix resumes the card');
     assert.strictEqual(app.state().gpsHold.active, false);
+    const lastReal = clock;
+    tick(3200);
+    assert.strictEqual(app.state().gpsHold.active, true);
+    gps.fix = Object.assign({}, gps.fix, {
+        timeMs: lastReal + 3000, motionTimeMs: lastReal + 3000,
+        lon: gps.fix.lon + 30 / (111320 * Math.cos(gps.fix.lat * Math.PI / 180))
+    });
+    tick(350);
+    assert(app.state().alert && app.state().alert.id === 'hold-nearby',
+        'a newer real fix survives even when its UTC precedes the last projected position');
+    assert.strictEqual(app.state().gpsHold.active, false);
     app.close();
     Date.now = realNow;
     fs.readdirSync(dir).forEach(n => fs.unlinkSync(path.join(dir, n))); fs.rmdirSync(dir);
     console.log('PASS gps hold: active card extrapolated through a 3 s fix loss, GPS_LOST withdrawal at 5 s, no new admission without a fix, clean resume; real service process');
-})().catch(e => { console.error(e.stack); process.exitCode = 1; });
+})().catch(e => { if (app) app.close(); Date.now = realNow; console.error(e.stack); process.exitCode = 1; });

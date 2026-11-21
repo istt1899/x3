@@ -1094,7 +1094,7 @@ class WazeClusterApp extends OnlineApp {
         this._write('cameraCardBaselineAppearance','Размер 100 % • яркость 100 % • прозрачность 0 %');
         this._write('cameraCardReset','Базовый профиль '+name+' • не проверен на X6M');
         this._write('cameraCardStatus',this._cameraCardSelectionReason||
-            (cardFeedback&&(feedback.pending||feedback.awaiting||feedback.phase==='error'||feedback.command==='display-test-stop')?
+            (cardFeedback&&(feedback.pending||feedback.awaiting||CAMERA_TERMINAL_PHASES.includes(feedback.phase))?
                 cameraDiagnostics.commandPage(null,feedback.message,0).command:null)||
             (test.active?'Тест: '+(test.target==='hud'?'HUD':'Приборы')+' • '+(test.pinned?'закреплён до остановки':'показан'):
                 'Тест скрыт • профиль '+name));

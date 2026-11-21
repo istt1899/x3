@@ -133,16 +133,13 @@ function createDisplay(options){
             client.connect();
         }else{
             active=alert;
-            if(suspended){
-                // Resume after a brief gap without recreating the session:
-                // show the layers again and push the current card whole.
-                suspended=false;
-                for(const n of targets)if(layers[n])client.set(layers[n],{visible:true});
-                signature='';
-            }
-            if(profileSignature!==nextProfileSignature){
+            const resume=suspended;
+            suspended=false;
+            if(resume||profileSignature!==nextProfileSignature){
+                // A hello received while the alert was absent may have left
+                // no layers. Arrange and send current pixels before showing.
                 profiles=nextProfiles;profileSignature=nextProfileSignature;signature=sig;
-                if(client.ready)arrange(targets,false);
+                if(client.ready)arrange(targets,resume);
             }else if(signature!==sig){signature=sig;send();}
         }
     },status:function(){return client?Object.keys(states).map(k=>k+' '+states[k].state+(states[k].reason?' '+states[k].reason:'')).join(', '):'Ожидание подтверждённого предупреждения';},

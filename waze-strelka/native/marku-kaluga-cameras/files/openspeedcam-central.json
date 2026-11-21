@@ -26,8 +26,8 @@
  },
  "counts": {
   "fetched": 18576,
-  "imported": 16425,
-  "excluded": 2151
+  "imported": 16467,
+  "excluded": 2109
  },
  "records": [
   {
@@ -1191,6 +1191,64 @@
    "sourceIndex": 147493
   },
   {
+   "id": "osc:695b91226bc0ba56a592f807",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.381633,
+    "lon": 36.200161
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 24,
+   "zoneDistanceM": 500,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": true
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-01-05T10:23:30.192Z",
+   "sourceIndex": 584510
+  },
+  {
+   "id": "osc:695b912b6bc0ba56a592f809",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.381577,
+    "lon": 36.200247
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 203,
+   "zoneDistanceM": 500,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-01-05T10:23:39.486Z",
+   "sourceIndex": 584511
+  },
+  {
    "id": "osc:5a76fc79cfeb630358714926",
    "kind": "video_control",
    "subType": "parcon",
@@ -2061,6 +2119,64 @@
    "sourceIndex": 478877
   },
   {
+   "id": "osc:6a438fe5e24f72192ddf59e9",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.528345,
+    "lon": 36.108289
+   },
+   "limitKmh": 40,
+   "dirType": 1,
+   "directionDeg": 222,
+   "zoneDistanceM": 500,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": true
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-06-30T09:44:05.005Z",
+   "sourceIndex": 595753
+  },
+  {
+   "id": "osc:6a438ff5e24f72192ddf59eb",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.528416,
+    "lon": 36.108391
+   },
+   "limitKmh": 40,
+   "dirType": 1,
+   "directionDeg": 34,
+   "zoneDistanceM": 500,
+   "angleDeg": 35,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-06-30T09:44:21.433Z",
+   "sourceIndex": 595754
+  },
+  {
    "id": "osc:60af6d453c5d7b6aac6b12c3",
    "kind": "static_cam",
    "subType": "cordon",
@@ -2873,6 +2989,35 @@
    "sourceIndex": 71590
   },
   {
+   "id": "osc:69a58805c92afb0a571d1187",
+   "kind": "dummy",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.541212,
+    "lon": 36.15366
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 142,
+   "zoneDistanceM": 200,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 0,
+   "created": "2026-03-02T12:52:21.789Z",
+   "sourceIndex": 587608
+  },
+  {
    "id": "osc:5a63475288940a5dbd4536b1",
    "kind": "stationary_porst_dps",
    "subType": null,
@@ -3366,6 +3511,64 @@
    "sourceIndex": 439577
   },
   {
+   "id": "osc:5a76f419cfeb6303587148f4",
+   "kind": "static_cam",
+   "subType": "cordon",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.46387,
+    "lon": 36.236176
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 19,
+   "zoneDistanceM": 500,
+   "angleDeg": 20,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": true
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2018-02-04T11:52:56.956Z",
+   "sourceIndex": 71541
+  },
+  {
+   "id": "osc:5a76f381cfeb6303587148ed",
+   "kind": "static_cam",
+   "subType": "cordon",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.463874,
+    "lon": 36.236247
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 174,
+   "zoneDistanceM": 500,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2018-02-04T11:50:25.594Z",
+   "sourceIndex": 71538
+  },
+  {
    "id": "osc:5ba0f52791057636d910dc4f",
    "kind": "static_cam",
    "subType": "cordon",
@@ -3828,6 +4031,64 @@
    "rating": -2,
    "created": "2022-04-26T20:37:38.792Z",
    "sourceIndex": 441574
+  },
+  {
+   "id": "osc:6a439063e24f72192ddf59fd",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.435056,
+    "lon": 36.460924
+   },
+   "limitKmh": 90,
+   "dirType": 1,
+   "directionDeg": 265,
+   "zoneDistanceM": 500,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": true
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-06-30T09:46:11.358Z",
+   "sourceIndex": 595762
+  },
+  {
+   "id": "osc:6a439070e24f72192ddf59ff",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.435122,
+    "lon": 36.460924
+   },
+   "limitKmh": 90,
+   "dirType": 1,
+   "directionDeg": 89,
+   "zoneDistanceM": 500,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-06-30T09:46:24.651Z",
+   "sourceIndex": 595763
   },
   {
    "id": "osc:5caa23468a14f109f718acec",
@@ -4903,6 +5164,64 @@
    "sourceIndex": 406907
   },
   {
+   "id": "osc:69521f361f7f296a8adcad08",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.502955,
+    "lon": 36.259399
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 318,
+   "zoneDistanceM": 250,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": true,
+    "overtaking": true,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2025-12-29T06:27:02.720Z",
+   "sourceIndex": 584379
+  },
+  {
+   "id": "osc:69521f591f7f296a8adcad0a",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.503211,
+    "lon": 36.259011
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 127,
+   "zoneDistanceM": 250,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": true,
+    "overtaking": true,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2025-12-29T06:27:36.933Z",
+   "sourceIndex": 584380
+  },
+  {
    "id": "osc:63ea2419b1e5265cced841b0",
    "kind": "static_cam",
    "subType": "notInList",
@@ -4930,6 +5249,35 @@
    "rating": 1,
    "created": "2023-02-13T11:50:48.895Z",
    "sourceIndex": 497064
+  },
+  {
+   "id": "osc:63ea23ffb1e5265cced841ae",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.507327,
+    "lon": 36.262385
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 4,
+   "zoneDistanceM": 200,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": true,
+    "markings": true,
+    "pedestrians": true,
+    "overtaking": true,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2023-02-13T11:50:23.756Z",
+   "sourceIndex": 497063
   },
   {
    "id": "osc:5a76e2e9cfeb630358714888",
@@ -5396,6 +5744,122 @@
    "sourceIndex": 537469
   },
   {
+   "id": "osc:65d045356db57d68cd6f3130",
+   "kind": "control_cam_red",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.515929,
+    "lon": 36.262452
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 282,
+   "zoneDistanceM": 200,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": true,
+    "stopLine": true,
+    "stopCrossroad": false,
+    "rows": true,
+    "markings": true,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2024-02-17T05:33:41.497Z",
+   "sourceIndex": 537470
+  },
+  {
+   "id": "osc:6a05896d06c7eddc24323206",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.515553,
+    "lon": 36.265141
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 201,
+   "zoneDistanceM": 195,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:35:56.972Z",
+   "sourceIndex": 592140
+  },
+  {
+   "id": "osc:6a05891206c7eddc24323202",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.515729,
+    "lon": 36.265257
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 22,
+   "zoneDistanceM": 210,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:34:25.911Z",
+   "sourceIndex": 592138
+  },
+  {
+   "id": "osc:6a05893d06c7eddc24323204",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.515573,
+    "lon": 36.265493
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 281,
+   "zoneDistanceM": 168,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:35:09.142Z",
+   "sourceIndex": 592139
+  },
+  {
    "id": "osc:67b82e20169d82469db22c78",
    "kind": "control_cam_red",
    "subType": "notInList",
@@ -5568,6 +6032,93 @@
    "rating": 1,
    "created": "2025-10-27T06:12:30.799Z",
    "sourceIndex": 580485
+  },
+  {
+   "id": "osc:6a05886706c7eddc243231fe",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.525777,
+    "lon": 36.261104
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 188,
+   "zoneDistanceM": 250,
+   "angleDeg": 10,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:31:35.543Z",
+   "sourceIndex": 592136
+  },
+  {
+   "id": "osc:6a0588bc06c7eddc24323200",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.525877,
+    "lon": 36.261098
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 103,
+   "zoneDistanceM": 250,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:33:00.840Z",
+   "sourceIndex": 592137
+  },
+  {
+   "id": "osc:6a05883706c7eddc243231fc",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.525926,
+    "lon": 36.26116
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 7,
+   "zoneDistanceM": 250,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:30:47.838Z",
+   "sourceIndex": 592135
   },
   {
    "id": "osc:68fa38d2e2b4a1b3d4dc72b5",
@@ -6090,6 +6641,64 @@
    "rating": -2,
    "created": "2018-01-01T07:20:18.643Z",
    "sourceIndex": 23450
+  },
+  {
+   "id": "osc:61127a5968b4c569fb6ba5c6",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.536328,
+    "lon": 36.2698
+   },
+   "limitKmh": 50,
+   "dirType": 1,
+   "directionDeg": null,
+   "zoneDistanceM": 249,
+   "angleDeg": 20,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": true,
+    "pedestrians": true,
+    "overtaking": false,
+    "inBack": true
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2021-08-10T13:08:41.470Z",
+   "sourceIndex": 391068
+  },
+  {
+   "id": "osc:61127a6868b4c569fb6ba5c8",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.536331,
+    "lon": 36.269841
+   },
+   "limitKmh": 50,
+   "dirType": 1,
+   "directionDeg": 180,
+   "zoneDistanceM": 299,
+   "angleDeg": 20,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": true,
+    "pedestrians": true,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2021-08-10T13:08:56.385Z",
+   "sourceIndex": 391069
   },
   {
    "id": "osc:6295d4cc4c764172215779a9",
@@ -7337,6 +7946,64 @@
    "rating": 1,
    "created": "2021-08-10T13:36:45.009Z",
    "sourceIndex": 391070
+  },
+  {
+   "id": "osc:6a058af006c7eddc24323211",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.532043,
+    "lon": 36.299099
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 356,
+   "zoneDistanceM": 200,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": true,
+    "overtaking": true,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:42:24.586Z",
+   "sourceIndex": 592142
+  },
+  {
+   "id": "osc:6a058ac706c7eddc2432320f",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.532523,
+    "lon": 36.298974
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 176,
+   "zoneDistanceM": 200,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": true,
+    "overtaking": true,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:41:43.558Z",
+   "sourceIndex": 592141
   },
   {
    "id": "osc:6806037efa52345f516bce60",
@@ -12008,6 +12675,122 @@
    "sourceIndex": 133506
   },
   {
+   "id": "osc:6a058da606c7eddc24323222",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.965562,
+    "lon": 35.871263
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 193,
+   "zoneDistanceM": 260,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:53:57.899Z",
+   "sourceIndex": 592150
+  },
+  {
+   "id": "osc:6a058d6b06c7eddc2432321e",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.965648,
+    "lon": 35.871122
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 285,
+   "zoneDistanceM": 350,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:52:59.781Z",
+   "sourceIndex": 592148
+  },
+  {
+   "id": "osc:6a058d7c06c7eddc24323220",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.965668,
+    "lon": 35.871312
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 13,
+   "zoneDistanceM": 350,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:53:15.406Z",
+   "sourceIndex": 592149
+  },
+  {
+   "id": "osc:6a058d5c06c7eddc2432321c",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.965603,
+    "lon": 35.871482
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 96,
+   "zoneDistanceM": 350,
+   "angleDeg": 25,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:52:44.657Z",
+   "sourceIndex": 592147
+  },
+  {
    "id": "osc:609768e3c6958d05703802aa",
    "kind": "dummy",
    "subType": "notInList",
@@ -15401,6 +16184,64 @@
    "sourceIndex": 130720
   },
   {
+   "id": "osc:5fc06dbd753384091d1e289a",
+   "kind": "static_cam",
+   "subType": "cordon",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.98554,
+    "lon": 36.253629
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 259,
+   "zoneDistanceM": 400,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": true,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2020-11-27T03:08:45.779Z",
+   "sourceIndex": 343000
+  },
+  {
+   "id": "osc:69a86490c92afb0a571d13ab",
+   "kind": "static_cam",
+   "subType": "cordon",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.985574,
+    "lon": 36.253662
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 80,
+   "zoneDistanceM": 350,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": true
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-03-04T16:57:51.913Z",
+   "sourceIndex": 587716
+  },
+  {
    "id": "osc:62de738b2100c233da00c03f",
    "kind": "static_cam",
    "subType": "notInList",
@@ -16095,6 +16936,64 @@
    "rating": 1,
    "created": "2020-11-25T19:27:37.635Z",
    "sourceIndex": 338707
+  },
+  {
+   "id": "osc:6a43900ce24f72192ddf59ee",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 55.014849,
+    "lon": 36.482691
+   },
+   "limitKmh": 40,
+   "dirType": 1,
+   "directionDeg": 242,
+   "zoneDistanceM": 500,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-06-30T09:44:44.553Z",
+   "sourceIndex": 595755
+  },
+  {
+   "id": "osc:6a439016e24f72192ddf59f0",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 55.014914,
+    "lon": 36.48268
+   },
+   "limitKmh": 40,
+   "dirType": 1,
+   "directionDeg": 64,
+   "zoneDistanceM": 500,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": true
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-06-30T09:44:54.573Z",
+   "sourceIndex": 595756
   },
   {
    "id": "osc:5fbeb09b753384091d1e05cb",
@@ -27117,6 +28016,64 @@
    "sourceIndex": 101369
   },
   {
+   "id": "osc:6a807622a79ee00eafa4a8e8",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.721859,
+    "lon": 37.135253
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 6,
+   "zoneDistanceM": 500,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-08-15T14:22:26.483Z",
+   "sourceIndex": 597836
+  },
+  {
+   "id": "osc:6a807619a79ee00eafa4a8e6",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 54.721959,
+    "lon": 37.135329
+   },
+   "limitKmh": 40,
+   "dirType": 1,
+   "directionDeg": 186,
+   "zoneDistanceM": 500,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-08-15T14:22:17.703Z",
+   "sourceIndex": 597835
+  },
+  {
    "id": "osc:5cc7e720ca25445429eab2d9",
    "kind": "static_cam",
    "subType": "notInList",
@@ -27813,6 +28770,180 @@
    "sourceIndex": 543038
   },
   {
+   "id": "osc:61fbb3922aff727eb5421e63",
+   "kind": "control_cam_red",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 55.103138,
+    "lon": 36.598514
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 226,
+   "zoneDistanceM": 200,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": true,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": true,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2022-02-03T10:50:58.460Z",
+   "sourceIndex": 406874
+  },
+  {
+   "id": "osc:611ca238c86a7f0955fda919",
+   "kind": "control_cam_red",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 55.103234,
+    "lon": 36.598963
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 140,
+   "zoneDistanceM": 200,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": true,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2021-08-18T06:01:28.424Z",
+   "sourceIndex": 393543
+  },
+  {
+   "id": "osc:611ca31ec86a7f0955fda91d",
+   "kind": "control_cam_red",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 55.103405,
+    "lon": 36.598582
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 320,
+   "zoneDistanceM": 200,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": true,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": true,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2021-08-18T06:05:17.777Z",
+   "sourceIndex": 393544
+  },
+  {
+   "id": "osc:6a058c5006c7eddc24323216",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 55.098362,
+    "lon": 36.605847
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 49,
+   "zoneDistanceM": 250,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": true,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:48:16.311Z",
+   "sourceIndex": 592144
+  },
+  {
+   "id": "osc:6a058c9706c7eddc2432321a",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 55.098222,
+    "lon": 36.606278
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 140,
+   "zoneDistanceM": 250,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": true,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:49:27.388Z",
+   "sourceIndex": 592146
+  },
+  {
+   "id": "osc:6a058c7406c7eddc24323218",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 55.098525,
+    "lon": 36.605821
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 320,
+   "zoneDistanceM": 250,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": true,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:48:51.905Z",
+   "sourceIndex": 592145
+  },
+  {
    "id": "osc:64353faba27c9b36e81a6be5",
    "kind": "control_cam_red",
    "subType": "notInList",
@@ -28130,6 +29261,35 @@
    "rating": 1,
    "created": "2018-09-25T18:11:05.272Z",
    "sourceIndex": 133956
+  },
+  {
+   "id": "osc:6a058c3406c7eddc24323214",
+   "kind": "static_cam",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 55.09848,
+    "lon": 36.606607
+   },
+   "limitKmh": 60,
+   "dirType": 1,
+   "directionDeg": 230,
+   "zoneDistanceM": 150,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": false,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": true,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": 1,
+   "created": "2026-05-14T08:47:48.119Z",
+   "sourceIndex": 592143
   },
   {
    "id": "osc:6819ceecf9dac958150258e5",
@@ -28797,6 +29957,64 @@
    "rating": -2,
    "created": "2022-04-19T09:39:10.095Z",
    "sourceIndex": 440314
+  },
+  {
+   "id": "osc:685834ce648f6f4fc1269511",
+   "kind": "control_cam_red",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 55.134142,
+    "lon": 36.572049
+   },
+   "limitKmh": 40,
+   "dirType": 1,
+   "directionDeg": 302,
+   "zoneDistanceM": 50,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": true,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": -2,
+   "created": "2025-06-22T16:52:29.656Z",
+   "sourceIndex": 574645
+  },
+  {
+   "id": "osc:685834f1648f6f4fc1269513",
+   "kind": "control_cam_red",
+   "subType": "notInList",
+   "region": "RU-KLU",
+   "position": {
+    "lat": 55.13409,
+    "lon": 36.572418
+   },
+   "limitKmh": 40,
+   "dirType": 1,
+   "directionDeg": 122,
+   "zoneDistanceM": 50,
+   "angleDeg": 15,
+   "flags": {
+    "bSpeed": true,
+    "stopLine": false,
+    "stopCrossroad": false,
+    "rows": false,
+    "markings": false,
+    "pedestrians": false,
+    "overtaking": false,
+    "inBack": false
+   },
+   "comment": null,
+   "rating": -2,
+   "created": "2025-06-22T16:53:05.221Z",
+   "sourceIndex": 574646
   },
   {
    "id": "osc:5fcfd8282438281e3107afbf",
@@ -476358,121 +477576,6 @@
  ],
  "excluded": [
   {
-   "id": "695b91226bc0ba56a592f807",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "695b912b6bc0ba56a592f809",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a438fe5e24f72192ddf59e9",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a438ff5e24f72192ddf59eb",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "69a58805c92afb0a571d1187",
-   "kind": "dummy",
-   "reason": "other-region"
-  },
-  {
-   "id": "5a76f419cfeb6303587148f4",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "5a76f381cfeb6303587148ed",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a439063e24f72192ddf59fd",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a439070e24f72192ddf59ff",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "69521f361f7f296a8adcad08",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "69521f591f7f296a8adcad0a",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "63ea23ffb1e5265cced841ae",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "65d045356db57d68cd6f3130",
-   "kind": "control_cam_red",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a05896d06c7eddc24323206",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a05891206c7eddc24323202",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a05893d06c7eddc24323204",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a05886706c7eddc243231fe",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a0588bc06c7eddc24323200",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a05883706c7eddc243231fc",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "61127a5968b4c569fb6ba5c6",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "61127a6868b4c569fb6ba5c8",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a058af006c7eddc24323211",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a058ac706c7eddc2432320f",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
    "id": "69da051c296ff841d21dadea",
    "kind": "static_cam",
    "reason": "other-region"
@@ -476489,46 +477592,6 @@
   },
   {
    "id": "689b49385d21e73c73fd3ef0",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a058da606c7eddc24323222",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a058d6b06c7eddc2432321e",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a058d7c06c7eddc24323220",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a058d5c06c7eddc2432321c",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "5fc06dbd753384091d1e289a",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "69a86490c92afb0a571d13ab",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a43900ce24f72192ddf59ee",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a439016e24f72192ddf59f0",
    "kind": "static_cam",
    "reason": "other-region"
   },
@@ -476684,16 +477747,6 @@
   },
   {
    "id": "61fb7f8a2aff727eb5421c77",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a807622a79ee00eafa4a8e8",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a807619a79ee00eafa4a8e6",
    "kind": "static_cam",
    "reason": "other-region"
   },
@@ -478165,51 +479218,6 @@
   {
    "id": "5fcb5d7964b9477303d5605d",
    "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "61fbb3922aff727eb5421e63",
-   "kind": "control_cam_red",
-   "reason": "other-region"
-  },
-  {
-   "id": "611ca238c86a7f0955fda919",
-   "kind": "control_cam_red",
-   "reason": "other-region"
-  },
-  {
-   "id": "611ca31ec86a7f0955fda91d",
-   "kind": "control_cam_red",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a058c5006c7eddc24323216",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a058c9706c7eddc2432321a",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a058c7406c7eddc24323218",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "6a058c3406c7eddc24323214",
-   "kind": "static_cam",
-   "reason": "other-region"
-  },
-  {
-   "id": "685834ce648f6f4fc1269511",
-   "kind": "control_cam_red",
-   "reason": "other-region"
-  },
-  {
-   "id": "685834f1648f6f4fc1269513",
-   "kind": "control_cam_red",
    "reason": "other-region"
   },
   {

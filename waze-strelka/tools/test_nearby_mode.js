@@ -60,6 +60,12 @@ function checkId(value, id, message) { assert(value && value.id === id, message 
     const cross = mk('N');
     assert.strictEqual(at(cross), null, 'A verified camera looking across the road does not warn');
     assert.strictEqual(cross.diagnostic().nearestReject, 'DIRECTION');
+    const inferred = engine.createGuidance({ zones: [], records: [record('inferred', 0, 0, ['speed'],
+        { capture: { source: 'osm-relation', verified: false, side: 'unknown', facingDeg: 0 } })], nearby: true });
+    assert.strictEqual(checkId(at(inferred), 'inferred').roadConfirmed, false,
+        'An inferred lens direction cannot veto a nearby notice or create a confirmed road match');
+    checkId(at(mk('N;W')), 'osm:node:10701120297', 'A mapped direction matching the road admits a nearby notice');
+    assert.strictEqual(at(mk('N;S')), null, 'A camera with only verified cross-road azimuths still does not warn');
 }
 // 5. Standing still never admits a new nearby warning.
 {

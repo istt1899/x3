@@ -61,7 +61,7 @@ async function main() {
             display: { update: () => {}, status: () => 'off', close: () => {} },
             dimmer: { update: () => {}, status: () => 'off', close: () => {} } }); });
         const publicDb = app.state().database;
-        assert.strictEqual(publicDb.state, 'ready'); assert.strictEqual(publicDb.count, 14200);
+        assert.strictEqual(publicDb.state, 'ready'); assert.strictEqual(publicDb.count, 14218);
         assert.strictEqual(publicDb.osmCount, 150); assert.strictEqual(publicDb.reportedCount, 1);
         assert.strictEqual(publicDb.source, 'Mixed OSM + Госавтоинспекция + сообщения владельца + OpenSpeedcam');
         assert.strictEqual(publicDb.officialCount,152); assert.strictEqual(publicDb.openSpeedcamCount,12526);

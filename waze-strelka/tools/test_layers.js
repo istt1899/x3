@@ -9,7 +9,7 @@ const frame=(o)=>{
 };
 const displayed=new Set(),layers=new Map(),pixels=new Set(),peers=new Set();
 const wireLayers=new Map(),wirePixels=new Map(),wireFrames=[],wireMessages=[];
-let opens=0,pendingError=null,dirtyFrames=0,compactDirty=true,announcedTargets='map:1088x480,panel:1920x720,hud:800x480';
+let deferHello=true,opens=0,pendingError=null,dirtyFrames=0,compactDirty=true,announcedTargets='map:1088x480,panel:1920x720,hud:800x480';
 const server=net.createServer(sock=>{
     peers.add(sock);sock.on('close',()=>peers.delete(sock));
     opens++;let buf=Buffer.alloc(0);
@@ -38,7 +38,7 @@ const server=net.createServer(sock=>{
                 }
                 const msg=JSON.parse(data.toString());
                 wireMessages.push(msg);
-                if(msg.op==='hello')sock.write(frame({ev:'hello',backend:'test',targets:announcedTargets}));
+                if(msg.op==='hello'&&!deferHello)sock.write(frame({ev:'hello',backend:'test',targets:announcedTargets}));
                 if(msg.op==='layer'){
                     assert.strictEqual(msg.visible,0);assert.strictEqual(msg.contend,1);assert.strictEqual(msg.exclusive,0);
                     assert.strictEqual(msg.class,'alert');layers.set(msg.ref,msg.target);
@@ -83,7 +83,15 @@ function styleMatches(actual,original,brightnessPct,opacityPct){
         display.update(a,{cluster:false,hud:false});display.update(null,{cluster:true,hud:true});
         await sleep(20);assert.strictEqual(opens,0);
         display.update(a,{cluster:true,hud:true});
-        for(let wait=0;wait<100&&(!pendingError&&(displayed.size<2||pixels.size<2));wait++)await sleep(15);
+        await until('first renderer hello request',()=>wireMessages.some(msg=>msg.op==='hello'));
+        display.update(null,{cluster:true,hud:true});
+        deferHello=false;
+        peers.forEach(sock=>sock.write(frame({ev:'hello',backend:'test',targets:announcedTargets})));
+        await until('renderer ready while alert is absent',()=>display.diagnostics().connection==='ready');
+        assert.strictEqual(layers.size,0,'no layer while there is no card to show');
+        display.update(a,{cluster:true,hud:true});
+        await until('next map and HUD alert after delayed renderer hello',()=>displayed.size===2&&pixels.size===2);
+        assert.strictEqual(opens,1,'the next warning reuses the already connected renderer');
         if(pendingError)throw pendingError;
         assert.deepStrictEqual(Array.from(layers.values()).sort(),['hud','map']);
         for(const ref of layers.keys()){assert(pixels.has(ref));assert(displayed.has(ref));}

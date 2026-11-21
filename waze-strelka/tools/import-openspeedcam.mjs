@@ -13,6 +13,7 @@ export const API_URL='https://openspeedcam.net/api/points/';
 export const BOUNDS={x1:33.2,y1:53.3,x2:40.6,y2:57.3};
 export const REGION_CODES={'Калужская область':'RU-KLU','Москва':'RU-MOW','Московская область':'RU-MOS','МО':'RU-MOS'};
 export const ACCEPTED_REGIONS=Object.keys(REGION_CODES);
+const normalizedRegions=new Map(ACCEPTED_REGIONS.map(name=>[name.toLowerCase(),REGION_CODES[name]]));
 export const REGIONS=Object.values(REGION_CODES).filter((value,index,all)=>all.indexOf(value)===index);
 export const IMPORTED_KINDS=['static_cam','speed_cam','control_cam_red','video_control','dummy','stationary_porst_dps'];
 export const MOBILE_KINDS=['mobile_ambush','rec_policeman'];
@@ -35,7 +36,7 @@ async function fetchBounds(fetchImpl,bounds){
     if(!Array.isArray(points)||points.length>100000)fail('OSC_SCHEMA');
     return{points,sha256:crypto.createHash('sha256').update(bytes).digest('hex'),bytes:bytes.length};
 }
-function normalizePoint(point){
+function normalizePoint(point,region){
     if(!point||typeof point!=='object'||Array.isArray(point))return null;
     if(!/^[a-f0-9]{24}$/.test(point._id||'')||!Number.isFinite(point.x)||!Number.isFinite(point.y))return null;
     if(!IMPORTED_KINDS.includes(point.type))return null;
@@ -43,7 +44,7 @@ function normalizePoint(point){
         pedestrians:'pedestrians',overtaking:'overtaking',inBack:'inBack'};
     for(const[key,field]of Object.entries(flagSource))flags[key]=point[field]===true;
     return{id:'osc:'+point._id,kind:point.type,subType:text(point.subType,64)?point.subType:null,
-        region:REGION_CODES[point.region]||null,
+        region,
         position:{lat:point.y,lon:point.x},
         limitKmh:Number.isInteger(point.speed)&&point.speed>=5&&point.speed<=180?point.speed:null,
         dirType:[0,1,2].includes(point.dirType)?point.dirType:null,
@@ -58,11 +59,11 @@ export function normalizeSnapshot(points,meta){
     if(!Array.isArray(points))fail('OSC_SCHEMA');
     const excluded=[],records=[],ids=new Set();
     for(const point of points){
-        const region=typeof point?.region==='string'?point.region:'';
+        const region=typeof point?.region==='string'?normalizedRegions.get(point.region.trim().toLowerCase()):undefined;
         const kind=typeof point?.type==='string'?point.type:'unknown';
-        if(ACCEPTED_REGIONS.indexOf(region)<0){excluded.push({id:/^[a-f0-9]{24}$/.test(point?._id||'')?point._id:null,kind,reason:'other-region'});continue;}
+        if(!region){excluded.push({id:/^[a-f0-9]{24}$/.test(point?._id||'')?point._id:null,kind,reason:'other-region'});continue;}
         if(!IMPORTED_KINDS.includes(kind)){excluded.push({id:point._id,kind,reason:MOBILE_KINDS.includes(kind)?'mobile-or-typical-location':'non-enforcement-poi'});continue;}
-        const record=normalizePoint(point);
+        const record=normalizePoint(point,region);
         if(!record){excluded.push({id:point?._id||null,kind,reason:'invalid-point'});continue;}
         if(record.position.lat<53||record.position.lat>57.3||record.position.lon<33||record.position.lon>40.6){excluded.push({id:point._id,kind,reason:'outside-region-bounds'});continue;}
         if(ids.has(record.id)){excluded.push({id:point._id,kind,reason:'duplicate-id'});continue;}

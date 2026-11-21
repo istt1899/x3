@@ -122,12 +122,15 @@ function augment(database) {
 }
 
 /* Driver-relative class used by guidance gating and the card label. */
-function classify(capture, courseDeg) {
+function classify(capture, courseDeg, cameraFacing) {
     if (!object(capture) || !Number.isFinite(courseDeg) || courseDeg < 0 || courseDeg >= 360) return 'unknown';
     if (capture.side === 'both') return 'both';
     var probes = [];
-    if (Number.isFinite(capture.facingDeg)) probes.push(capture.facingDeg);
-    else if (Number.isFinite(capture.flowDeg)) probes.push((capture.flowDeg + 180) % 360);
+    if (capture.source === 'osm-direction' && cameraFacing && cameraFacing.state === 'mapped') {
+        probes = cameraFacing.bearingsDeg.filter(Number.isFinite);
+    }
+    if (!probes.length && Number.isFinite(capture.facingDeg)) probes.push(capture.facingDeg);
+    if (!probes.length && Number.isFinite(capture.flowDeg)) probes.push((capture.flowDeg + 180) % 360);
     if (!probes.length) return 'unknown';
     var front = false, rear = false;
     probes.forEach(function (b) {

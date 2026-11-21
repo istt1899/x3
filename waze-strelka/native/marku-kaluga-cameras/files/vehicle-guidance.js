@@ -133,13 +133,17 @@ function createGuidance(data) {
             clear('GPS_INVALID', f, false, why); state.gpsReason = why;
             return null;
         }
-        if (lastTime !== null && f.timeMs < lastTime) return clear('GPS_REPLAY', f);
+        const holding = Number.isFinite(f.extrapolatedMs);
+        if (!holding && lastTime !== null && f.timeMs < lastTime) return clear('GPS_REPLAY', f);
         const prefs = preferences.normalize(rawPreferences), signature = JSON.stringify(prefs);
         const changedSettings = settingsKey !== null && signature !== settingsKey;
         if (changedSettings) { prior = {}; priorNearby = {}; nearbyGrowth = 0; }
         settingsKey = signature;
-        const fresh = lastTime === null || f.timeMs > lastTime, dt = lastTime === null ? 0 : (f.timeMs - lastTime) / 1000;
-        if (!fresh && lastSource && distance(f, lastSource) > jitter(f)) {
+        // A projected position may keep the active card through a short gap.
+        // Admission history and replay checks use only received positions.
+        const fresh = !holding && (lastTime === null || f.timeMs > lastTime);
+        const dt = fresh && lastTime !== null ? (f.timeMs - lastTime) / 1000 : 0;
+        if (!holding && !fresh && lastSource && distance(f, lastSource) > jitter(f)) {
             clear('GPS_REPLAY', f, false, 'SOURCE_CHANGED'); state.gpsReason = 'SOURCE_CHANGED';
             return null;
         }
@@ -169,8 +173,9 @@ function createGuidance(data) {
             if (delta > NEARBY_AHEAD_MAX_DEG) return 'OFF_COURSE';
             // 0.8.7: warn from either side; a camera verified to look across
             // the road (not at our stream) is rejected as DIRECTION.
-            const cls = captureData.classify(describeCamera(r).capture, course);
-            if (cls === 'cross') return 'DIRECTION';
+            const { capture, cameraFacing } = describeCamera(r);
+            if (capture && capture.verified === true &&
+                captureData.classify(capture, course, cameraFacing) === 'cross') return 'DIRECTION';
             return null;
         };
         const nearbyReject = {};
@@ -232,6 +237,7 @@ function createGuidance(data) {
                 const r = item.record, d = item.distanceM;
                 if (d > range + 0.000001) continue;
                 const tracked = previous && !previous.roadConfirmed && previous.id === r.id;
+                if (holding && !tracked) continue;
                 const next = { id: r.id, distanceM: d, confidence: 'nearby', roadConfirmed: false, limitKmh: null };
                 if (zoneById[r.id]) {
                     // Zoned cameras keep the proven tight-cone fallback for the
