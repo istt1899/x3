@@ -184,4 +184,33 @@ const pair = nearbyPair(); step(pair, -520, 1000, null, {lat: position(0, -4).la
 checkId(step(pair, -480, 3000, null, {lat: position(0, 4).lat}), 'a');
 const different = nearbyPair(['redlight']); step(different, -520, 1000, null, {lat: position(0, -4).lat}); checkId(step(different, -500, 2000, null, {lat: position(0, -4).lat}), 'a');
 assert.deepStrictEqual(checkId(step(different, -480, 3000, null, {lat: position(0, 4).lat}), 'b').controls, ['redlight']);
-console.log('PASS warning continuity: 20 distances/default 1000, 1000-to-pass replay, distance/nearby jitter and bounded exit, slow traffic, independent cameras/control sets, filters/same-UTC settings, immutable source baseline, strict road/heading/fresh-UTC gates, 15 m admission with 30 m active-alert retention, replay and persistent withdrawal diagnostics; synthetic tests only');
+// Source ways 137476266 (Tsiolkovskogo) and 87083178 (Kaluga-Bor).
+// The saved database has the point but no road for it. A direct bearing to
+// the Kaluga-Bor point overlaps the Tsiolkovskogo heading for a full block.
+const borPoint = {id: 'osc:5fcb5bcc64b9477303d56055', type: 'camera', sourceKind: 'dummy',
+    position: {lat: 54.50972, lon: 36.22774}};
+function kalugaSegment(a, b) {
+    const guidance = create({zones: [], records: [borPoint]});
+    const dx = (b[1] - a[1]) * 111320 * Math.cos(borPoint.position.lat * Math.PI / 180);
+    const dy = (b[0] - a[0]) * 111320;
+    const length = Math.hypot(dx, dy), headingDeg = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+    const frames = [];
+    for (let metres = 0, timeMs = 1000; metres <= length; metres += 5, timeMs += 1000) {
+        const fraction = metres / length;
+        const sample = {lat: a[0] + (b[0] - a[0]) * fraction, lon: a[1] + (b[1] - a[1]) * fraction,
+            timeMs, accuracyM: 6, headingDeg, speedKmh: 18};
+        frames.push(guidance.evaluate(sample, timeMs, true, {warningDistanceM: 850}));
+    }
+    return frames;
+}
+assert(kalugaSegment([54.51408, 36.236653], [54.513677, 36.2358323]).every(frame => !frame),
+    'Tsiolkovskogo must not warn about the point on Kaluga-Bor');
+const onBor = kalugaSegment([54.5103182, 36.2245832], [54.5096678, 36.2280282]);
+const firstBorAlert = onBor.findIndex(frame => frame !== null);
+assert(firstBorAlert > 0, 'The mapped Kaluga-Bor approach must still warn');
+const firstClearOnBor = onBor.findIndex((frame, i) => i > firstBorAlert && frame === null);
+assert(firstClearOnBor > firstBorAlert);
+assert(onBor.slice(firstBorAlert, firstClearOnBor).every(frame => frame && frame.id === borPoint.id && frame.roadConfirmed));
+assert(onBor[firstClearOnBor - 1].distanceM < 6);
+assert(onBor.slice(firstClearOnBor).every(frame => !frame), 'The Kaluga-Bor warning must stay cleared after passing');
+console.log('PASS warning continuity: 20 distances/default 1000, stop and pass replays, bounded jitter and withdrawal, independent cameras, parallel roads, and mapped Tsiolkovskogo and Kaluga-Bor approaches');

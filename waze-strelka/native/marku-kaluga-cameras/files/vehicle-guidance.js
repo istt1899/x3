@@ -1,5 +1,6 @@
 'use strict';
 const pack = require('./road-zones.json');
+const reviewedRoads = require('./reviewed-road-zones.json');
 const database = require('./kaluga-speed.json');
 const info = require('./camera-info');
 const preferences = require('./alert-preferences');
@@ -111,10 +112,18 @@ function plausibleHold(previous, next, fix, dt) {
         Math.abs(previous.distanceM - next.distanceM) <= fix.speedKmh / 3.6 * Math.min(dt, 5) * 2 + 6;
 }
 function createGuidance(data) {
-    const zones = (data || pack).zones.map(prepare);
+    const suppliedZones = (data || pack).zones;
     const records = data && data.records || (data ? data.zones.map(z => ({ id: z.id, position: { lat: z.lat, lon: z.lon },
         type: 'speed', controls: ['speed'], limitKmh: z.limit })) : database.records);
-    const byId = {}, zoneById = {}; records.forEach(r => { byId[r.id] = r; }); zones.forEach(z => { zoneById[z.id] = z; });
+    const byId = {}, zoneById = {};
+    records.forEach(r => { byId[r.id] = r; });
+    const covered = new Set(suppliedZones.map(z => z.id));
+    const reviewed = reviewedRoads.zones.filter(z => {
+        const record = byId[z.id];
+        return record && !covered.has(z.id) && record.position.lat === z.lat && record.position.lon === z.lon;
+    });
+    const zones = suppliedZones.map(prepare).concat(reviewed.map(z => prepare(Object.assign({}, z, { roadOnly: true }))));
+    zones.forEach(z => { zoneById[z.id] = z; });
     const describeCamera = info.createDescriber(records);
     let prior = {}, priorNearby = {}, active = null, anchor = null, closest = null, heading = null, lastTime = null, lastSource = null, settingsKey = null;
     // A passed or wrong-road camera cannot instantly return via proximity.
@@ -271,10 +280,11 @@ function createGuidance(data) {
                 const tracked = previous && !previous.roadConfirmed && previous.id === r.id;
                 if (holding && !tracked) continue;
                 const next = { id: r.id, distanceM: d, confidence: 'nearby', roadConfirmed: false, limitKmh: null };
-                if (zoneById[r.id]) {
-                    if (course === null) continue;
+                const zone = zoneById[r.id];
+                if (zone) {
+                    if (zone.roadOnly || course === null) continue;
                     const detail = {};
-                    candidate(zoneById[r.id], Object.assign({}, f, { headingDeg: course }), range, detail);
+                    candidate(zone, Object.assign({}, f, { headingDeg: course }), range, detail);
                     // A positive match onto a different road vetoes proximity,
                     // including near the device where the angle alone is weak.
                     const differentRoad = detail.reason === 'CAMERA_WAY_MISSING' && !detail.connectingWay;
