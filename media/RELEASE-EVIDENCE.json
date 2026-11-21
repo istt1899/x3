@@ -47,7 +47,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "5ad169d74165554b8dff2e9422a1ca4845fe489af618a3649668a6b571a1f575"
+      "sha256": "0d62414f38f7132c826e63cfca4a54fd55fc55bc78fc1bf8bf7b9f8a1876f1c8"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -55,13 +55,13 @@
   },
   "catalog_update": {
     "date": "2026-11-21",
-    "reason": "Waze Strelka 0.9.12 fixes a false alert on Tsiolkovskogo Street by requiring a confirmed match to the mapped Kaluga-Bor approach for that database record.",
-    "previous_sha256": "8ecbd745115e72c29a2a4b375a44bf83a31b88c1289387156431f0bc9ead4fb2",
-    "package_commit": "4fbe257a1206f40f2853d384edb3e06da8c5d91e",
+    "reason": "Waze Strelka 0.9.13 keeps the same warning and distance through brief BMW GPS quality gaps and requires confirmed real positions to clear the warning on passage.",
+    "previous_sha256": "5ad169d74165554b8dff2e9422a1ca4845fe489af618a3649668a6b571a1f575",
+    "package_commit": "79c423647cb0b52c674f1b41d32048d10d34b8ae",
     "updated_components": {
-      "marku-kaluga-cameras": "0.9.12",
-      "marku_kaluga_cameras": "0.9.12"
+      "marku-kaluga-cameras": "0.9.13",
+      "marku_kaluga_cameras": "0.9.13"
     },
-    "hardware_scope": "ID7 packages. Linux Node 8 and six Kaluga route replays passed. Physical X3 and X6 verification is pending."
+    "hardware_scope": "ID7 packages. Node 8 BMW NMEA approach, stop, accuracy gap, repeat, extrapolation and passage regressions passed. Physical X3 and X6 verification is pending."
   }
 }
