@@ -47,7 +47,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "b6fdec024061e67549f8bb9afc3664c888d2fb633542f9a84015862649d3297a"
+      "sha256": "8ecbd745115e72c29a2a4b375a44bf83a31b88c1289387156431f0bc9ead4fb2"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -55,13 +55,13 @@
   },
   "catalog_update": {
     "date": "2026-11-21",
-    "reason": "Waze Strelka 0.9.10 restores the stationary HUD preview, resumes road warnings after renderer or GPS interruptions, and recovers 18 Kaluga cameras in the offline database.",
-    "previous_sha256": "82c1b411395a3432cd4857c02744894ed481bb7042d142ed2e36688c282dc1e5",
-    "package_commit": "2b57f0ded7d38ae2e34b1bfedef864a28bcf96ec",
+    "reason": "Waze Strelka 0.9.11 keeps active camera alerts while briefly stopped or waiting for a matching BMW GPS packet, shows stable distances, and rejects parallel-road matches.",
+    "previous_sha256": "b6fdec024061e67549f8bb9afc3664c888d2fb633542f9a84015862649d3297a",
+    "package_commit": "bd3f7a2d73d2df5de28ffe97f115ad652b13fb49",
     "updated_components": {
-      "marku-kaluga-cameras": "0.9.10",
-      "marku_kaluga_cameras": "0.9.10"
+      "marku-kaluga-cameras": "0.9.11",
+      "marku_kaluga_cameras": "0.9.11"
     },
-    "hardware_scope": "ID7 packages. Linux Node 8 and mgu-deploy 0.8.27 tests covered upgrades from 0.8.6 and 0.9.9. Physical X3 and X6 verification is pending."
+    "hardware_scope": "ID7 packages. Linux Node 8 GPS and road replay passed. Physical X3 and X6 verification is pending."
   }
 }
