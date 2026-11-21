@@ -6,11 +6,11 @@
     "RU-MOW",
     "RU-MOS"
   ],
-  "version": "2026.11.19.1",
-  "generatedAt": "2026-11-19T12:00:00.000Z",
+  "version": "2026.11.21.1",
+  "generatedAt": "2026-11-21T10:00:00.000Z",
   "artifact": {
-    "url": "https://raw.githubusercontent.com/istt1899/x3/3024e4adb907851d759ecb4e36112c687652d6da/waze-strelka/data/camera-database-2026.11.19.1.json",
-    "size": 9368096,
-    "sha256": "8a36f09dd90adea767947cdfdac0577df6a8590840e4d3b4223b0bccad38c702"
+    "url": "https://raw.githubusercontent.com/istt1899/x3/2b57f0ded7d38ae2e34b1bfedef864a28bcf96ec/waze-strelka/data/camera-database-2026.11.21.1.json",
+    "size": 9378656,
+    "sha256": "78b948cdc20aa61d1d95ab49fd55f5e077206c7f682d2c82d6094bd931512ee2"
   }
 }
