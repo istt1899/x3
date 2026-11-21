@@ -47,21 +47,21 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "3e61cd2cb29d367670c15436b739ce0192e572cfd4c1c21d10c9cf59df903453"
+      "sha256": "82c1b411395a3432cd4857c02744894ed481bb7042d142ed2e36688c282dc1e5"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
     }
   },
   "catalog_update": {
-    "date": "2026-11-20",
-    "reason": "Waze Strelka 0.9.8 permits a parked display test using fresh BMW vehicle speed while GPS and network time are unavailable.",
-    "previous_sha256": "2bfbc5ff6cefe900d8ba9cdbe3be73b09f46b4682517e75c55baf215a7fc9e7f",
-    "package_commit": "165a35cf036df81055ecca2fa9813e0598f55e3f",
+    "date": "2026-11-21",
+    "reason": "Waze Strelka 0.9.9 accelerates the camera database startup, gives socket activation time to report readiness, and surfaces check errors in Store.",
+    "previous_sha256": "3e61cd2cb29d367670c15436b739ce0192e572cfd4c1c21d10c9cf59df903453",
+    "package_commit": "957c89cd8d2015a1dd292128334679345bd09c47",
     "updated_components": {
-      "marku-kaluga-cameras": "0.9.8",
-      "marku_kaluga_cameras": "0.9.8"
+      "marku-kaluga-cameras": "0.9.9",
+      "marku_kaluga_cameras": "0.9.9"
     },
-    "hardware_scope": "ID7 packages. Physical HUD output on the reported X6 remains to be verified."
+    "hardware_scope": "ID7 packages. Node 8 Linux socket activation passed; physical X3 and X6 verification is pending."
   }
 }
