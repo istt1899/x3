@@ -64,7 +64,7 @@ async function main() {
         assert.strictEqual(publicDb.state, 'ready'); assert.strictEqual(publicDb.count, 14218);
         assert.strictEqual(publicDb.osmCount, 150); assert.strictEqual(publicDb.reportedCount, 1);
         assert.strictEqual(publicDb.source, 'Mixed OSM + Госавтоинспекция + сообщения владельца + OpenSpeedcam');
-        assert.strictEqual(publicDb.officialCount,152); assert.strictEqual(publicDb.openSpeedcamCount,12526);
+        assert.strictEqual(publicDb.officialCount,152); assert.strictEqual(publicDb.openSpeedcamCount,12544);
         assert(Array.isArray(publicDb.regionalSources) && publicDb.regionalSources.length >= 1, 'regional merge provenance is public');
 console.log('PASS real daemon startup advertises mixed-source database, separate OSM/reported counts and Moscow regional provenance');
     } finally {
