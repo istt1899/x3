@@ -47,21 +47,21 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "0d62414f38f7132c826e63cfca4a54fd55fc55bc78fc1bf8bf7b9f8a1876f1c8"
+      "sha256": "e347e45c96b7e3baaf658823c8aeedb57a45e9bed7e7ad71ffb0d2114b89ca0c"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
     }
   },
   "catalog_update": {
-    "date": "2026-11-21",
-    "reason": "Waze Strelka 0.9.13 keeps the same warning and distance through brief BMW GPS quality gaps and requires confirmed real positions to clear the warning on passage.",
-    "previous_sha256": "5ad169d74165554b8dff2e9422a1ca4845fe489af618a3649668a6b571a1f575",
-    "package_commit": "79c423647cb0b52c674f1b41d32048d10d34b8ae",
+    "date": "2026-11-22",
+    "reason": "Waze Strelka 0.9.14 restores fresh BMW navigation fixes after wake when RMC UTC is unavailable.",
+    "previous_sha256": "0d62414f38f7132c826e63cfca4a54fd55fc55bc78fc1bf8bf7b9f8a1876f1c8",
+    "package_commit": "8cf98989f3db8a524e30c5c015e20fe406c8e2f5",
     "updated_components": {
-      "marku-kaluga-cameras": "0.9.13",
-      "marku_kaluga_cameras": "0.9.13"
+      "marku_kaluga_cameras": "0.9.14",
+      "marku-kaluga-cameras": "0.9.14"
     },
-    "hardware_scope": "ID7 packages. Node 8 BMW NMEA approach, stop, accuracy gap, repeat, extrapolation and passage regressions passed. Physical X3 and X6 verification is pending."
+    "hardware_scope": "ID7 packages. Physical X3 and X6M validation after sleep is pending."
   }
 }
