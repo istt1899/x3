@@ -4,13 +4,13 @@
     {
       "id": "marku_kaluga_cameras",
       "kind": "app",
-      "version": "0.10.0",
+      "version": "0.11.0",
       "title": "Яндекс Стрелка",
-      "description": "Независимое приложение для BMW ID7. Поездка в режиме Пульс, камеры, ограничения скорости, HUD и приборная панель.",
+      "description": "Независимое приложение для BMW ID7. Поездка в режиме Атлас, камеры, ограничения скорости, HUD и приборная панель.",
       "build": "unit",
       "requires": {
         "waze-on-cluster": "0.9.14",
-        "marku-kaluga-cameras": "0.10.0",
+        "marku-kaluga-cameras": "0.11.0",
         "mgu-deploy": "0.7.11"
       },
       "uninstallable": true,
@@ -18,19 +18,19 @@
         "ID7"
       ],
       "artifact": {
-        "name": "marku_kaluga_cameras@0.10.0.tgz",
-        "size": 178371,
-        "sha256": "69c5dc34afd9fffa955d45f81f81920808c136801f3abcbe9548fe2f81fa2ae4",
-        "url": "https://raw.githubusercontent.com/istt1899/x3/347739fea3f737e9b22032a8d6a56fc260e0fe3b/marku_kaluga_cameras%400.10.0.tgz"
+        "name": "marku_kaluga_cameras@0.11.0.tgz",
+        "size": 695269,
+        "sha256": "b9b67474a2aba8be928c95b44cab6e153e5e29d5ecab9a6fafe9a71670ced979",
+        "url": "https://raw.githubusercontent.com/istt1899/x3/307b24546b2bbd99cb51a0890e7ce7d51d8f3226/marku_kaluga_cameras%400.11.0.tgz"
       },
-      "icon": "https://raw.githubusercontent.com/istt1899/x3/347739fea3f737e9b22032a8d6a56fc260e0fe3b/marku_kaluga_cameras%400.10.0.png",
-      "iconSha256": "af55f11e83615ef17ce809cda6fff6bbb4c2663235f65d4cc4e76436d1bfb727"
+      "icon": "https://raw.githubusercontent.com/istt1899/x3/307b24546b2bbd99cb51a0890e7ce7d51d8f3226/marku_kaluga_cameras%400.11.0.png",
+      "iconSha256": "f759b8bb2e2ca180eaa65955d527bfcd87a3a269fed86aa9cdbd4fdc8319cad8"
     },
     {
       "id": "marku-kaluga-cameras",
       "kind": "tool",
-      "version": "0.10.0",
-      "title": "Сервис камер Пульс",
+      "version": "0.11.0",
+      "title": "Сервис камер Атлас",
       "description": "Офлайн-база камер, предупреждения на приборной панели и проекции BMW ID7",
       "optional": true,
       "uninstallable": true,
@@ -45,10 +45,10 @@
         5000
       ],
       "artifact": {
-        "name": "marku-kaluga-cameras@0.10.0.tgz",
-        "size": 1635193,
-        "sha256": "65b8a2cd876d32d3ecf3d1612c6ba56ad85bf359b77aceeaf085086d9f653c12",
-        "url": "https://raw.githubusercontent.com/istt1899/x3/347739fea3f737e9b22032a8d6a56fc260e0fe3b/marku-kaluga-cameras%400.10.0.tgz"
+        "name": "marku-kaluga-cameras@0.11.0.tgz",
+        "size": 1652913,
+        "sha256": "c1bca922ab9884d2c237ef3c0e24624f74f83a7eb3c563cdbd3f811d3c5f3d64",
+        "url": "https://raw.githubusercontent.com/istt1899/x3/307b24546b2bbd99cb51a0890e7ce7d51d8f3226/marku-kaluga-cameras%400.11.0.tgz"
       }
     },
     {

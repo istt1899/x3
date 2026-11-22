@@ -47,7 +47,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "d10016d717cd0dc40c3daa0d12ed24b840435da8202f668232610ace4f0e6e7d"
+      "sha256": "bd82b2274ebb208682bdfd3f7fb9435ff22fca871d8f3b2a44b9927beb768fa1"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -55,12 +55,12 @@
   },
   "catalog_update": {
     "date": "2026-11-22",
-    "reason": "Pulse trip UI, offline Russia camera packs, persistent speed-limit display and regional updates.",
-    "previous_sha256": "e347e45c96b7e3baaf658823c8aeedb57a45e9bed7e7ad71ffb0d2114b89ca0c",
-    "package_commit": "347739fea3f737e9b22032a8d6a56fc260e0fe3b",
+    "reason": "Native Atlas graphical interface, optical direction on both BMW outputs and on-device SpeedCamOnLine import with offline cache.",
+    "previous_sha256": "d10016d717cd0dc40c3daa0d12ed24b840435da8202f668232610ace4f0e6e7d",
+    "package_commit": "307b24546b2bbd99cb51a0890e7ce7d51d8f3226",
     "updated_components": {
-      "marku-kaluga-cameras": "0.10.0",
-      "marku_kaluga_cameras": "0.10.0"
+      "marku-kaluga-cameras": "0.11.0",
+      "marku_kaluga_cameras": "0.11.0"
     },
     "hardware_scope": "BMW ID7. Physical X3 and X6M sleep, drive and projection verification pending."
   }
