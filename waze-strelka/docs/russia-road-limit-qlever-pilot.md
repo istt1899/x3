@@ -40,7 +40,11 @@
 Сборщик проверяет датированный индекс до и после получения данных и отвергает усечённый ответ. Используйте тот же исходный индекс для обновления. Новый снимок требует отдельного повторного отбора.
 
 ```sh
-python3 tools/qlever-road-approach-pilot.py   --baseline native/marku-kaluga-cameras/files/russia-camera-baseline.json   12126731912 12953161574 13961324991 2982898074 300898662 4887578090 6540099427   6973927753 7016963449 7076618513 7345966791 9055762500 9105411718 9310974590   > /tmp/qlever-road-zones.json
+python3 tools/qlever-road-approach-pilot.py \
+  --baseline native/marku-kaluga-cameras/files/russia-camera-baseline.json \
+  12126731912 12953161574 13961324991 2982898074 300898662 4887578090 6540099427 \
+  6973927753 7016963449 7076618513 7345966791 9055762500 9105411718 9310974590 \
+  > /tmp/qlever-road-zones.json
 cmp /tmp/qlever-road-zones.json native/marku-kaluga-cameras/files/qlever-road-zones.json
 node tools/test_qlever_road_zones.js
 ```
