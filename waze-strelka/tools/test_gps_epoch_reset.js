@@ -37,6 +37,7 @@ async function main(){
   app.tick();assert.strictEqual(app.state().alert,null,'Rollback cannot silently create a new approach');
   var oldData=gps.sock.listeners('data')[0],oldUdp=gps.udpMessageHandler,oldPeerCount=peers.length,resetTime=clock;
   await command({cmd:'gps-reset'});assert.strictEqual(app.state().gpsReset.phase,'waiting-new-fix');assert.strictEqual(gps.current(clock),null);assert.strictEqual(app.state().alert,null);
+  assert.strictEqual(app.state().displayTest.stoppedReason,undefined,'Resetting an idle GPS session must not invent a stopped HUD test');
   assert.strictEqual(gps.decoder.rmc,null);assert.strictEqual(gps.bmwDecoder.rmc,null);assert.strictEqual(gps.decoder.lastRmcUtc,null);assert.strictEqual(gps.bmwDecoder.lastRmcUtc,null);
   assert.strictEqual(fs.readFileSync(path.join(dir,'settings.json'),'utf8'),settings,'Reset does not write settings');
   await until(function(){return peers.length>oldPeerCount;});

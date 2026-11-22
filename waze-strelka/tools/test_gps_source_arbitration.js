@@ -125,6 +125,17 @@ async function main() {
         assert(diagnostics.photoRows(roadReport, true, 'hud')[3].includes('кам. NO_ROAD_ZONE'));
         roadReport.state.alert = { distanceM: 150 };
         assert(diagnostics.photoRows(roadReport, true, 'hud')[3].includes('кам. 150 м'));
+        roadReport.state.gpsFix = { source: 'bmw-navigation' };
+        roadReport.state.gpsNavigation = { state: 'ready' };
+        roadReport.state.clock.issue = 'UTC_MISMATCH';
+        const navPhoto = diagnostics.photoRows(roadReport, true, 'hud');
+        assert(navPhoto[2].includes('Нав. готова') && navPhoto[3].includes('GPS NAV • кам. 150 м'));
+        roadReport.state.gpsFix = null;
+        roadReport.state.gpsNavigation = { state: 'unavailable', accepted: 0, rejected: 0 };
+        const missingPhoto = diagnostics.photoRows(roadReport, true, 'hud');
+        assert(missingPhoto[2].includes('Нав. нет данных') && missingPhoto[3].includes('UTC_MISMATCH'));
+        roadReport.state.gpsNavigation.availabilityCode = 'NO_COORDINATES';
+        assert(diagnostics.photoRows(roadReport, true, 'hud')[2].includes('Нав. без координат'));
         const completeAt = now - 300;
         now = completeAt + 3001;
         gps.decoder.invalidate('gpsd', 'test source withdrawal');

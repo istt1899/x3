@@ -5,6 +5,7 @@ const database = require('./kaluga-speed.json');
 const info = require('./camera-info');
 const preferences = require('./alert-preferences');
 const captureData = require('./capture-data');
+const { validPosition, navigationAccuracyReady } = require('./gps-source');
 function angle(x, y) { return (Math.atan2(x, y) * 180 / Math.PI + 360) % 360; }
 function diff(a, b) { return Math.abs((a - b + 540) % 360 - 180); }
 function distance(a, b) {
@@ -52,12 +53,15 @@ function candidate(z, fix, range, diagnostic, tracking) {
     const hits = z.roads.map(r => project(r, x, y)).filter(Boolean).sort((a, b) => a.error - b.error), hit = hits[0];
     if (diagnostic && hit) { diagnostic.way = hit.road.id; diagnostic.lateralErrorM = hit.error; }
     // Retention never expands the source road corridor or its heading gates.
-    if (!hit || hit.error > Math.min(12, Math.max(6, fix.accuracyM))) return reject('OFF_ROAD');
+    const corridor = fix.accuracyM === null ? 6 : Math.min(12, Math.max(6, fix.accuracyM));
+    if (!hit || hit.error > corridor) return reject('OFF_ROAD');
     if (hit.road.cam === null) {
         if (diagnostic) diagnostic.connectingWay = connectsAtCamera(hit, fix, z.travel);
         return reject('CAMERA_WAY_MISSING');
     }
-    const tied = hits.slice(1).filter(other => other.error - hit.error < Math.max(8, fix.accuracyM + 3));
+    // Without metre uncertainty admit only well-separated roads.
+    const ambiguityMargin = fix.accuracyM === null ? ADMISSION_ACCURACY_M + 3 : Math.max(8, fix.accuracyM + 3);
+    const tied = hits.slice(1).filter(other => other.error - hit.error < ambiguityMargin);
     if (tied.length) {
         if (diagnostic) diagnostic.unrelatedWay = tied.some(other =>
             other.road.cam === null && other.error - hit.error <= 4 &&
@@ -75,7 +79,7 @@ function candidate(z, fix, range, diagnostic, tracking) {
     const end = hit.road.cam - sign;
     const at = hit.road.segments.find(s => s.s <= end && end <= s.s + s.len);
     if (!at || !z.travel.some(h => diff(h, (at.bearing + (sign < 0 ? 180 : 0)) % 360) <= 35)) return reject('CAMERA_DIRECTION');
-    if (tracking && signedDistance < -Math.min(5, Math.max(2, fix.accuracyM / 2))) {
+    if (tracking && signedDistance < -passMargin(fix)) {
         if (diagnostic) diagnostic.pastCamera = -signedDistance;
         return reject('CAMERA_PASSED');
     }
@@ -93,14 +97,10 @@ const RETENTION_ACCURACY_M = 30;
  * Closer than AT_CAMERA the bearing is noise: the car is at the point. */
 const NEARBY_ADMISSION_LATERAL_M = 18, NEARBY_RETENTION_LATERAL_M = 32;
 const NEARBY_AHEAD_MAX_DEG = 40, NEARBY_BEHIND_DEG = 100, NEARBY_FACING_DEG = 45, NEARBY_AT_CAMERA_M = 15, NEARBY_GROWTH_EXIT = 3;
-function validPosition(f, now, accuracyLimit) {
-    return f && [f.timeMs, f.lat, f.lon, f.accuracyM, now].every(Number.isFinite) &&
-        Math.abs(f.lat) <= 90 && Math.abs(f.lon) <= 180 && f.accuracyM > 0 && f.accuracyM <= (accuracyLimit || ADMISSION_ACCURACY_M) &&
-        now - f.timeMs <= 3000 && f.timeMs <= now + 500;
-}
 function key(item) { return item.id + ':' + item.way + ':' + item.sign; }
 function mode(item) { return !item ? 'none' : item.roadConfirmed ? 'road' : 'nearby'; }
-function jitter(fix) { return Math.max(6, Math.min(15, fix.accuracyM * 2)); }
+function passMargin(fix) { return fix.accuracyM === null ? 5 : Math.min(5, Math.max(2, fix.accuracyM / 2)); }
+function jitter(fix) { return fix.accuracyM === null ? 6 : Math.max(6, Math.min(15, fix.accuracyM * 2)); }
 function plausible(previous, next, fix, dt) {
     return previous && dt > 0 && dt <= 3 && Math.abs(previous.distanceM - next.distanceM) <= fix.speedKmh / 3.6 * dt * 2 + 6;
 }
@@ -168,7 +168,7 @@ function createGuidance(data) {
         if (!enabled) return clear('DISABLED', f);
         const accuracyLimit = active ? RETENTION_ACCURACY_M : ADMISSION_ACCURACY_M;
         if (!validPosition(f, now, accuracyLimit)) {
-            const why = !f ? 'FIX_MISSING' : !Number.isFinite(f.accuracyM) || f.accuracyM <= 0 ? 'ACCURACY_MISSING' :
+            const why = !f ? 'FIX_MISSING' : !navigationAccuracyReady(f) && (!Number.isFinite(f.accuracyM) || f.accuracyM <= 0) ? 'ACCURACY_MISSING' :
                 f.accuracyM > accuracyLimit ? (accuracyLimit === RETENTION_ACCURACY_M ? 'ACCURACY_EXCEEDS_30M' : 'ACCURACY_EXCEEDS_15M') :
                 !Number.isFinite(f.timeMs) || !Number.isFinite(now) ? 'UTC_MISSING' : now - f.timeMs > 3000 ? 'UTC_EXPIRED' : f.timeMs > now + 500 ? 'UTC_FUTURE' : 'POSITION_INVALID';
             clear('GPS_INVALID', f, false, why); state.gpsReason = why;
@@ -202,7 +202,8 @@ function createGuidance(data) {
         // Nearby (0.8.6) admission pre-pass: one rejection reason per in-range
         // enabled record, shared by the status, the candidate list and the
         // selection below. Out-of-range records are not candidates at all.
-        const anchored = previous && anchor && distance(f, anchor) <= Math.max(15, Math.min(25, f.accuracyM * 2));
+        const anchorRadius = f.accuracyM === null ? 15 : Math.max(15, Math.min(25, f.accuracyM * 2));
+        const anchored = previous && anchor && distance(f, anchor) <= anchorRadius;
         const stationary = stopped && f.speedKmh <= 1;
         const course = trackingMoving ? f.headingDeg : stopped && anchored && Number.isFinite(heading) ? heading : null;
         const nearbyBlockReason = (r, d) => {
@@ -340,7 +341,7 @@ function createGuidance(data) {
                     const dx = (r.position.lon - f.lon) * Math.cos(f.lat * Math.PI / 180), dy = r.position.lat - f.lat;
                     const delta = course === null ? null : diff(angle(dx, dy), course);
                     const passedCamera = delta !== null && delta > NEARBY_BEHIND_DEG &&
-                        (d > NEARBY_AT_CAMERA_M || d * Math.cos(delta * Math.PI / 180) < -Math.min(5, Math.max(2, f.accuracyM / 2)));
+                        (d > NEARBY_AT_CAMERA_M || d * Math.cos(delta * Math.PI / 180) < -passMargin(f));
                     // Release distance is the owner's range plus the accuracy
                     // jitter; an all-time-minimum ratchet would flicker under
                     // ±10 m GNSS noise.

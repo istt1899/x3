@@ -1,6 +1,7 @@
 'use strict';
 var fs = require('fs'), net = require('net'), path = require('path'), os = require('os');
 var GpsProvider = require('./gps-source').GpsProvider;
+var validPosition = require('./gps-source').validPosition;
 var cameraInfo = require('./camera-info');
 var actionPolicy = require('./action-policy'), dataModule = require('./database-store');
 var cardLayout = require('./card-layout');
@@ -21,9 +22,6 @@ function clockSnapshot(now, input) {
     admissionAfterUtcMs: num('admissionAfterUtcMs'), admissionAfterUtc: str('admissionAfterUtc'),
     issue: str('issue') || 'SOURCE_UTC_UNKNOWN', reason: str('reason') || 'Данные часов источника GPS недоступны' };
 }
-function navigationAccuracyReady(f) {
-  return f && f.source === 'bmw-navigation' && f.accuracySource === 'bmw-road-match';
-}
 /* Why the BMW GPS bridge gives no position, in plain words for the status. */
 function bridgeReason(b) {
   if (!b || typeof b !== 'object') return null;
@@ -37,11 +35,6 @@ function bridgeReason(b) {
     NMEA_PAYLOAD_INVALID: 'Пакет NMEA от BMW невалиден' };
   if (b.errorCode && codes[b.errorCode]) return codes[b.errorCode];
   return 'Мост GPS недоступен' + (b.errorCode ? ': ' + String(b.errorCode).slice(0, 48) : '');
-}
-function validPosition(f, now, accuracyLimit) {
-  var accurate = f && ((Number.isFinite(f.accuracyM) && f.accuracyM > 0 && f.accuracyM <= (accuracyLimit || 15)) || navigationAccuracyReady(f));
-  return f && [f.timeMs, f.lat, f.lon, now].every(Number.isFinite) && Math.abs(f.lat) <= 90 &&
-    Math.abs(f.lon) <= 180 && accurate && now - f.timeMs <= 3000 && f.timeMs <= now + 500;
 }
 /* Guidance may retain an already confirmed road alert through brief quality
  * degradation; the service keeps that visual alert while all non-metric
@@ -97,7 +90,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.9.13', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.9.14', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -177,7 +170,7 @@ function start(options) {
     state.gpsReset = Object.assign({phase:'waiting-new-fix',generation:state.gpsReset.generation+1,afterUtc:now+500},epoch||{});
     lastGoodFix = null;
     state.alert = null;
-    stopDisplayTest('GPS_RESET');
+    if (state.displayTest.active || previewRequest) stopDisplayTest('GPS_RESET');
   }
   function motionFixes(now) {
     if (typeof gps.motionFixes !== 'function') return null; // older injected GPS providers
@@ -403,7 +396,7 @@ function start(options) {
     try { fix = gps.current(now); } catch (e) { state.error = 'GPS provider: ' + e.message; gpsError = true; }
     var motions = gpsError ? [] : motionFixes(now), motion = actionPolicy.motionStatus(fix, now, motions);
     var roadBlocked = motion.conflict || motion.roadMismatch;
-    var valid = fix && navigationAccuracyReady(fix) || (fix && typeof fix.accuracyM === 'number' && fix.accuracyM > 0 && fix.accuracyM <= 15);
+    var valid = validPosition(fix, now);
     valid = !!(valid && typeof fix.speedKmh === 'number' && isFinite(fix.speedKmh) && fix.speedKmh >= 0 && typeof fix.headingDeg === 'number' && isFinite(fix.headingDeg));
     state.gpsFix = fix || null;
     state.gpsMotion = motion;
@@ -585,7 +578,7 @@ function start(options) {
       if(navigation && navigation.source==='bmw-navigation' && ['ready','partial','unavailable'].indexOf(navigation.state)>=0) {
         if(typeof gps.inputNavigation !== 'function' || typeof gps.clearNavigation !== 'function') throw new Error('GPS_NAVIGATION_UNAVAILABLE');
         if(navigation.state==='ready' && navigation.fix) gps.inputNavigation(navigation.fix);
-        else gps.clearNavigation(navigation.reason || navigation.state);
+        else gps.clearNavigation(navigation.reason || navigation.state, navigation.reasonCode || (navigation.state === 'partial' ? 'QUALITY' : null));
       }
       if(audioProbe && ['detected','unavailable','unverified'].indexOf(audioProbe.state)>=0 && state.audio)state.audio.probeState=audioProbe.state;
       tick();return;

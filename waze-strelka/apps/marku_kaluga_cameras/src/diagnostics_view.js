@@ -139,12 +139,19 @@ function photoRows(report, serviceReady, target) {
         n(cameraDistance, 0) + ' м' : code(roadReason);
     const cameraSummary = cameraSuffix && (alert.id ? 'Кам. ' + cameraSuffix + ' • ' + cameraStatus +
         (holdReason ? ' • ' + code(holdReason) : '') : 'Снята ' + cameraSuffix + ' • ' + code(lastClear.reason));
-    const gpsStatus = !fix || (clock.issue && clock.issue !== 'NONE') ? code(clock.issue) : 'кам. ' + cameraStatus;
+    const nav = s.gpsNavigation;
+    const navReasons = { NO_POSITION: 'нет позиции', NO_COORDINATES: 'без координат', ROAD_UNCONFIRMED: 'дорога не подтв.', SDK_UNAVAILABLE: 'нет связи', QUALITY: 'низкое качество' };
+    const navStatus = !nav ? '' : nav.state === 'ready' ? 'готова' : navReasons[nav.availabilityCode] ||
+        (nav.rejected && !nav.accepted ? 'отказ' : nav.accepted ? 'нет свежей' : 'нет данных');
+    const referenceRow = 'Опора ' + ref + ' • RTC ' + code(clock.rtcStatus) + ' • NTP ' + code(clock.networkStatus);
+    const showNav = navStatus && (!fix || fix.source === 'bmw-navigation');
+    const showClockIssue = clock.issue && clock.issue !== 'NONE' && (!fix || fix.source !== 'bmw-navigation');
+    const gpsStatus = !fix || showClockIssue ? code(clock.issue) : 'кам. ' + cameraStatus;
     return [
         'Прил. ' + version(report.appVersion) + ' • Сервис ' + version(s.serviceVersion) + ' • ' + (serviceReady ? 'связь OK' : 'нет связи'),
         'UTC MGU ' + shortUtc(clock.serviceWallUtc || app.wallUtc, clock.serviceWallMs) +
             ' • RMC ' + shortUtc(clock.rawSourceUtc || clock.sourceUtc, clock.sourceUtcMs),
-        cameraSummary || 'Опора ' + ref + ' • RTC ' + code(clock.rtcStatus) + ' • NTP ' + code(clock.networkStatus),
+        (cameraSummary || referenceRow) + (showNav ? ' • Нав. ' + navStatus : ''),
         'GPS ' + (fix ? positionSources[fix.source] || 'есть' : 'нет') + ' • ' + gpsStatus + ' • пакет ' + ms(packetAge) + ' мс',
         'RMC приём/рост ' + ms(timing.lastRmcAgeMs) + '/' + ms(input.rmcAdvanceAgeMs) + ' мс • ' + code(timing.pairReason),
         (speedText === '—' ? speedSource : speedText + ' км/ч ' + speedSource) +

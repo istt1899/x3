@@ -1,14 +1,24 @@
 'use strict';
 // Node 8. Source UTC and metre accuracy are retained. BMW and external
 // NMEA use different decoders: their RMC/GGA/GST parts never mix.
-var net = require('net'), dgram = require('dgram'), EventEmitter = require('events');
+var net = require('net'), dgram = require('dgram'), EventEmitter = require('events'), os = require('os');
 var MAX_AGE = 3000, DAY = 86400000, MAX_PACKET = 4096, MAX_COUNTER = 1000000000;
 var BRIDGE_STATES = ['starting', 'subscribed', 'unavailable', 'error', 'stopped'];
 function number(n) { return typeof n === 'number' && isFinite(n); }
 function numeric(s) { return typeof s === 'string' && s.trim() !== '' && isFinite(Number(s)) ? Number(s) : null; }
 function fresh(time, now) { return number(time) && time >= now - MAX_AGE && time <= now + 500; }
+function navigationBootAge(sample, bootNow) {
+  if (!number(sample) || sample < 0 || !number(bootNow)) return null;
+  var age = (bootNow - sample) * 1000;
+  return age >= 0 && age < MAX_AGE ? age : null;
+}
 function navigationAccuracyReady(fix) {
-  return fix && fix.source === 'bmw-navigation' && fix.accuracySource === 'bmw-road-match';
+  return fix && fix.accuracyM === null && fix.source === 'bmw-navigation' && fix.accuracySource === 'bmw-road-match';
+}
+function validPosition(fix, now, accuracyLimit) {
+  return !!fix && [fix.timeMs, fix.lat, fix.lon, now].every(Number.isFinite) &&
+    Math.abs(fix.lat) <= 90 && Math.abs(fix.lon) <= 180 && fresh(fix.timeMs, now) &&
+    (navigationAccuracyReady(fix) || (number(fix.accuracyM) && fix.accuracyM > 0 && fix.accuracyM <= (accuracyLimit || 15)));
 }
 function roadReady(fix) {
   return fix && number(fix.speedKmh) && fix.speedKmh >= 0 && number(fix.headingDeg) &&
@@ -220,6 +230,7 @@ function GpsProvider(options) {
   this.referenceClock = require('./gps-utc-clock').createGpsClock({wallNow:this.options.now,
     monotonicNow:this.options.monotonicNow, readRtc:this.options.readRtc, createNetworkUtc:this.options.createNetworkUtc});
   this.now = this.referenceClock.now;
+  this.bootSec = this.options.bootSec || os.uptime;
   this.decoder = new GpsDecoder(this.now); this.bmwDecoder = new GpsDecoder(this.now, 'bmw-nmea');
   var provider = this;
   this.lastAdvancingRmc = null;
@@ -244,7 +255,8 @@ function GpsProvider(options) {
   this.generation = 0; this.udpMessageHandler = null; this.udpErrorHandler = null;
   this.bridge = { state: 'stopped', errorCode: null, changedAt: null };
   this.input = { packets: 0, badPackets: 0, checksumErrors: 0, sentences: { RMC: 0, GGA: 0, GST: 0 }, lastPacketAt: null, fixUtc: null };
-  this.navigation = { updates: 0, accepted: 0, rejected: 0, lastRejectReason: null, lastUpdateAtMs: null };
+  this.navigation = { updates: 0, accepted: 0, rejected: 0, lastRejectReason: null, lastUpdateAtMs: null,
+    referenceEpoch: null, bootAdmissionAfter: null, lastBootSample: null };
   this.navigationFix = null;
   var self = this;
   this.decoder.on('quality', function () { self.emit('status', 'Внешний GPS: пакет не прошёл проверку качества'); });
@@ -293,14 +305,17 @@ GpsProvider.prototype.rejectNavigation = function (reason) {
   this.navigation.lastRejectReason = reason;
   this.emit('status', 'Навигация BMW: ' + reason);
 };
-GpsProvider.prototype.clearNavigation = function (reason) {
+GpsProvider.prototype.clearNavigation = function (reason, reasonCode) {
   this.navigationFix = null;
+  this.navigation.availabilityCode = ['NO_POSITION', 'NO_COORDINATES', 'ROAD_UNCONFIRMED', 'SDK_UNAVAILABLE', 'QUALITY'].indexOf(reasonCode) >= 0 ? reasonCode : null;
   if (reason) this.navigation.lastRejectReason = reason;
 };
 GpsProvider.prototype.inputNavigation = function (raw) {
+  this.navigation.availabilityCode = null;
   this.navigation.updates = inc(this.navigation.updates);
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) { this.rejectNavigation('payload is not an object'); return false; }
-  var allowed = { lat: true, lon: true, speedKmh: true, headingDeg: true, accuracyM: true, accuracySource: true, motionDerived: true, timeMs: true, timeOrigin: true }, key;
+  var allowed = { lat: true, lon: true, speedKmh: true, headingDeg: true, accuracyM: true, accuracySource: true,
+    motionDerived: true, timeMs: true, timeOrigin: true, sampledAtBootSec: true }, key;
   for (key in raw) if (Object.prototype.hasOwnProperty.call(raw, key) && !allowed[key]) { this.rejectNavigation('unknown field ' + key); return false; }
   if (!number(raw.lat) || !number(raw.lon) || Math.abs(raw.lat) > 90 || Math.abs(raw.lon) > 180) { this.rejectNavigation('coordinates missing or out of range'); return false; }
   var hasAccuracy = raw.accuracyM !== null && raw.accuracyM !== undefined;
@@ -311,32 +326,71 @@ GpsProvider.prototype.inputNavigation = function (raw) {
   if (raw.motionDerived !== undefined && raw.motionDerived !== true && raw.motionDerived !== false) { this.rejectNavigation('invalid derived-motion marker'); return false; }
   if (raw.speedKmh !== null && raw.speedKmh !== undefined && (!number(raw.speedKmh) || raw.speedKmh < 0)) { this.rejectNavigation('speed missing or negative'); return false; }
   if (raw.headingDeg !== null && raw.headingDeg !== undefined && (!number(raw.headingDeg) || raw.headingDeg < 0 || raw.headingDeg >= 360)) { this.rejectNavigation('heading outside 0–360°'); return false; }
-  if (!number(raw.timeMs) || !fresh(raw.timeMs, this.now())) { this.rejectNavigation('stale or future navigation time'); return false; }
   if (raw.timeOrigin !== 'source' && raw.timeOrigin !== 'receipt') { this.rejectNavigation('time origin is not source or receipt'); return false; }
-  if (this.bmwDecoder.admissionAfterUtc !== null && raw.timeMs <= this.bmwDecoder.admissionAfterUtc) { this.rejectNavigation('navigation time precedes manual reset'); return false; }
-  if (this.referenceClock.snapshot().referenceSource !== 'system' && raw.timeOrigin !== 'source') { this.rejectNavigation('navigation source UTC required'); return false; }
+  var reference = this.referenceClock.snapshot(), now = reference.referenceUtcMs, timeMs = raw.timeMs;
+  var hasBootSample = raw.sampledAtBootSec !== undefined;
+  if (hasBootSample) {
+    // Only a live bridge notification can establish a receipt-time position.
+    // Check age and ordering in OS uptime before projecting it onto this UTC epoch.
+    var age = navigationBootAge(raw.sampledAtBootSec, this.bootSec());
+    if (raw.timeOrigin !== 'receipt' || age === null) { this.rejectNavigation('invalid or stale navigation boot sample'); return false; }
+    if (this.navigation.bootAdmissionAfter !== null && raw.sampledAtBootSec <= this.navigation.bootAdmissionAfter) {
+      this.rejectNavigation('navigation boot sample precedes reset'); return false;
+    }
+    if (this.navigation.lastBootSample !== null && raw.sampledAtBootSec <= this.navigation.lastBootSample) {
+      this.rejectNavigation('navigation boot sample repeated or out of order'); return false;
+    }
+    timeMs = Math.round(now - age);
+  } else {
+    if (reference.referenceState === 'waiting' || (reference.referenceSource !== 'system' || this.clockPriming) && raw.timeOrigin !== 'source') {
+      this.rejectNavigation('live navigation boot sample required'); return false;
+    }
+    if (!fresh(timeMs, now)) { this.rejectNavigation('stale or future navigation time'); return false; }
+    if (this.bmwDecoder.admissionAfterUtc !== null && timeMs <= this.bmwDecoder.admissionAfterUtc) {
+      this.rejectNavigation('navigation time precedes manual reset'); return false;
+    }
+  }
   var fix = { lat: raw.lat, lon: raw.lon,
     speedKmh: raw.speedKmh === undefined ? null : raw.speedKmh,
     headingDeg: raw.headingDeg === undefined ? null : raw.headingDeg,
     accuracyM: raw.accuracyM === undefined ? null : raw.accuracyM,
     accuracySource: raw.accuracySource || (hasAccuracy ? 'explicit' : null),
     motionDerived: raw.motionDerived === true,
-    timeMs: raw.timeMs, motionTimeMs: raw.timeMs,
+    timeMs: timeMs, motionTimeMs: timeMs,
     source: 'bmw-navigation', quality: 'navigation-fallback', hdop: null, satellites: null,
     fallback: true, timeOrigin: raw.timeOrigin };
+  if (hasBootSample) {
+    fix.sampledAtBootSec = raw.sampledAtBootSec;
+    this.navigation.lastBootSample = raw.sampledAtBootSec;
+  }
   this.navigationFix = fix;
   this.navigation.accepted = inc(this.navigation.accepted);
   this.navigation.lastRejectReason = null;
-  this.navigation.lastUpdateAtMs = this.now();
+  this.navigation.lastUpdateAtMs = now;
+  this.navigation.referenceEpoch = reference.referenceEpoch;
   this.emit('fix', fix);
   return true;
 };
+GpsProvider.prototype.navigationAt = function (now, reference, bootNow) {
+  var fix = this.navigationFix;
+  if (!fix || this.navigation.referenceEpoch !== reference.referenceEpoch || !fresh(fix.timeMs, now)) return null;
+  if (number(fix.sampledAtBootSec)) {
+    return navigationBootAge(fix.sampledAtBootSec, bootNow === undefined ? this.bootSec() : bootNow) !== null ? fix : null;
+  }
+  return reference.referenceState === 'waiting' ? null : fix;
+};
 GpsProvider.prototype.navigationSnapshot = function (now) {
-  var fix = this.navigationFix, freshFix = fix && fresh(fix.timeMs, now);
-  return { source: 'bmw-navigation', state: freshFix ? 'ready' : 'unavailable',
+  var reference = this.referenceClock.snapshot(), bootNow = this.bootSec(), fix = this.navigationAt(now, reference, bootNow);
+  var epochChanged = this.navigationFix && this.navigation.referenceEpoch !== reference.referenceEpoch;
+  var sampleAge = fix && (number(fix.sampledAtBootSec) ? navigationBootAge(fix.sampledAtBootSec, bootNow) : Math.max(0, now - fix.timeMs));
+  return { source: 'bmw-navigation', state: fix ? 'ready' : 'unavailable',
+    availabilityCode: this.navigation.availabilityCode || null,
     updates: this.navigation.updates, accepted: this.navigation.accepted, rejected: this.navigation.rejected,
-    lastUpdateAgeMs: number(this.navigation.lastUpdateAtMs) && now >= this.navigation.lastUpdateAtMs ? now - this.navigation.lastUpdateAtMs : null,
-    reason: freshFix ? null : this.navigation.lastRejectReason || 'нет свежей позиции навигации (максимум 3 с)' };
+    timeOrigin: fix ? fix.timeOrigin : null,
+    sampleAgeMs: number(sampleAge) ? Math.round(sampleAge) : null,
+    lastUpdateAgeMs: !epochChanged && number(this.navigation.lastUpdateAtMs) && now >= this.navigation.lastUpdateAtMs ? now - this.navigation.lastUpdateAtMs : null,
+    reason: fix ? null : epochChanged ? 'navigation clock reference changed' : this.navigation.lastRejectReason ||
+      'нет свежей позиции навигации (максимум 3 с)' };
 };
 GpsProvider.prototype.diagnostics = function (now) {
   now = number(now) ? now : this.now();
@@ -402,7 +456,7 @@ GpsProvider.prototype.description = function (fix, now) {
   if (timing.pairReason === 'STALE_GGA') return 'BMW: UTC позиции GGA устарело или отличается от часов машины';
   if (timing.lastRmcAgeMs !== null && timing.lastRmcAgeMs > MAX_AGE) return 'BMW: сообщения RMC не обновляются';
   if (timing.lastGgaAgeMs !== null && timing.lastGgaAgeMs > MAX_AGE) return 'BMW: сообщения GGA не обновляются';
-  if (this.navigationFix && fresh(this.navigationFix.timeMs, now) && !roadReady(this.navigationFix))
+  if (d.gpsNavigation.state === 'ready' && !roadReady(this.navigationFix))
     return 'Навигация BMW: запасная позиция есть; скорость или курс не подтверждены';
   if (d.gpsNavigation.state === 'unavailable' && d.gpsNavigation.updates > 0)
     return 'Навигация BMW недоступна: ' + d.gpsNavigation.reason + '; ' + 'BMW: нет свежей достоверной фиксации UTC (максимум 3 с)';
@@ -424,6 +478,7 @@ GpsProvider.prototype.resetEpoch = function (now) {
   this.clockPriming = this.referenceClock.snapshot().referenceSource !== 'system';
   this.decoder.resetEpoch(now+500);this.bmwDecoder.resetEpoch(now+500);
   this.input.fixUtc=null;this.input.lastPacketAt=null;
+  this.navigation.bootAdmissionAfter = this.bootSec();
   this.clearNavigation('manual GPS session reset');
   clearTimeout(this.retry);this.retry=null;
   var old=this.sock;this.sock=null;if(old)old.destroy();
@@ -458,7 +513,8 @@ GpsProvider.prototype.connect = function () {
   });
 };
 GpsProvider.prototype.current = function (now) {
-  if (this.clockPriming || this.referenceClock.snapshot().referenceState === 'waiting') return null;
+  var reference = this.referenceClock.snapshot(), navigation = this.navigationAt(now, reference);
+  if (this.clockPriming || reference.referenceState === 'waiting') return navigation;
   var a = this.decoder.current(now), b = this.bmwDecoder.current(now), selected;
   if (!a) selected = b; else if (!b) selected = a;
   else {
@@ -467,14 +523,14 @@ GpsProvider.prototype.current = function (now) {
     else selected = b.timeMs > a.timeMs || (b.timeMs === a.timeMs && number(b.accuracyM) && !number(a.accuracyM)) ? b : a;
   }
   if (selected && roadReady(selected)) return selected;
-  var navigation = this.navigationFix;
-  if (navigation && fresh(navigation.timeMs, now) && roadReady(navigation)) return navigation;
-  return selected || (navigation && fresh(navigation.timeMs, now) ? navigation : null);
+  if (roadReady(navigation)) return navigation;
+  return selected || navigation;
 };
 GpsProvider.prototype.motionFixes = function (now) {
-  if (this.clockPriming || this.referenceClock.snapshot().referenceState === 'waiting') return [];
+  var reference = this.referenceClock.snapshot(), navigation = this.navigationAt(now, reference);
+  var blocked = this.clockPriming || reference.referenceState === 'waiting';
   var result = [], self = this;
-  [['gpsd', this.decoder], [this.decoder.nmeaSource, this.decoder],
+  if (!blocked) [['gpsd', this.decoder], [this.decoder.nmeaSource, this.decoder],
     [this.bmwDecoder.nmeaSource, this.bmwDecoder]].forEach(function (entry) {
     var source = entry[0], decoder = entry[1], fix = decoder.last[source];
     // BMW RMC supplies its own speed. A delayed GGA must not hide fresh
@@ -494,12 +550,8 @@ GpsProvider.prototype.motionFixes = function (now) {
     result.push({ source: motion.source, timeMs: motion.timeMs,
       motionTimeMs: motion.motionTimeMs, speedKmh: motion.speedKmh });
   });
-  function freshRoadReady(fix) { return fix && fresh(fix.timeMs, now) && roadReady(fix); }
-  var gnssRoadReady = ['gpsd', this.decoder.nmeaSource].some(function (source) {
-    return freshRoadReady(self.decoder.last[source]);
-  }) || freshRoadReady(this.bmwDecoder.last[this.bmwDecoder.nmeaSource]);
-  var navigation = this.navigationFix;
-  if (!gnssRoadReady && navigation && fresh(navigation.timeMs, now) && number(navigation.speedKmh) && navigation.speedKmh >= 0)
+  var gnssRoadReady = !blocked && (roadReady(this.decoder.current(now)) || roadReady(this.bmwDecoder.current(now)));
+  if (!gnssRoadReady && navigation && number(navigation.speedKmh) && navigation.speedKmh >= 0)
     result.push({ source: navigation.source, timeMs: navigation.timeMs, motionTimeMs: navigation.motionTimeMs, speedKmh: navigation.speedKmh });
   return result;
 };
@@ -509,4 +561,4 @@ GpsProvider.prototype.close = function () {
   if (this.udp) { try { this.udp.close(); } catch (err) {} }
   this.sock = null; this.udp = null;
 };
-module.exports = { GpsProvider: GpsProvider, GpsDecoder: GpsDecoder, coordinate: coordinate, fresh: fresh, sentence: sentence, BRIDGE_STATES: BRIDGE_STATES };
+module.exports = { GpsProvider: GpsProvider, GpsDecoder: GpsDecoder, coordinate: coordinate, fresh: fresh, validPosition: validPosition, navigationAccuracyReady: navigationAccuracyReady, sentence: sentence, BRIDGE_STATES: BRIDGE_STATES };
