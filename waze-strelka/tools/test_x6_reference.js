@@ -48,14 +48,14 @@ async function until(check) {
     }
 }
 
-async function run(label, rtcOffsetMs, test) {
+async function run(label, rtcOffsetMs, test, wallAtStart = wrongWall) {
     const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'strelka-x6-'));
     const socket = process.platform === 'win32' ? '\\\\.\\pipe\\strelka-x6-' + process.pid + '-' + label : path.join(dir, 'ctl.sock');
     let elapsed = 0, frozenRtc = null, networkAvailable = false;
     const mono = () => elapsed;
     const utc = () => actualUtc + elapsed;
     const rtcNow = () => rtcOffsetMs === null ? NaN : Math.floor((utc() + rtcOffsetMs) / second) * second;
-    const gps = new GpsProvider({ now: () => wrongWall + elapsed, monotonicNow: mono, nmeaPort: 0, port: 1,
+    const gps = new GpsProvider({ now: () => wallAtStart + elapsed, monotonicNow: mono, nmeaPort: 0, port: 1,
         createNetworkUtc: () => ({now: () => networkAvailable ? utc() : null, close() {}}),
         readRtc: () => frozenRtc === null ? rtcNow() : frozenRtc });
     let app, shown, bootOffset = 0;
@@ -107,6 +107,37 @@ function rejectPreview(state, command, code) {
 }
 
 async function main() {
+    await run('missing-rmc-utc', null, async ({ state, command, tick, control, shown }) => {
+        command('outputs', {cluster:false, hud:true});
+        command('gps-reset');
+        const noRmcTime = sentence('GNRMC,,V,,,,,,,,,,N');
+        command('vehicle-nmea', {data:noRmcTime});
+        tick(316, 316);
+        assert.strictEqual(state().clock.referenceSource, 'system');
+        assert.strictEqual(state().clock.issue, 'SOURCE_UTC_UNKNOWN');
+        assert.strictEqual(state().clock.sourceUtcMs, null);
+        assert.strictEqual(state().gpsInput.lastPacketAgeMs, 316);
+        assert.strictEqual(state().gpsInput.nmeaTiming.pairReason, 'INVALID_RMC');
+        assert.strictEqual(state().gpsFix, null);
+        assert.strictEqual(state().alert, null);
+        rejectPreview(state, command, 'STATIONARY_UNKNOWN');
+
+        const vehicle = await control();
+        vehicle.send({cmd:'vehicle-speed', raw:0, sampledAtBootSec:Math.floor(os.uptime())});
+        await until(() => state().vehicleMotion.code === 'READY');
+        assert.strictEqual(state().actions.displayTest.code, 'READY');
+        command('display-test', {target:'hud'});
+        assert.strictEqual(shown().test, true);
+        command('vehicle-nmea', {data:noRmcTime});
+        assert.strictEqual(state().displayTest.active, true);
+        assert.strictEqual(state().gpsFix, null);
+        assert.strictEqual(state().alert, null);
+
+        vehicle.send({cmd:'vehicle-speed', raw:65, sampledAtBootSec:Math.floor(os.uptime())});
+        await until(() => state().displayTest.stoppedReason === 'MOVING');
+        assert.strictEqual(shown(), null);
+    }, Date.parse('2026-11-22T16:00:47.000Z'));
+
     await run('offline-display', null, async ({ state, command, tick, feed, utc, control, expireBoot, shown }) => {
         command('outputs', {cluster:false, hud:true});
         feed(oldYear(utc()));
@@ -371,7 +402,7 @@ async function main() {
             rejectPreview(state, command, 'STATIONARY_UNKNOWN');
         });
     }
-    console.log('PASS X6 clock mismatch, reset cutoff, RTC/RMC progression, BMW calendar correction and HUD safety gates');
+    console.log('PASS X6 missing RMC UTC, clock mismatch, reset cutoff, RTC/RMC progression, BMW calendar correction and HUD safety gates');
 }
 
 main().catch(error => { console.error(error.stack); process.exitCode = 1; });
