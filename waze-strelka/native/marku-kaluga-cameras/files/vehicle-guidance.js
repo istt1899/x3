@@ -41,13 +41,73 @@ function insertNearest(nearest, record, distanceM, limit) {
 function prepare(z) {
     return Object.assign({}, z, { roads: z.roads.map(r => {
         const lengths = [0], segments = [];
+        const bounds = [Infinity, Infinity, -Infinity, -Infinity];
+        r.pts.forEach(p => {
+            bounds[0] = Math.min(bounds[0], p[0]); bounds[1] = Math.min(bounds[1], p[1]);
+            bounds[2] = Math.max(bounds[2], p[0]); bounds[3] = Math.max(bounds[3], p[1]);
+        });
         for (let i = 1; i < r.pts.length; i++) {
             const a = r.pts[i - 1], b = r.pts[i], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
             lengths.push(lengths[i - 1] + len);
             if (len) segments.push({ x: a[0], y: a[1], dx, dy, len, s: lengths[i - 1], bearing: angle(dx, dy) });
         }
-        return { segments, id: r.id, cam: r.cam < 0 ? null : lengths[r.cam], dir: r.dir };
+        return { segments, bounds, id: r.id, cam: r.cam < 0 ? null : lengths[r.cam], dir: r.dir };
     }) });
+}
+
+// Clip original OSM segments against the local viewport. Never bridge two
+// sections of a road that leave and later re-enter the window.
+function clippedSegment(s, x, y, radius) {
+    let begin = 0, end = 1;
+    for (const [offset, delta] of [[s.x - x, s.dx], [s.y - y, s.dy]]) {
+        if (delta === 0) {
+            if (Math.abs(offset) > radius) return null;
+            continue;
+        }
+        const a = (-radius - offset) / delta, b = (radius - offset) / delta;
+        begin = Math.max(begin, Math.min(a, b));
+        end = Math.min(end, Math.max(a, b));
+        if (begin >= end) return null;
+    }
+    return [begin, end];
+}
+
+function localRoads(zone, fix, radius, currentWay) {
+    const east = 111320 * Math.cos(zone.lat * Math.PI / 180);
+    if (Math.abs(east) < 1) return [];
+    const x = longitudeDelta(fix.lon, zone.lon) * east, y = (fix.lat - zone.lat) * 111320;
+    const candidates = [];
+    zone.roads.forEach(road => {
+        const b = road.bounds;
+        const dx = Math.max(0, b[0] - x, x - b[2]), dy = Math.max(0, b[1] - y, y - b[3]);
+        if (dx <= radius && dy <= radius) candidates.push({ road, current: road.id === currentWay, distance: dx * dx + dy * dy });
+    });
+    candidates.sort((a, b) => Number(b.current) - Number(a.current) || a.distance - b.distance);
+    const roads = [];
+    let count = 0;
+    // Up to 192 coordinate pairs (~5 KiB), inside the 128 KiB RHMI status frame.
+    for (const item of candidates) {
+        let stroke = null;
+        for (const s of item.road.segments) {
+            const interval = clippedSegment(s, x, y, radius);
+            if (!interval) { stroke = null; continue; }
+            function point(t) {
+                const lat = zone.lat + (s.y + t * s.dy) / 111320;
+                const lon = zone.lon + (s.x + t * s.dx) / east;
+                return [Number(lat.toFixed(6)), Number((((lon + 540) % 360) - 180).toFixed(6))];
+            }
+            if (!stroke || interval[0] > 0 || stroke.points.length >= 64) {
+                if (roads.length >= 30 || count + 2 > 192) return roads;
+                stroke = { points: [point(interval[0])] };
+                if (item.current) stroke.current = true;
+                roads.push(stroke); count++;
+            }
+            stroke.points.push(point(interval[1])); count++;
+            if (count >= 192) return roads;
+            if (interval[1] < 1) stroke = null;
+        }
+    }
+    return roads;
 }
 function project(road, x, y) {
     let nearest = null;
@@ -176,6 +236,24 @@ function createGuidance(data) {
         .concat(reviewed.map(z => prepare(Object.assign({}, z, { roadOnly: true }))), mapZones.map(prepare));
     zones.forEach(z => { zoneById[z.id] = z; });
     const describeCamera = info.createDescriber(records);
+    function atlasMap(fix, alert) {
+        const record = alert && byId[alert.id], p = record && record.position;
+        const view = { origin: fix ? { lat: fix.lat, lon: fix.lon } : null, roads: [], camera: p ? { lat: p.lat, lon: p.lon } : null };
+        if (!fix) return view;
+        const radius = Math.max(550, Math.min(2200, (alert && alert.distanceM || 500) * 1.25));
+        // Database validation permits road vertices at most 5 km from a zone
+        // origin on either axis. Skip zones whose complete square is too far.
+        const reach = (5000 + radius) * Math.SQRT2;
+        const selected = zones.map(zone => ({ zone, metres: distance(fix, zone), active: !!alert && alert.id === zone.id }))
+            .filter(item => item.metres <= reach)
+            .sort((a, b) => Number(b.active) - Number(a.active) || a.metres - b.metres);
+        for (const item of selected) {
+            const way = item.active && alert.roadConfirmed === true ? alert.way : null;
+            view.roads = localRoads(item.zone, fix, radius, way);
+            if (view.roads.length) { view.source = 'OpenStreetMap'; break; }
+        }
+        return view;
+    }
     let prior = {}, priorNearby = {}, active = null, anchor = null, closest = null, heading = null, lastTime = null, lastSource = null, settingsKey = null;
     let enabledIds = null;
     function recordEnabled(record) {
@@ -549,6 +627,6 @@ function createGuidance(data) {
         }
         transition(previous, clearReason || state.reason, f);
         return active;
-    }, reset: () => clear('RESET', null, true), diagnostic: () => Object.assign({}, state), count: zones.length };
+    }, reset: () => clear('RESET', null, true), diagnostic: () => Object.assign({}, state), atlasMap, count: zones.length };
 }
 module.exports = { createGuidance, validPosition, longitudeDelta, insertNearest };

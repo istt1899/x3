@@ -102,6 +102,6 @@ assert.strictEqual(visible,203);assert(values[40]&&values[50]&&values[60]&&value
 // The compact decoy annotation is confined to the camera header.
 var warning={controls:['speed','redlight','belt','stopline'],roadConfirmed:true,limitKmh:40,speedKmh:50,overspeed:true,distanceM:70};
 var a=card.card(warning,'map'),b=card.card(Object.assign({},warning,{decoyReport:{state:'reported'}}),'map');assert(!a.equals(b));
-for(var y=0;y<96;y++)for(var x=0;x<320;x++)if(x<110||x>=228||y>=27)for(var channel=0;channel<4;channel++)assert.strictEqual(a[(y*320+x)*4+channel],b[(y*320+x)*4+channel]);
+for(var y=0;y<96;y++)for(var x=0;x<320;x++)if(x<82||x>=190||y>=27)for(var channel=0;channel<4;channel++)assert.strictEqual(a[(y*320+x)*4+channel],b[(y*320+x)*4+channel]);
 assert.strictEqual(card.presentation(Object.assign({},warning,{decoyReport:{state:'reported'}})).overspeed,true);
 console.log('PASS 49 explicit RU camera codes + 5 relation codes, 38 shared-road references, 57 address/geometry-matched road references, intersection/direction/conditional/vehicle and drivable-access guards, complete exact relation evidence, camera/relation conflict guards, immutable prior data and compact decoy badge without suppressing ordinary warning; reference limits '+visible+'/308 '+JSON.stringify(values));

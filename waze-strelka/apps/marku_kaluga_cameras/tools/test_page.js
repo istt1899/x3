@@ -305,10 +305,21 @@ async function main() {
     const matches = (text, pattern) => { const found=[];let match;while((match=pattern.exec(text)))found.push(match);return found; };
     const xmlIds = (cid) => matches(XML.split('<container id="').find((c) => c.startsWith(`${cid}"`)),
         /<component id="(\d+)" type="(\w+)"(?: widget="(\w+)")?/g).map((m) => [m[1], m[2], m[3]]);
+    const nativeRows = cid => xmlIds(cid).filter(([id])=>!/^atlasDetailGraphic\d+$/.test(UI.containers[cid].components[id].name));
+    const detail = require('../src/atlas-detail.js');
+    Object.keys(detail.names).forEach(page=>{
+        const cid=String(detail.pageIds[page]), descriptor=UI.containers[cid].components;
+        const found=xmlIds(cid).filter(([id])=>descriptor[id].name===detail.names[page]);
+        assert.strictEqual(found.length,1,page+' preview');
+        const [id,type,widget]=found[0];
+        assert.strictEqual(type,'label');assert.strictEqual(widget,'LT_Label_1Graphic_Scalable');
+        assert.strictEqual(descriptor[id].properties.Focusable.value,0);
+        assert.strictEqual(descriptor[id].properties.Visible.value,0);
+    });
     /* application.xml orders the rows; uiDescription holds them by id */
     const shipped = (d) => (d.type === 'dropDownMenu' ? `${d.cells.HeaderText.value}: ${d.rows[d.cells.SelectedItem.value].ItemText.value}`
         : d.type === 'slider' ? d.rows[0].TextDescription.value : d.rows[0].Text.value);
-    const main = xmlIds('1').filter(([id]) => !['wocCameras', 'wocHudOpacity'].includes(components[id].name)).map(([id]) => [id, components[id].type, components[id].name, shipped(components[id])]);
+    const main = nativeRows('1').filter(([id]) => !['wocCameras', 'wocHudOpacity'].includes(components[id].name)).map(([id]) => [id, components[id].type, components[id].name, shipped(components[id])]);
     assert.deepStrictEqual(main.map(([id, type, name, text]) => (type === 'title' ? name : `${name} ${text}`)), [
         'wocTitle',
         'wocHeadGeneral General', 'wocShowOn Show on: Cluster', 'wocProfile Own settings for this driver', 'wocMap Cluster map: Off', "wocGuide Hide BMW's turn box", 'wocLogs Logs',
@@ -343,7 +354,7 @@ async function main() {
     /* every info row reads "Name: Value" */
     assert(main.filter(([, type, name]) => type === 'label' && !/^wocHead|^(wocRestartStatus|wocWifi|wocWifiHint)$/.test(name))
         .every(([, , , text]) => /^[A-Z][A-Za-z ]+: [A-Z\u2014]/.test(text)), 'info rows as Name: Value');
-    const hidden = Object.values(components).filter((d) => d.properties.Visible.value !== 1).map((d) => d.name);
+    const hidden = Object.values(components).filter((d) => !/^atlasDetailGraphic/.test(d.name) && d.properties.Visible.value !== 1).map((d) => d.name);
     assert.deepStrictEqual(hidden, ['wocWifi', 'wocWifiHint', 'wocRestart', 'wocRestartStatus'],
         'every row ships shown but CarPlay Wi-Fi, its line and the restart\'s two');
     assert(/<component id="34" type="button" widget="LT_Button_1Row">\s*<property id="2" value="0"\/>/.test(XML), 'application.xml: the restart, hidden');
@@ -357,15 +368,15 @@ async function main() {
     assert(/<container id="2" type="state" widget="LT_State_Wide">\s*<property id="9" value="1"\/>/.test(XML));
     assert.deepStrictEqual(xmlIds('2').map(([id, type]) => `${id} ${type}`).sort(),
         Object.entries(logsPage.components).map(([id, d]) => `${id} ${d.type}`).sort(), 'application.xml and uiDescription agree on the Logs page');
-    assert.deepStrictEqual(xmlIds('2').map(([id]) => logsPage.components[id].name), ['wocLogsTitle', 'wocCapture', 'wocCaptureStatus',
+    assert.deepStrictEqual(nativeRows('2').map(([id]) => logsPage.components[id].name), ['wocLogsTitle', 'wocCapture', 'wocCaptureStatus',
         'wocLogsSave', 'wocLogsStatus', 'wocLogsQr', 'wocLogsUrl', 'wocLogsRow1', 'wocLogsRow2', 'wocLogsRow3', 'wocLogsRow4', 'wocLogsRow5']);
     assert(/<component id="83" type="label" widget="LT_Label_1Graphic_Scalable">/.test(XML), 'the QR code is a graphic');
     assert.strictEqual(APP_JSON.application.entryPoints.length, 1);
-    assert.deepStrictEqual(xmlIds('2').slice(1).map(([id]) => logsPage.components[id].rows[0].Text && logsPage.components[id].rows[0].Text.value)
+    assert.deepStrictEqual(nativeRows('2').slice(1).map(([id]) => logsPage.components[id].rows[0].Text && logsPage.components[id].rows[0].Text.value)
         .slice(0, 4), ['Start capture', 'Capture: Unavailable', 'Save logs', 'Saved logs: Connecting…']);
     console.log('ok   the Logs page: Start capture and its row, Save logs and its row, QR code, address, five archives; a child of the main page');
 
-    const cameraPage=UI.containers['3'],cameraRows=xmlIds('3');
+    const cameraPage=UI.containers['3'],cameraRows=nativeRows('3');
     const rootNames=cameraRows.map(([id])=>cameraPage.components[id].name);
     assert.deepStrictEqual(rootNames.slice(2),['cameraDiagnostics','cameraAlertsLink','cameraTypesLink','cameraHudSetup','cameraMapSetup','cameraDatabaseLink']);
     assert.strictEqual(rootNames.length,8,'title, short status and exactly six navigation rows');
@@ -395,7 +406,7 @@ async function main() {
         .map(([id]) => diagnosticPage.components[id].name);
     assert.deepStrictEqual(controllerStops.filter((name) => /^cameraDiag_/.test(name)).sort(), diagnosticNames,
         'the controller can stop on every diagnostic data row, including all rows below GPS');
-    assert.deepStrictEqual(diagnosticRows.slice(0,10).map(([id]) => diagnosticPage.components[id].name),
+    assert.deepStrictEqual(nativeRows('4').slice(0,10).map(([id]) => diagnosticPage.components[id].name),
         ['cameraDiagTitle','cameraDiagFreeze','cameraDiagSelector','cameraDiag_stamp','cameraDiag_versions','cameraDiag_page','cameraDiag_command','cameraDiag_commandMore',
             'cameraDiagResultMore','cameraGpsReset'],
         'page, snapshot identity and live command result precede report data');
@@ -468,7 +479,7 @@ async function main() {
         await until('page shows the map', () => byName.wocMap.text === `Cluster map: Showing ${RENDER_PAGE} — ${RENDER_FPS}` && status.text === 'Status: Patched');
         assert(!logs.some((l) => /^error/.test(l)), logs.filter((l) => /^error/.test(l)).join('\n'));
         const bound = logs.filter((l) => l.startsWith('info: BIND OK: ')).map((l) => l.split(' ')[3]).filter((name) => !/^camera|^wocCameras$/.test(name)).sort();
-        assert.deepStrictEqual(bound, ['tripAbout', 'tripAboutLogs', 'tripCamera', 'tripCameraDiagnostics',
+        assert.deepStrictEqual(bound, ['atlasMenuCamera', 'atlasMenuMaps', 'atlasMenuOpen', 'tripAbout', 'tripAboutLogs', 'tripCamera', 'tripCameraDiagnostics',
             'tripDatabase', 'tripDiagnostics', 'tripLegacyDatabase', 'tripMaps', 'tripRegionDownload', 'tripRegionPage',
             'tripRegionRefresh', 'tripRegionRollback', 'tripSettings', 'wocAaCard', 'wocAaDisable', 'wocAaEnable', 'wocAaZoomIn', 'wocAaZoomOut', 'wocCapture', 'wocDisable', 'wocEnable',
             'wocGuide', 'wocHudCentre', 'wocHudDown', 'wocHudKeep', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocLogs', 'wocLogsSave', 'wocProfile', 'wocRestart'],
@@ -883,7 +894,7 @@ async function main() {
             'only CarPlay Wi-Fi, its line and the restart\'s rows are shown and hidden');
         assert([...shownOrHidden].filter(name=>name.startsWith('camera')).every(name=>/^cameraCardResultLine\d+$/.test(name)),
             'camera visibility changes are limited to overflow reading rows; no old menu controls are hidden');
-        Object.values(components).filter((d) => !/^(wocRestart|wocWifi)/.test(d.name) && d.type !== 'title')
+        nativeRows('1').map(([id]) => components[id]).filter((d) => !/^(wocRestart|wocWifi)/.test(d.name) && d.type !== 'title')
             .forEach((d) => assert.strictEqual(byName[d.name].visible, true, `${d.name} stays on the page`));
         ['wocEnable', 'wocDisable', 'wocAaEnable', 'wocAaDisable', 'wocAaZoomOut', 'wocAaZoomIn', 'wocAaCard', 'wocGuide', 'wocShowOn', 'wocHudKeep', 'wocHudSize',
             'wocHudLeft', 'wocHudCentre']

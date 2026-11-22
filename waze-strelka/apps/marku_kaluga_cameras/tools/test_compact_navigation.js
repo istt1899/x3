@@ -144,7 +144,8 @@ let count=0;function ok(text){console.log('ok '+(++count)+' - '+text);}
     assert.strictEqual(matches(nativeDiag.split('name="List"')[1],/<component id="(\d+)"/g)[0][1],'411');
     const nativePhoto=xml.split('<container id="12"')[1].split('</container>')[0];
     assert.strictEqual(matches(nativePhoto,/<component id="\d+" type="label" widget="LT_Label_1Row">/g).length,7);
-    assert.deepStrictEqual(Object.values(ui.containers['12'].components).filter(entry=>entry.type==='label').map(entry=>entry.name),diag.PHOTO_NAMES);
+    assert.deepStrictEqual(Object.values(ui.containers['12'].components).filter(entry=>entry.type==='label').map(entry=>entry.name),
+        diag.PHOTO_NAMES.concat(['atlasDetailGraphic12']));
     assert(diag.PHOTO_NAMES.every(name=>c[name].desc.properties.Focusable.value===0));
     const failed=state({serviceVersion:'0.9.6',gpsFix:null,gpsMotion:{state:'unknown',speedKmh:null},
         clock:{serviceWallUtc:'2179-06-05T02:15:56.874Z',sourceUtc:'1983-11-20T15:12:27.000Z',lastPacketAgeMs:1,

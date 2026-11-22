@@ -134,6 +134,17 @@ function styleMatches(actual,original,brightnessPct,opacityPct){
         assert(!wireMessages.slice(holdStart).some(m => m.op === 'layer' || m.op === 'set' && m.visible === 0),
             'A GPS hold keeps both warning layers visible and reuses them when the distance is restored');
 
+        // A changed capture side alone must refresh both actual image refs even
+        // if the distance, speed, limit, control list and position all match.
+        for (const side of ['front', 'rear', 'both', 'unknown']) {
+            const directional = Object.assign({}, liveAlert, { capture: { side, verified: side !== 'unknown' }, captureClass: side });
+            const hudPicture = card.card(directional, 'hud'), mapPicture = card.card(directional, 'map');
+            const previousCount = wireFrames.length;
+            display.update(directional, outputs);
+            await until('lens-only frame on HUD and cluster: ' + side, () => wireFrames.length >= previousCount + 2 &&
+                wirePixels.get(hudRef).equals(hudPicture) && wirePixels.get(mapRef).equals(mapPicture));
+        }
+
         const profiles={hud:{x:500,y:820,scalePct:100,brightnessPct:100,opacityPct:100},map:{x:500,y:880,scalePct:100,brightnessPct:100,opacityPct:100}};
         display.update(liveAlert,outputs,profiles);
         await until('profile geometry',()=>!!display.diagnostics().hud.layout.positionRange);

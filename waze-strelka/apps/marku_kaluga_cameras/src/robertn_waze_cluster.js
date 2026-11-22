@@ -64,6 +64,9 @@ const { CameraControl } = require('./control.js');
 const cameraView = require('./view_model.js');
 const tripView = require('./trip_view.js');
 const cameraDiagnostics = require('./diagnostics_view.js');
+const atlasHome = require('./atlas-home.js');
+const atlasDetail = require('./atlas-detail.js');
+const atlasStage = require('./atlas-stage.js');
 const { BmwGpsBridge } = require('./bmw_gps_bridge.js');
 const { BmwNavigationBridge } = require('./bmw_navigation_bridge.js');
 const { BmwSpeedBridge } = require('./bmw_speed_bridge.js');
@@ -114,7 +117,7 @@ const CAMERA_STATE = 'ST_OnlineApps_WazeStrelkaCameras';
 const DIAG_STATE = 'ST_OnlineApps_WazeStrelkaDiagnostics';
 // Every native state participates in resources, visibility and overlay restore.
 // Calibration has one static canonical parent (Cameras), including diagnostic entry.
-const PAGE_STATES = Object.freeze({trip:'ST_OnlineApps_StrelkaTrip',cameraDetail:'ST_OnlineApps_StrelkaCamera',
+const PAGE_STATES = Object.freeze({trip:'ST_OnlineApps_StrelkaTrip',atlasMenu:'ST_OnlineApps_AtlasMenu',cameraDetail:'ST_OnlineApps_StrelkaCamera',
     about:'ST_OnlineApps_StrelkaAbout',regions:'ST_OnlineApps_StrelkaRegions',main:STATE_NAME,logs:LOGS_STATE,cameras:CAMERA_STATE,diagnostics:DIAG_STATE,
     diagnosticPhoto:'ST_OnlineApps_CameraDiagnosticPhoto',
     alerts:'ST_OnlineApps_CameraAlerts',types:'ST_OnlineApps_CameraTypes',calibration:'ST_OnlineApps_CameraCalibration',
@@ -194,6 +197,7 @@ class WazeClusterApp extends OnlineApp {
         this._regionChoice = null;
         this._regionPage = null;
         this._tripImage = { key: null, context: null, wantedContext: null, file: null, uploadingFile: null, pending: null, rendering: null, sequence: 0 };
+        this._atlasStage = new atlasStage.Stage(logger, name => this._atlasAction(name), () => this._renderAtlas());
         this._sawForeground = false;
         this._shutdownPromise = null;
         this._shuttingDown = false;
@@ -309,7 +313,7 @@ class WazeClusterApp extends OnlineApp {
             AA_ENABLE_NAME, AA_DISABLE_NAME, AA_ZOOM_NAME, AA_ZOOM_OUT_NAME, AA_ZOOM_IN_NAME, AA_CARD_NAME, RESTART_NAME, GUIDE_NAME,
             HEAD_GENERAL_NAME, HEAD_HUD_NAME, SHOW_ON_NAME, PROFILE_NAME, HUD_NAME, HUD_KEEP_NAME, HUD_SIZE_NAME, HUD_OPACITY_NAME, HUD_POS_NAME]
             .concat(Object.values(HUD_MOVE_NAMES), [HUD_CENTRE_NAME, CAPTURE_NAME, CAPTURE_STATUS,
-                LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL, CAMERA_LINK], LOGS_ROW_NAMES, CAMERA_NAMES, DIAG_NAMES, CARD_NAMES, PREFERENCE_NAMES, OVERSPEED_NAMES, tripView.NAMES);
+                LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL, CAMERA_LINK], LOGS_ROW_NAMES, CAMERA_NAMES, DIAG_NAMES, CARD_NAMES, PREFERENCE_NAMES, OVERSPEED_NAMES, tripView.NAMES, Object.values(atlasDetail.names), ['atlasMenuOpen','atlasMenuCamera','atlasMenuMaps']);
         names.forEach((name) => { this._components[name] = rhmi.getByName(name); });
         const missing = names.filter((name) => !this._components[name]);
         if (missing.length) {
@@ -492,6 +496,9 @@ class WazeClusterApp extends OnlineApp {
         }));
         ['cameraDiagnostics','tripDiagnostics','tripCameraDiagnostics'].forEach(name=>
             this._bind(name, () => this._openDiagnostics()));
+        this._bind('atlasMenuOpen', () => this._openCameraPage('atlasMenu'));
+        this._bind('atlasMenuCamera', () => this._openCameraPage('cameraDetail'));
+        this._bind('atlasMenuMaps', () => this._openCameraPage('main'));
         Object.keys(tripView.COMMANDS).forEach(name =>
             this._bind(name, () => this._openCameraPage(tripView.COMMANDS[name])));
         this._bind('cameraDiagFreeze', () => {
@@ -551,6 +558,13 @@ class WazeClusterApp extends OnlineApp {
                     delete this._written['selected:'+entry.name];this._renderOverspeedPreferences();
                 }
             }
+        });
+        atlasHome.menuTargets().forEach(target => {
+            this._components[target.command].on('focus', event => {
+                if (this._shownPage !== 'trip' || !isTrue(event && (event.focus === undefined ? event.value : event.focus))) return;
+                this._atlasStage.nativeFocus(target.command);
+                this._renderAtlas();
+            });
         });
         rhmi.on('applicationStackChanged', (stack) => {
             // The app holds the foreground while the stack has a ROOT_APP slot;
@@ -757,6 +771,7 @@ class WazeClusterApp extends OnlineApp {
         }
         if(!Object.prototype.hasOwnProperty.call(PAGE_STATES,page))return;
         this._pages[page] = visible;
+        if (!visible && this._shownPage === page) this._hideAtlas();
         if(page==='position'&&!visible||visible&&page!=='position')this._cancelCameraHold('PAGE_CHANGED');
         if(page==='calibration'&&!visible&&this._cameraPending)this._cameraPending.returnOnSaved=false;
         this._syncCameraHold();
@@ -779,6 +794,7 @@ class WazeClusterApp extends OnlineApp {
             this._setVisible(true);
             if (page === 'trip' || page === 'cameraDetail') this._renderTrip();
             if (page === 'regions') this._renderRegions();
+            if (page !== 'trip') this._renderAtlas();
         } else if (!Object.keys(this._pages).some(key=>this._pages[key])) {
             this._hideTimer = setTimeout(() => {
                 this._hideTimer = null;
@@ -790,6 +806,7 @@ class WazeClusterApp extends OnlineApp {
     _setVisible(visible) {
         clearTimeout(this._hideTimer);this._hideTimer=null;
         if (!visible) {
+            this._hideAtlas();
             this._pages = this._emptyPages();
             this._cancelCameraHold('APP_HIDDEN');
             if(this._cameraPending)this._cameraPending.returnOnSaved=false;
@@ -813,6 +830,7 @@ class WazeClusterApp extends OnlineApp {
                 this._logs.open();
             }
             this._syncCameraHold();
+            this._renderAtlas();
         } else {
             this._control.close();
             this._cameras.close();
@@ -959,6 +977,7 @@ class WazeClusterApp extends OnlineApp {
         Object.values(HUD_MOVE_NAMES).forEach((n) => this._setEnabled(n, adjust));
         this._setEnabled(HUD_CENTRE_NAME, c.canCentreHud());
         this._renderHudOpacity();
+        if (this._shownPage === 'main') this._renderAtlas();
     }
 
     _renderHudOpacity() {
@@ -1344,6 +1363,7 @@ class WazeClusterApp extends OnlineApp {
         this._renderOverspeedPreferences();
         this._renderCameraCard();
         this._renderDiagnostics();
+        if (this._shownPage !== 'trip') this._renderAtlas();
     }
 
     _regionView() {
@@ -1386,6 +1406,7 @@ class WazeClusterApp extends OnlineApp {
         const feedback=this._cameraFeedback, result=state.commandResult;
         const response=feedback&&/^regional-/.test(feedback.command||'')?feedback:result&&/^regional-/.test(result.command||'')?result:null;
         this._write('tripRegionResult',response&&response.message?'Команда: '+oneRow(response.message):tripView.speedcamStatus(state.database,state.speedcamDownload));
+        if (this._shownPage === 'regions') this._renderAtlas();
     }
 
     _renderTrip() {
@@ -1393,21 +1414,73 @@ class WazeClusterApp extends OnlineApp {
         // The control clears state when the live service disconnects.
         const view = tripView.model(this._cameras.link === 'up' ? this._cameras.state : null, this._packageJson.version);
         Object.keys(view.text).forEach(name => this._write(name, view.text[name]));
-        if (!this._visible || this._shownPage !== 'trip' || !this._pages.trip) return;
+        if (this._shownPage === 'trip') this._renderAtlas();
+    }
+
+    _hideAtlas() {
+        this._atlasStage.set(null, null, null);
+        this._tripImage.wantedContext = null;
+        this._tripImage.pending = null;
+    }
+
+    _atlasAction(name) {
+        // Native and GPU controls share guards, debounce, feedback and navigation.
+        if (!this._visible || !this._pages[this._shownPage]) return;
+        let command = name, event = {};
+        if (/^atlasDiagnostic:[0-9]+$/.test(name)) {
+            if (this._shownPage !== 'diagnostics') return;
+            const row = Number(name.slice('atlasDiagnostic:'.length));
+            if (row >= cameraDiagnostics.PAGE_TITLES.length) return;
+            command = 'cameraDiagSelector';
+            event = {row};
+        } else if (name.indexOf('atlasRegion:') === 0) {
+            if (this._shownPage !== 'regions') return;
+            const code = name.slice('atlasRegion:'.length);
+            const row = this._regionView().rows.findIndex(entry => entry.region === code);
+            if (row < 0) return;
+            command = 'tripRegionSelector';
+            event = {row};
+        }
+        const component = this._components[command];
+        if (component && this._written['enabled:' + command] !== false) component.emit('action', event);
+    }
+
+    _renderAtlas() {
+        const page = this._shownPage, home = page === 'trip';
+        if (!this._visible || !this._pages[page] || this._shuttingDown || !this._rhmiStates[page]) return;
+        const name = home ? 'tripGraphic' : atlasDetail.names[page];
+        if (!name) { this._hideAtlas(); return; }
+        if (!this._components[name]) return;
+        const state = this._cameras.link === 'up' ? this._cameras.state : null;
+        const view = home ? atlasHome.model(state, this._packageJson.version) : atlasDetail.model(page, {
+            state, version:this._packageJson.version, written:this._written, serviceReady:!!state,
+            region:page === 'regions' ? this._regionView() : null, snapshot:this._diagnosticSnapshot,
+            target:this._cameraCardTarget, diagnosticState:page === 'diagnostics' ? this._cameraDiagnosticState() : null
+        });
+        if (!view) return;
+        const signature = JSON.stringify(view);
+        this._atlasStage.set(page, view, signature);
+        const focus = this._atlasStage.focus[page] || (home ? 'tripCamera' : '');
         const images = this._tripImage;
-        const context = [view.active, view.cameraId, view.phase === 'gps', view.limit, view.limitScope].join(':');
+        // Clear obsolete warnings before an upload. Telemetry updates for the
+        // same active camera can retain the preceding frame until its replacement.
+        const context = home ? [page, view.phase, view.cameraId, view.limit, view.limitScope, view.side].join(':')
+            : page === 'cameraDetail' ? page + signature : page;
         images.wantedContext = context;
-        images.pending = { view, context, key: [context, view.distance, view.speed].join(':') };
-        // A slow upload must not leave a previous camera, limit or stale
-        // distance visible. The native reading remains available immediately.
-        this._setVisibleComp('tripGraphic', images.context === context);
+        images.pending = {page, name, view, focus, context, key:page + ':' + focus + ':' + signature};
+        this._setVisibleComp(name, images.context === context);
+        if (home) this._atlasTextFallback(images.context !== context);
         this._renderTripImage();
+    }
+
+    _atlasTextFallback(visible) {
+        ['tripStatus','tripReading','tripOutputs'].forEach(name => this._setVisibleComp(name, visible));
     }
 
     _renderTripImage() {
         const images = this._tripImage, rhmi = this.rhmiApplication, pending = images.pending;
         if (images.rendering || !pending || this._shuttingDown || !this._visible ||
-            this._shownPage !== 'trip' || typeof rhmi.getResourceBundle !== 'function') return;
+            this._shownPage !== pending.page || typeof rhmi.getResourceBundle !== 'function') return;
         images.pending = null;
         if (images.key === pending.key) return;
         let bundle, file;
@@ -1415,16 +1488,17 @@ class WazeClusterApp extends OnlineApp {
             .then(() => {
                 try { fs.mkdirSync(QR_DIR, 0o755); } catch (err) { if (err.code !== 'EEXIST') throw err; }
                 if (this._shuttingDown) return;
-                file = path.join(QR_DIR, 'pulse_' + this._cameraClientId + '_' + (++images.sequence) + '.png');
+                file = path.join(QR_DIR, 'atlas_' + this._cameraClientId + '_' + (++images.sequence) + '.png');
                 images.uploadingFile = file;
-                fs.writeFileSync(file, tripView.graphic(pending.view), { mode: 0o644, flag: 'wx' });
+                const png = atlasStage.drawPng(canvas => atlasStage.scene(canvas, pending.page, pending.view, pending.focus, false));
+                fs.writeFileSync(file, png, { mode: 0o644, flag: 'wx' });
                 fs.chmodSync(file, 0o644);
                 bundle = rhmi.getResourceBundle();
                 return bundle.createResourceHandles([file]);
             })
             .then(() => {
                 if (this._shuttingDown || images.wantedContext !== pending.context) return false;
-                return Promise.resolve(this._components.tripGraphic.setValue(0, 'Graphic', file, 'ResourceId'))
+                return Promise.resolve(this._components[pending.name].setValue(0, 'Graphic', file, 'ResourceId'))
                     .then(() => rhmi.flush()).then(() => true);
             })
             .then(written => {
@@ -1433,12 +1507,15 @@ class WazeClusterApp extends OnlineApp {
                 images.file = file;
                 images.key = pending.key;
                 images.context = pending.context;
-                if (!this._shuttingDown && this._visible && this._shownPage === 'trip')
-                    this._setVisibleComp('tripGraphic',images.wantedContext === pending.context);
+                if (!this._shuttingDown && this._visible && this._shownPage === pending.page) {
+                    const current = images.wantedContext === pending.context;
+                    this._setVisibleComp(pending.name, current);
+                    if (pending.page === 'trip') this._atlasTextFallback(!current);
+                }
                 return old ? this._retireQr(bundle, old) : undefined;
             })
             .catch(err => {
-                if (!this._shuttingDown) logger.warn('Trip graphic: ' + err.message);
+                if (!this._shuttingDown) logger.warn('Atlas graphic: ' + err.message);
                 if (!file) return;
                 if (bundle) return this._retireQr(bundle, file);
                 try { fs.unlinkSync(file); } catch (e) { /* no partial image */ }
@@ -1472,6 +1549,7 @@ class WazeClusterApp extends OnlineApp {
         // Keep diagnostic actions reachable: every press either acts or explains the exact service guard.
         ['cameraDiagFreeze','cameraDiagTest','cameraDiagCalibration','cameraDiagAudio','cameraDiagExport',
             'cameraDiagMore','cameraDiagResultMore'].forEach(name=>this._setEnabled(name,true));
+        if (this._shownPage === 'diagnostics') this._renderAtlas();
     }
 
     _renderLogs() {
@@ -1485,6 +1563,7 @@ class WazeClusterApp extends OnlineApp {
         const rows = this._logs.rows();
         LOGS_ROW_NAMES.forEach((name, i) => this._write(name, oneRow(rows[i])));
         this._showQr(this._logs.url());
+        if (this._shownPage === 'logs') this._renderAtlas();
     }
 
     /* Writes url's QR code (none: a blank square) as a new file and shows it,
@@ -1539,7 +1618,7 @@ class WazeClusterApp extends OnlineApp {
 
     _removeStaleQr() {
         try {
-            fs.readdirSync(QR_DIR).filter((n) => /^(?:qr_\d+|pulse_strelka-[a-z0-9-]+_\d+)\.png$/.test(n))
+            fs.readdirSync(QR_DIR).filter((n) => /^(?:qr_\d+|(?:pulse|atlas)_strelka-[a-z0-9-]+_\d+)\.png$/.test(n))
                 .forEach((n) => fs.unlinkSync(path.join(QR_DIR, n)));
         } catch (e) {
             /* no folder yet */
@@ -1553,6 +1632,7 @@ class WazeClusterApp extends OnlineApp {
         }
         logger.info(`robertn_waze_cluster shutdown: ${JSON.stringify(reason)}`);
         this._shuttingDown = true;
+        this._atlasStage.close();
         clearTimeout(this._cameraCommandTimer); this._cameraCommandTimer=null;
         clearTimeout(this._hideTimer);
         this._profiles.stop();

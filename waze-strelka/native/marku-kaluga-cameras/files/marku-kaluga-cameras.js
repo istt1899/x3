@@ -106,7 +106,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.10.2', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.11.0', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -115,6 +115,7 @@ function start(options) {
     street: { name: null, source: 'BMW', state: 'unavailable', reason: 'Название улицы BMW ещё не получено', observedAtMs: null },
     audio: { available: false, reason: 'Безопасный звуковой канал BMW не подтверждён' },
     commandResult: null, actions: {}, databaseUpdate: { phase: 'idle', busy: false }, nearestCandidates: [],
+    atlasMap: { origin: null, roads: [], camera: null },
     hudDimming: 'unavailable', capabilities: { outputs: false, update: false, hudOpacity: false, displayTest: false, vehicleSpeedTest: true, alertPreferences: true, overspeedPreferences: true, gpsReset: false },
     rendererDetails: {}, displayTest: { active: false, pinned: false, target: null, calibration: false, untilMs: 0 },
     gps: 'Ожидание моста GPS BMW', gpsFix: null, gpsMotion: { state:'unknown', conflict:false, roadMismatch:false, sources:[] }, clock: clockSnapshot(Date.now(), null),
@@ -201,6 +202,7 @@ function start(options) {
     state.gpsReset = Object.assign({phase:'waiting-new-fix',generation:state.gpsReset.generation+1,afterUtc:now+500},epoch||{});
     lastGoodFix = null;
     state.alert = null;
+    state.atlasMap = { origin: null, roads: [], camera: null };
     if (state.displayTest.active || previewRequest) stopDisplayTest('GPS_RESET');
   }
   function motionFixes(now) {
@@ -524,6 +526,9 @@ function start(options) {
       lastGoodFix = { timeMs: fix.timeMs, source: fix.source };
     }
     var warningFix = !roadBlocked && !holding && !guidanceHeld ? fix : null;
+    var mapFix = goodPosition && warningFix && !Number.isFinite(warningFix.extrapolatedMs) ? warningFix : null;
+    state.atlasMap = database && guidance && typeof guidance.atlasMap === 'function' ? guidance.atlasMap(mapFix, alert) :
+      { origin: mapFix ? { lat: mapFix.lat, lon: mapFix.lon } : null, roads: [], camera: null };
     state.nearestCandidates = state.nearestCandidates.map(function(item){
       var detail=state.guidance && state.guidance.candidates && state.guidance.candidates.find(function(c){return c.id===item.id;});
       return Object.assign({},item,{reason:!validPosition(fix,now)?'GPS_INVALID':detail?detail.reason:'NO_ROAD_ZONE',way:detail&&detail.way||null});

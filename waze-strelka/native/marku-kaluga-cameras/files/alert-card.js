@@ -3,6 +3,16 @@ const zlib = require('zlib');
 const fonts = require('./camera-font.json').sizes.map(s => Object.assign({}, s, { pixels: zlib.inflateSync(Buffer.from(s.alpha,'base64')) }));
 const width = 320, height = 96;
 const types = ['speed', 'lane', 'redlight', 'average', 'belt', 'stopline', 'pedestrian', 'phone', 'signs_marking', 'road_position', 'camera'];
+const captureSides = ['front', 'rear', 'both'];
+function confirmedDirection(alert) {
+    if (alert.captureDirectionVerified === true && captureSides.includes(alert.captureDirection)) return alert.captureDirection;
+    const capture = alert.capture;
+    // The guidance classifier also estimates a lens from monitored traffic flow.
+    // That estimate is useful for guidance but cannot identify the photographed bumper.
+    if (!capture || capture.verified !== true || !alert.captureClass || alert.captureClass === 'cross') return 'unknown';
+    if (captureSides.includes(capture.side)) return capture.side;
+    return Number.isFinite(capture.facingDeg) && captureSides.includes(alert.captureClass) ? alert.captureClass : 'unknown';
+}
 function presentation(alert) {
     alert = alert || {};
     const supported = value => types.indexOf(value) >= 0;
@@ -28,8 +38,7 @@ function presentation(alert) {
     const overspeed = alert.roadConfirmed === true && alert.overspeed === true && roadLimit !== null && rawSpeed !== null && rawSpeed > roadLimit;
     const hiddenBoundary = Number.isFinite(warning.displayBoundaryKmh) && rawSpeed > warning.displayBoundaryKmh && speed <= warning.displayBoundaryKmh ? warning.displayBoundaryKmh :
         overspeed && speed <= roadLimit ? roadLimit : null;
-    const direction = ['front','rear','both','unknown'].indexOf(alert.captureClass) >= 0 ? alert.captureClass :
-        alert.captureDirectionVerified === true && ['front','rear'].indexOf(alert.captureDirection) >= 0 ? alert.captureDirection : 'unknown';
+    const direction = confirmedDirection(alert);
     const distanceStale = alert.gpsHeld === true;
     const distance = Number.isFinite(alert.displayDistanceM) && alert.displayDistanceM >= 0 ? alert.displayDistanceM : alert.distanceM;
     return { controls, extraControls: Math.max(0, known.length - controls.length), limit, limitScope, speed,
@@ -41,7 +50,7 @@ function presentation(alert) {
 }
 function card(alert, target) {
     const model=presentation(alert), px=Buffer.alloc(width*height*4);
-    const white=[244,247,250], amber=[255,190,94], red=[255,90,88], muted=[184,194,204], ink=[12,17,24];
+    const white=[244,247,250], amber=[255,190,94], red=[255,90,88], muted=[184,194,204], ink=[12,17,24], teal=[128,220,209];
     function put(x,y,color,alpha) {
         x=Math.round(x);y=Math.round(y);if(x<0||x>=width||y<0||y>=height||alpha<=0)return;
         const off=(y*width+x)*4,a=alpha/255,b=px[off+3]/255,out=a+b*(1-a);
@@ -71,6 +80,41 @@ function card(alert, target) {
         text(value, x - measure(value, size), baseline, size, color);
     }
     function outline(x,y,w,h,color){rect(x,y,w,1,color);rect(x,y+h-1,w,1,color);rect(x,y,1,h,color);rect(x+w-1,y,1,h,color);}
+    function line(x1, y1, x2, y2, color, thickness) {
+        const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
+        for (let i = 0; i <= steps; i++) {
+            const x = Math.round(x1 + (x2 - x1) * i / steps), y = Math.round(y1 + (y2 - y1) * i / steps);
+            rect(x, y, thickness, thickness, color);
+        }
+    }
+    function cameraBody(x, y, color) {
+        rect(x + 2, y, 9, 7, color);
+        rect(x, y + 2, 3, 4, color);
+        rect(x + 5, y + 2, 4, 2, ink);
+    }
+    function drawCapture(side) {
+        // Top-down vehicle with its bonnet at the top and red tail lamps at the bottom.
+        rect(201, 26, 18, 31, white); rect(203, 22, 14, 36, white);
+        rect(206, 20, 8, 39, white); rect(203, 30, 14, 5, ink);
+        rect(204, 35, 12, 2, ink); rect(205, 37, 10, 1, ink);
+        rect(198, 34, 3, 2, white); rect(219, 34, 3, 2, white);
+        rect(204, 48, 12, 5, ink);
+        rect(202, 55, 4, 2, red); rect(214, 55, 4, 2, red);
+        // The arrow head terminates at the corresponding bumper, not at the lens.
+        function beam(front) {
+            const cameraY = front ? 4 : 69, tipY = front ? 19 : 60, sign = front ? -1 : 1;
+            cameraBody(230, cameraY, teal);
+            line(230, cameraY + 3, 214, tipY, teal, 2);
+            line(214, tipY, 217, tipY + sign * 6, teal, 2);
+            line(214, tipY, 221, tipY - sign, teal, 2);
+        }
+        if (side === 'front' || side === 'both') beam(true);
+        if (side === 'rear' || side === 'both') beam(false);
+        if (side === 'unknown') {
+            cameraBody(228, 26, muted);
+            text('?', 226, 51, 18, muted);
+        }
+    }
     function icon(type,x,y) {
         outline(x,y,22,22,amber);
         if(type==='redlight') {circle(x+11,y+5,2,red);circle(x+11,y+11,2,amber);circle(x+11,y+17,2,white);}
@@ -85,7 +129,7 @@ function card(alert, target) {
         else if(type==='pedestrian') {circle(x+11,y+5,2,white);rect(x+10,y+9,2,8,white);rect(x+6,y+12,10,2,amber);}
         else {rect(x+4,y+7,14,10,white);rect(x+6,y+4,6,3,white);circle(x+12,y+12,4,ink);circle(x+12,y+12,2,amber);}
     }
-    // Pulse uses the same fixed three slots on both outputs. The only
+    // Atlas keeps the sign, approach and capture graphic in fixed columns. The only
     // background is the saved alpha of the compact card on the map layer.
     if (target === 'map') {
         const radius = 7;
@@ -104,29 +148,27 @@ function card(alert, target) {
     centered('Лимит', 39, labelledLimit ? 78 : 85, 18, muted);
     if (labelledLimit) centered(model.limitScope === 'map' ? 'карта' : model.limitScope === 'speedcam' ? 'база' : 'знак', 39, 94, 18, amber);
 
-    // Retain compact control pictograms and capture direction under the
-    // large distance and speed. Neither footer moves the important numbers.
-    icon('camera', 82, 6);
+    rect(73, 9, 1, 78, [60,77,86]);
+    rect(190, 9, 1, 78, [60,77,86]);
     const heading = model.distanceStale ? 'Нет GPS' : model.decoy ? 'Муляж' : model.mode === 'По дороге' ? 'Камера' : model.mode;
-    text(heading, 110, 23, 18, model.distanceStale || model.decoy ? amber : muted, 118);
+    text(heading, 82, 23, 18, model.distanceStale || model.decoy ? amber : teal, 105);
     const kilometers = model.distance !== null && model.distance >= 1000;
     const distanceText = model.distance === null ? '—' : kilometers ? (model.distance / 1000).toFixed(1).replace('.', ',') : String(model.distance);
     const distanceUnits = kilometers ? 'км' : 'м';
-    const distanceSize = measure(distanceText, 32) + measure(distanceUnits, 18) + 5 <= 143 ? 32 : 24;
-    text(distanceText, 82, 63, distanceSize, white, 116);
-    text(distanceUnits, 87 + Math.min(measure(distanceText, distanceSize), 116), 63, 18, muted, 23);
-    model.controls.forEach((type, index) => icon(type, 82 + index * 29, 71));
-    if (model.extraControls) text('+' + model.extraControls, 171, 89, 18, amber, 46);
+    const distanceSize = measure(distanceText, 32) + measure(distanceUnits, 18) + 5 <= 107 ? 32 : 24;
+    const roomForDistance = 107 - 5 - measure(distanceUnits, 18);
+    text(distanceText, 82, 63, distanceSize, white, roomForDistance);
+    text(distanceUnits, 87 + Math.min(measure(distanceText, distanceSize), roomForDistance), 63, 18, muted);
+    model.controls.forEach((type, index) => icon(type, 81 + index * 25, 71));
+    if (model.extraControls) text('+' + model.extraControls, 155, 89, 18, amber, 35);
 
-    rect(227, 29, 1, 56, [72,86,99], 250);
-    const speedSize = measure(model.speedText, 32) <= 75 ? 32 : 24;
+    drawCapture(model.direction);
+    const speedSize = measure(model.speedText, 32) <= 65 ? 32 : 24;
     const speedColor = model.overspeed && (!model.flashActive || model.flashPhase) ? red : white;
     rightAligned(model.speedText, 308, 55, speedSize, speedColor);
     rightAligned('км/ч', 308, 73, 18, muted);
-    if (model.captureClass !== 'unknown') {
-        const directionLabel = model.captureClass === 'front' ? 'В лоб' : model.captureClass === 'rear' ? 'Сзади' : 'С обеих';
-        rightAligned(directionLabel, 308, 92, 18, muted);
-    }
+    const directionLabel = { front: 'В лоб', rear: 'В спину', both: 'Обе стороны', unknown: 'Неизвестно' }[model.direction];
+    rightAligned(directionLabel, 313, 94, 18, model.direction === 'unknown' ? muted : teal);
     if (model.test || model.calibration) {
         rightAligned(model.calibration ? 'КАЛИБР.' : 'ТЕСТ', 308, 22, 18, amber);
     }

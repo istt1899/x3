@@ -94,4 +94,79 @@ for (const bad of [
 }
 assert.strictEqual(card.presentation(Object.assign({}, aboveMap, { roadConfirmed: false })).limit, null);
 assert.strictEqual(card.presentation(Object.assign({}, aboveMap, { limitKmh: 80 })).limitScope, "road");
-console.log("QLever road maps: provenance, actual geometry, neighboring road, hold, HUD and cluster PASS");
+async function atlasStatusOverSocket() {
+    const fs = require('fs'), os = require('os'), path = require('path'), net = require('net');
+    const EventEmitter = require('events');
+    const service = require('../native/marku-kaluga-cameras/files/marku-kaluga-cameras');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'strelka-atlas-wire-'));
+    const socket = process.platform === 'win32' ? '\\\\.\\pipe\\strelka-atlas-' + process.pid : path.join(dir, 'ctl.sock');
+    const gps = new EventEmitter();
+    let fix = null, app;
+    gps.start = gps.close = () => {};
+    gps.current = () => fix;
+    function status() {
+        return new Promise((resolve, reject) => {
+            const sock = net.createConnection(socket);
+            let line = '';
+            sock.setEncoding('utf8');
+            sock.setTimeout(4000, () => sock.destroy(new Error('No status frame')));
+            sock.on('error', reject);
+            sock.on('data', bytes => {
+                line += bytes;
+                const nl = line.indexOf('\n');
+                if (nl < 0) return;
+                sock.destroy();
+                try {
+                    assert(Buffer.byteLength(line.slice(0, nl), 'utf8') < 131072, 'Full frame fits the live control client');
+                    const message = JSON.parse(line.slice(0, nl));
+                    assert.strictEqual(message.ev, 'status');
+                    resolve(message.state);
+                } catch (error) { reject(error); }
+            });
+        });
+    }
+    try {
+        await new Promise((resolve, reject) => {
+            app = service.start({ dataDir: dir, socket, gps, guidance: make(), onListening: resolve, onError: reject,
+                storeFactory: ({ initial }) => ({ current: () => initial, status: () => ({ phase: 'idle' }), close() {} }),
+                display: { update() {}, status: () => 'off', close() {} }, dimmer: { update() {}, status: () => 'off', close() {} } });
+        });
+        assert.deepStrictEqual((await status()).atlasMap, { origin: null, roads: [], camera: null });
+        const start = Date.now() - 1500;
+        for (let i = 0; i < 3; i++) {
+            const x = -160 + i * 10, y = interpolate(farther, before, x);
+            fix = { lat: zone.lat + y / 111320, lon: zone.lon + x / (111320 * Math.cos(zone.lat * Math.PI / 180)),
+                source: 'bmw-nmea', timeMs: start + i * 700, motionTimeMs: start + i * 700, headingDeg: 90, speedKmh: 60, accuracyM: 5 };
+            app.tick();
+        }
+        const state = await status(), map = state.atlasMap;
+        assert.strictEqual(state.alert.id, zone.id);
+        assert.deepStrictEqual(map.origin, { lat: fix.lat, lon: fix.lon });
+        assert.deepStrictEqual(map.camera, { lat: zone.lat, lon: zone.lon });
+        assert.strictEqual(map.source, 'OpenStreetMap');
+        assert(map.roads.length > 0 && map.roads.length <= 30);
+        assert(map.roads.reduce((n, r) => n + r.points.length, 0) <= 192);
+        assert(Buffer.byteLength(JSON.stringify(map), 'utf8') < 8192);
+        const cameraVertex = pt => Math.abs(pt[0] - zone.lat) < 0.000001 && Math.abs(pt[1] - zone.lon) < 0.000001;
+        assert(map.roads.some(r => r.current && r.points.some(cameraVertex)), 'The actual matched OSM way reaches the real camera');
+        assert(map.roads.every(r => r.points.length >= 2 && r.points.length <= 64));
+        fix = null; app.tick();
+        const held = (await status()).atlasMap;
+        assert.deepStrictEqual(held.roads, []); assert.strictEqual(held.origin, null);
+        assert.deepStrictEqual(held.camera, map.camera, 'Bounded display hold still identifies its actual camera');
+        // End the alert before moving the fixture across regions; guidance
+        // correctly rejects such an instantaneous jump within an active trip.
+        app.command({ cmd: 'disable' });
+        fix = { lat: 60, lon: 39, accuracyM: 5, headingDeg: 90, speedKmh: 60, source: 'bmw-nmea', timeMs: Date.now(), motionTimeMs: Date.now() };
+        app.tick();
+        const uncovered = (await status()).atlasMap;
+        assert.deepStrictEqual(uncovered.origin, { lat: 60, lon: 39 });
+        assert.deepStrictEqual(uncovered.roads, []); assert.strictEqual(uncovered.camera, null);
+    } finally {
+        if (app) app.close();
+        fs.readdirSync(dir).forEach(file => fs.unlinkSync(path.join(dir, file)));
+        fs.rmdirSync(dir);
+    }
+}
+atlasStatusOverSocket().then(() => console.log('QLever road maps and Atlas status socket: real matched OSM shape, bounded frame, GPS loss, uncovered position, HUD and cluster PASS'))
+    .catch(error => { console.error(error.stack); process.exitCode = 1; });

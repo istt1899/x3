@@ -2,7 +2,7 @@
   "build": "node ../../tools/build.js",
   "requires": {
     "waze-on-cluster": "0.9.14",
-    "marku-kaluga-cameras": "0.10.2",
+    "marku-kaluga-cameras": "0.11.0",
     "mgu-deploy": "0.7.11"
   },
   "uninstallable": true,
@@ -10,5 +10,5 @@
     "ID7"
   ],
   "title": "Яндекс Стрелка",
-  "description": "Независимое приложение для BMW ID7. Поездка в режиме Пульс, камеры, ограничения скорости, HUD и приборная панель."
+  "description": "Независимое приложение для BMW ID7. Поездка в режиме Атлас, камеры, ограничения скорости, HUD и приборная панель."
 }

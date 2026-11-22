@@ -2,6 +2,7 @@
 const assert = require('assert');
 const card = require('../native/marku-kaluga-cameras/files/alert-card');
 const policy = require('../native/marku-kaluga-cameras/files/warning-policy');
+const capture = require('../native/marku-kaluga-cameras/files/capture-data');
 
 const now = Date.UTC(2026, 10, 8, 12);
 const alert = { id: 'render-warning', roadConfirmed: true, limitKmh: 60, distanceM: 70, controls: ['speed', 'redlight'] };
@@ -11,6 +12,12 @@ const distance = { x: 79, y: 38, w: 143, h: 28 };
 const speed = { x: 231, y: 29, w: 82, h: 28 };
 const header = { x: 106, y: 4, w: 115, h: 24 };
 const testLabel = { x: 229, y: 2, w: 82, h: 24 };
+
+function facingAlert(bearings, course) {
+    const field = { side: 'unknown', facingDeg: bearings[0], flowDeg: null, source: 'osm-direction', verified: true };
+    const geometry = { state: 'mapped', bearingsDeg: bearings };
+    return Object.assign({}, known, { capture: field, cameraFacing: geometry, captureClass: capture.classify(field, course, geometry) });
+}
 
 function sample(speedKmh, time, options) {
     const fix = { lat: 54, lon: 36, accuracyM: 5, timeMs: time, motionTimeMs: time, speedKmh };
@@ -55,6 +62,19 @@ assert.strictEqual(card.presentation(postedOnly).limitScope, 'posted');
 assert.strictEqual(card.presentation(postedOnly).overspeed, false);
 assert.strictEqual(card.presentation(Object.assign({}, postedOnly, { limitKmh: 50 })).limit, 50);
 
+const front = facingAlert([270], 90), rear = facingAlert([270], 270), both = facingAlert([90, 270], 90);
+const cross = facingAlert([0], 90);
+const flowEstimate = { side: 'unknown', facingDeg: 270, flowDeg: 90, source: 'osm-relation', verified: false };
+const inferred = Object.assign({}, known, { capture: flowEstimate, captureClass: capture.classify(flowEstimate, 90) });
+assert.strictEqual(inferred.captureClass, 'front', 'Guidance may infer a direction from the monitored traffic');
+assert.strictEqual(card.presentation(inferred).direction, 'unknown', 'A flow estimate cannot draw a confirmed optical direction');
+assert.strictEqual(card.presentation(Object.assign({}, known, { captureClass: 'rear' })).direction, 'unknown');
+assert.strictEqual(card.presentation(cross).direction, 'unknown');
+const intrinsic = { side: 'rear', facingDeg: null, flowDeg: null, source: 'gibdd-text', verified: true };
+assert.strictEqual(card.presentation(Object.assign({}, known, {
+    capture: intrinsic, captureClass: capture.classify(intrinsic, 90)
+})).direction, 'rear', 'An explicitly recorded photographed side requires no invented facing angle');
+
 for (const target of ['map', 'hud']) {
     const draw = value => card.card(value, target);
     const on = draw(a), off = draw(b);
@@ -71,6 +91,23 @@ for (const target of ['map', 'hud']) {
         }
     }
     assert(changes > 0);
+
+    const teal = [128, 220, 209, 255], neutral = draw(known);
+    for (const [input, side, nose, tail] of [
+        [front, 'front', true, false], [rear, 'rear', false, true],
+        [both, 'both', true, true], [inferred, 'unknown', false, false]
+    ]) {
+        assert.strictEqual(card.presentation(input).direction, side);
+        const picture = draw(input);
+        assert.deepStrictEqual(pixel(picture, 210, 21), [244, 247, 250, 255], 'Vehicle stays nose-up for all four states');
+        assert.deepStrictEqual(pixel(picture, 214, 19), nose ? teal : pixel(neutral, 214, 19), 'Arrowhead touches the front bumper only for front/both');
+        assert.deepStrictEqual(pixel(picture, 214, 60), tail ? teal : pixel(neutral, 214, 60), 'Arrowhead touches the rear bumper only for rear/both');
+        assert.deepStrictEqual(pixel(picture, 233, 5), nose ? teal : pixel(neutral, 233, 5), 'Front arrow starts at its camera body');
+        assert.deepStrictEqual(pixel(picture, 233, 70), tail ? teal : pixel(neutral, 233, 70), 'Rear arrow starts at its camera body');
+        assert(crop(picture, limit).equals(crop(neutral, limit)), 'Changing the lens leaves the approach limit intact');
+    }
+    assert(draw(cross).equals(neutral) && draw(inferred).equals(neutral), 'Missing and unverified optics share a neutral graphic');
+    assert.deepStrictEqual(pixel(neutral, 230, 27), [184, 194, 204, 255], 'Unknown shows a neutral camera beside the vehicle');
 
     const approaching = draw(known), stopped = draw(stop), waiting = draw(held);
     assert.deepStrictEqual(pixel(approaching, 10, 50), target === 'map' ? [10, 16, 24, 232] : [0, 0, 0, 0], 'Only cluster gets a compact dark background');
@@ -100,4 +137,4 @@ assert.strictEqual(card.presentation(highAlert).speedText, '>330');
 const badReference = Object.assign({}, a, { roadConfirmed: false, limitKmh: null, cameraLimitKmh: 60 });
 assert.strictEqual(card.presentation(badReference).overspeed, false);
 assert.strictEqual(card.presentation(badReference).flashActive, false);
-console.log('PASS Pulse HUD and cluster pixel regions: persistent applicable limit, stationary distance and zero speed, GPS hold, marked test, speed-only flash and fractional boundaries');
+console.log('PASS Atlas HUD and cluster pixels: verified front, rear, both and neutral optics, persistent limit, stationary speed, GPS hold, marked test and speed-only flash');

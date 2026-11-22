@@ -94,6 +94,13 @@ function verifyRegionNames() {
 }
 async function openFromHome(name, expected) {
     if (h.current() !== HOME) await h.enter(HOME);
+    if (!Object.values(h.ui.containers['13'].components).some(item=>item.name===name)) {
+        delete app._lastPress.atlasMenuOpen;
+        assert(c.atlasMenuOpen.press());
+        await settle();
+        assert.strictEqual(h.current(),'ST_OnlineApps_AtlasMenu');
+        assert(Object.values(h.ui.containers['17'].components).some(item=>item.name===name));
+    }
     delete app._lastPress[name];
     assert(c[name].press(), name);
     await settle();
@@ -123,8 +130,8 @@ async function main() {
         createResourceHandles(files) {
             for (const file of files) {
                 const png=fs.readFileSync(file);
-                assert.strictEqual(png.readUInt32BE(16),640);
-                assert.strictEqual(png.readUInt32BE(20),148);
+                assert.strictEqual(png.readUInt32BE(16),1600);
+                assert.strictEqual(png.readUInt32BE(20),520);
                 liveHandles.add(file);
             }
             return Promise.resolve();
