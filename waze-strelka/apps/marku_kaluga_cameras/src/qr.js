@@ -65,18 +65,22 @@ function qrPng(text, maxPx) {
             }
         }
     }
-    const ihdr = Buffer.alloc(13);
-    ihdr.writeUInt32BE(width, 0);
-    ihdr.writeUInt32BE(width, 4);
-    ihdr[8] = 8;
-    ihdr[9] = 6;
-    const png = Buffer.concat([
-        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-        chunk('IHDR', ihdr),
-        chunk('IDAT', zlib.deflateSync(raw, { level: 9 })),
-        chunk('IEND', Buffer.alloc(0))
-    ]);
-    return { png, width, modules: code ? code.size : 0 };
+    return { png: rgbaPng(width, width, raw, 9), width, modules: code ? code.size : 0 };
 }
 
-module.exports = { qrPng };
+// Each RGBA scanline starts with its PNG filter byte.
+function rgbaPng(width, height, raw, level) {
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(width, 0);
+    ihdr.writeUInt32BE(height, 4);
+    ihdr[8] = 8;
+    ihdr[9] = 6;
+    return Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        chunk('IHDR', ihdr),
+        chunk('IDAT', zlib.deflateSync(raw, { level })),
+        chunk('IEND', Buffer.alloc(0))
+    ]);
+}
+
+module.exports = { qrPng, rgbaPng };

@@ -9,6 +9,21 @@ const intersection = { lat: 54.5083662, lon: 36.2864984 };
 function database() {
     return info.enrich(service.loadDatabase(path.join(base, 'kaluga-speed.json')), path.join(base, 'camera-details.json'));
 }
+// Service diagnostics rank whole metres, preserve source order on ties and
+// call the potentially expensive describer only for selected records.
+const dateline = { lat: 54, lon: 179.999 };
+const nearby = [
+    { id: 'longer', position: { lat: 54, lon: 179.990 } },
+    { id: 'across', position: { lat: 54, lon: -179.999 } },
+    { id: 'tie', position: { lat: 54, lon: -179.999 } },
+    { id: 'outside', position: { lat: 55, lon: 179.999 } }
+];
+const described = [];
+const across = service.nearest(nearby, dateline, r => { described.push(r.id); return {}; });
+assert.strictEqual(across.id, 'across');
+assert.strictEqual(across.distanceM, 131);
+assert.deepStrictEqual(described, ['across']);
+assert.strictEqual(service.nearest([nearby[3]], dateline, () => { throw Error('Out-of-range point was described'); }), null);
 const db = database(), closest = service.nearest(db.records, intersection);
 assert.strictEqual(db.records.length, 150);
 assert.strictEqual(closest.id, 'osm:node:7044973016');
@@ -61,7 +76,7 @@ async function main() {
             display: { update: () => {}, status: () => 'off', close: () => {} },
             dimmer: { update: () => {}, status: () => 'off', close: () => {} } }); });
         const publicDb = app.state().database;
-        assert.strictEqual(publicDb.state, 'ready'); assert.strictEqual(publicDb.count, 14218);
+        assert.strictEqual(publicDb.state, 'ready'); assert.strictEqual(publicDb.count, 23895);
         assert.strictEqual(publicDb.osmCount, 150); assert.strictEqual(publicDb.reportedCount, 1);
         assert.strictEqual(publicDb.source, 'Mixed OSM + Госавтоинспекция + сообщения владельца + OpenSpeedcam');
         assert.strictEqual(publicDb.officialCount,152); assert.strictEqual(publicDb.openSpeedcamCount,12544);

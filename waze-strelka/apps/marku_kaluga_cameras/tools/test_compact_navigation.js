@@ -176,11 +176,11 @@ let count=0;function ok(text){console.log('ok '+(++count)+' - '+text);}
         gpsHold:{active:true,reason:'ACCURACY_MISSING'}
     }));
     press('cameraDiagFreeze');
-    assert.strictEqual(photo()[2],'Кам. ef123456 • 49 м • ACCURACY_MISSING');
+    assert.strictEqual(photo()[2],'Опора — • Кам. ef123456 • 49 м • ACCURACY_MISSING');
     await h.back();
     h.setState(state({guidance:{lastClear:{cameraId:'osc:abcdef123456',reason:'CAMERA_PASSED'}}}));
     press('cameraDiagFreeze');
-    assert.strictEqual(photo()[2],'Снята ef123456 • CAMERA_PASSED');
+    assert.strictEqual(photo()[2],'Опора — • Снята ef123456 • CAMERA_PASSED');
     await h.back();
     ok('first action opens seven fixed photo rows with clock, camera hold and passage evidence');
 

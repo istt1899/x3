@@ -121,6 +121,19 @@ function styleMatches(actual,original,brightnessPct,opacityPct){
         const hudRef=Array.from(layers.keys()).find(ref=>layers.get(ref)==='hud');
         const mapRef=Array.from(layers.keys()).find(ref=>layers.get(ref)==='map');
         compactDirty=false;
+        const holdStart = wireMessages.length;
+        const heldAlert = Object.assign({}, liveAlert, { gpsHeld: true });
+        display.update(heldAlert, outputs);
+        await until('GPS hold rendered on both existing layers', () =>
+            wirePixels.get(hudRef).equals(card.card(heldAlert, 'hud')) &&
+            wirePixels.get(mapRef).equals(card.card(heldAlert, 'map')));
+        display.update(liveAlert, outputs);
+        await until('fresh distance restored on both layers', () =>
+            wirePixels.get(hudRef).equals(card.card(liveAlert, 'hud')) &&
+            wirePixels.get(mapRef).equals(card.card(liveAlert, 'map')));
+        assert(!wireMessages.slice(holdStart).some(m => m.op === 'layer' || m.op === 'set' && m.visible === 0),
+            'A GPS hold keeps both warning layers visible and reuses them when the distance is restored');
+
         const profiles={hud:{x:500,y:820,scalePct:100,brightnessPct:100,opacityPct:100},map:{x:500,y:880,scalePct:100,brightnessPct:100,opacityPct:100}};
         display.update(liveAlert,outputs,profiles);
         await until('profile geometry',()=>!!display.diagnostics().hud.layout.positionRange);

@@ -73,8 +73,8 @@ function main() {
     });
     toolEntry.artifact = artifact(toolName);
     json(path.join(PUBLISH, 'catalog.json'), { schema: 2, components: [
-        { id: m.id, kind: 'app', version: m.version, title: 'Waze Стрелка',
-            description: 'Waze on Cluster с настройками карты, HUD, CarPlay, Android Auto и дополнительным разделом камер',
+        { id: m.id, kind: 'app', version: m.version, title: release.title,
+            description: release.description,
             build: 'unit', requires: release.requires, uninstallable: true, mguHmi: ['ID7'], artifact: artifact(appName) },
         toolEntry
     ] });

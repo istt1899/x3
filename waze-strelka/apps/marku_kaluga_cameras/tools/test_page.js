@@ -83,7 +83,8 @@ let cameraState = { enabled: true, capabilities: { outputs: true, hudOpacity: tr
         displayTestStop:{allowed:true},cardLayout:{allowed:true},cardMove:{allowed:true}},
     cardLayout:{hud:{x:500,y:820,scalePct:100,brightnessPct:100,opacityPct:100},
         map:{x:500,y:880,scalePct:100,brightnessPct:100,opacityPct:100}},storage:{persistent:true,settingsSaved:false},
-    outputs: { cluster: false, hud: false }, database: { source: 'OpenStreetMap', count: 150, updated: '2026-11-05T00:00:00Z' } };
+    outputs: { cluster: false, hud: false }, database: { source: 'OpenStreetMap', count: 23895, osmCount: 150, officialCount: 14068,
+        nationalOsm: { sourceRecords: 11172, additionalRecords: 9677 }, updated: '2026-11-05T00:00:00Z' } };
 const cameraReply = () => cameraPeers.forEach((s) => s.write(JSON.stringify({ ev: 'status', state: cameraState }) + '\n'));
 const cameraServer = net.createServer((s) => {
     cameraPeers.add(s); s.setEncoding('utf8'); let buffer = '';
@@ -467,7 +468,9 @@ async function main() {
         await until('page shows the map', () => byName.wocMap.text === `Cluster map: Showing ${RENDER_PAGE} — ${RENDER_FPS}` && status.text === 'Status: Patched');
         assert(!logs.some((l) => /^error/.test(l)), logs.filter((l) => /^error/.test(l)).join('\n'));
         const bound = logs.filter((l) => l.startsWith('info: BIND OK: ')).map((l) => l.split(' ')[3]).filter((name) => !/^camera|^wocCameras$/.test(name)).sort();
-        assert.deepStrictEqual(bound, ['wocAaCard', 'wocAaDisable', 'wocAaEnable', 'wocAaZoomIn', 'wocAaZoomOut', 'wocCapture', 'wocDisable', 'wocEnable',
+        assert.deepStrictEqual(bound, ['tripAbout', 'tripAboutLogs', 'tripCamera', 'tripCameraDiagnostics',
+            'tripDatabase', 'tripDiagnostics', 'tripLegacyDatabase', 'tripMaps', 'tripRegionDownload', 'tripRegionPage',
+            'tripRegionRefresh', 'tripRegionRollback', 'tripSettings', 'wocAaCard', 'wocAaDisable', 'wocAaEnable', 'wocAaZoomIn', 'wocAaZoomOut', 'wocCapture', 'wocDisable', 'wocEnable',
             'wocGuide', 'wocHudCentre', 'wocHudDown', 'wocHudKeep', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocLogs', 'wocLogsSave', 'wocProfile', 'wocRestart'],
             'bound buttons and checkboxes');
         assert.strictEqual(byName.wocRestart.visible, false, 'restart button hidden while the map shows');
@@ -491,13 +494,19 @@ async function main() {
         cameraState.enabled = false; cameraReply();
         await until('disabled warnings release hidden activity hold', () => inactiveReports === inactiveAtHide + 1);
         OnlineApp.instance.emit('entryPointExecute', APP_JSON.application.entryPoints[0].uuid);
-        await until('reopened original map controls', () => patch._clients.size === 1 && cameraPeers.size === 2);
+        await until('reopened Pulse and service connections', () => patch._clients.size === 1 && cameraPeers.size === 2);
+        byName.ST_OnlineApps_StrelkaTrip.emit('visible', { visible: true });
+        byName.tripMaps.emit('action');
+        await until('maps opened from Pulse', () => rhmi.opened.includes('ST_OnlineApps_WazeCluster'));
+        byName.ST_OnlineApps_StrelkaTrip.emit('visible', { visible: false });
+        byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: true });
         cameraState.enabled = true; cameraReply();
         console.log('ok   GPS continues over separate IPC while UI hidden; HMI invisible but activity held; disabling warnings releases hold; tile reopens');
         byName.wocCameras.emit('action');
         await until('camera child page opens', () => rhmi.opened.includes('ST_OnlineApps_WazeStrelkaCameras'));
+        byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: false });
         byName.ST_OnlineApps_WazeStrelkaCameras.emit('visible', { visible: true });
-        await until('camera database shown', () => byName.cameraDatabase.text.includes('150'));
+        await until('local and federal OSM counts visible', () => byName.cameraDatabase.text.includes('OSM Калуж. обл. 150 • OSM РФ 11172'));
         await until('single toggle follows confirmed enabled state',()=>byName.cameraEnable.text==='Выключить предупреждения');
         byName.cameraEnable.emit('action');
         await until('camera disable command', () => cameraCommands.some((m) => m.cmd === 'disable'));

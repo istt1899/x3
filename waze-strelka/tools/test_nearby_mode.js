@@ -140,4 +140,56 @@ function checkId(value, id, message) { assert(value && value.id === id, message 
     assert(road && road.roadConfirmed === true && road.confidence === 'road', 'Road confirmation is unchanged');
     assert.strictEqual(g.diagnostic().zoneCount, 1);
 }
+// Diagnostic top-three and nearest enabled can differ. The actual warning
+// still considers every eligible in-range point, even outside the top three.
+{
+    const local = [
+        record('behind-first', -20, 0), record('behind-tie', -20, 0), record('behind-third', -27, 0),
+        record('ahead-redlight', 50, 0, ['redlight']), record('enabled-but-far', 2200, 0, ['belt'])
+    ];
+    const source = local.concat(Array.from({ length: 12000 }, (_, i) => {
+        const r = record('far-' + i, 0, 0);
+        r.position = { lat: 42 + i % 32, lon: i % 2 ? 20 + i % 160 : -180 + i % 10 };
+        return r;
+    }));
+    const g = engine.createGuidance({ zones: [], records: source });
+    checkId(step(g, 0, 1000), 'ahead-redlight');
+    assert.deepStrictEqual(g.diagnostic().candidates.map(c => c.id), ['behind-first', 'behind-tie', 'behind-third']);
+    assert.strictEqual(g.diagnostic().candidateCount, 4);
+    const offNearby = { cameraTypes: { speed: false, redlight: false } };
+    assert.strictEqual(step(g, 0, 1000, offNearby), null, 'A filter change withdraws immediately even on a repeated fix');
+    assert.strictEqual(step(g, 0, 2000, offNearby), null);
+    const diagnostic = g.diagnostic();
+    assert.strictEqual(diagnostic.candidateCount, 0);
+    assert.strictEqual(diagnostic.cameraId, 'enabled-but-far', 'Records outside the warning radius remain eligible for nearest diagnostics');
+    assert(diagnostic.candidates.every(c => c.reason === 'TYPE_DISABLED'));
+    checkId(step(g, 0, 3000, { cameraTypes: { speed: false } }), 'ahead-redlight', 'An updated filter invalidates the cached classification');
+}
+// Near the antimeridian, admission, road projection, retention and a pass
+// all use the short local path. East and west approaches must agree.
+for (const direction of [1, -1]) {
+    const meridianPosition = x => {
+        const lon = direction * (-179.9999 + x / (111320 * cos));
+        return { lat: 54, lon: lon < -180 ? lon + 360 : lon > 180 ? lon - 360 : lon };
+    };
+    const r = Object.assign(record('dateline', 0, 0), { position: meridianPosition(0) });
+    const headingDeg = direction === 1 ? 90 : 270;
+    const g = engine.createGuidance({ zones: [], records: [r] });
+    const stepMeridian = (guidance, x, timeMs) => guidance.evaluate(
+        Object.assign(meridianPosition(x), { timeMs, accuracyM: 5, speedKmh: 72, headingDeg }), timeMs, true);
+    let time = 1000;
+    for (const x of [-80, -60, -40, -20, 0, 20]) {
+        const alert = checkId(stepMeridian(g, x, time), r.id);
+        assert(Math.abs(alert.distanceM - Math.max(0, -x)) < .01);
+        time += 1000;
+    }
+    assert.strictEqual(stepMeridian(g, 40, time), null);
+    assert.strictEqual(g.diagnostic().lastClear.reason, 'BEHIND');
+
+    const road = Object.assign(zone(r.id, 0), r.position, { travel: [headingDeg],
+        roads: [{ id: 'dateline-road', dir: 0, cam: 1, pts: [[-500, 0], [0, 0], [500, 0]] }] });
+    const roadGuidance = engine.createGuidance({ zones: [road], records: [r], nearby: false });
+    assert.strictEqual(stepMeridian(roadGuidance, -80, 1000), null);
+    assert.strictEqual(checkId(stepMeridian(roadGuidance, -60, 2000), r.id).roadConfirmed, true);
+}
 console.log('PASS nearby mode: advance/hold/confirmed passage, no resurrection at a stop, owner cameras, behind/facing rejection, stationary ban, road priority, and distance jitter; synthetic only');

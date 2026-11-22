@@ -1,6 +1,14 @@
 'use strict';
 const pack = require('./road-zones.json');
 const reviewedRoads = require('./reviewed-road-zones.json');
+let qleverRoads = { zones: [] };
+try {
+    const supplement = require('./qlever-road-zones.json');
+    if (supplement.schema === 1 && Array.isArray(supplement.zones)) qleverRoads = supplement;
+} catch (error) {
+    // The packaged supplement may be missing or corrupt after a partial installation.
+    // Its failure must not prevent the ordinary and reviewed camera zones from loading.
+}
 const database = require('./kaluga-speed.json');
 const info = require('./camera-info');
 const preferences = require('./alert-preferences');
@@ -8,9 +16,26 @@ const captureData = require('./capture-data');
 const { validPosition, navigationAccuracyReady } = require('./gps-source');
 function angle(x, y) { return (Math.atan2(x, y) * 180 / Math.PI + 360) % 360; }
 function diff(a, b) { return Math.abs((a - b + 540) % 360 - 180); }
+function longitudeDelta(to, from) {
+    const delta = to - from;
+    return delta > 180 ? delta - 360 : delta < -180 ? delta + 360 : delta;
+}
 function distance(a, b) {
-    const x = (b.lon - a.lon) * 111320 * Math.cos((a.lat + b.lat) * Math.PI / 360), y = (b.lat - a.lat) * 111320;
+    const x = longitudeDelta(b.lon, a.lon) * 111320 * Math.cos((a.lat + b.lat) * Math.PI / 360), y = (b.lat - a.lat) * 111320;
     return Math.hypot(x, y);
+}
+// Keep source order on exact ties and allocate only when an item makes top k.
+function insertNearest(nearest, record, distanceM, limit) {
+    let index = nearest.length;
+    if (index === limit) {
+        if (distanceM >= nearest[index - 1].distanceM) return;
+        index--;
+    }
+    while (index > 0 && distanceM < nearest[index - 1].distanceM) {
+        nearest[index] = nearest[index - 1];
+        index--;
+    }
+    nearest[index] = { record, distanceM };
 }
 function prepare(z) {
     return Object.assign({}, z, { roads: z.roads.map(r => {
@@ -47,20 +72,26 @@ function connectsAtCamera(hit, fix, travel) {
     return Math.hypot(x, y) <= 10 && travel.some(h => diff(h, bearing) <= 35);
 }
 function candidate(z, fix, range, diagnostic, tracking) {
-    const x = (fix.lon - z.lon) * 111320 * Math.cos(z.lat * Math.PI / 180), y = (fix.lat - z.lat) * 111320;
+    const x = longitudeDelta(fix.lon, z.lon) * 111320 * Math.cos(z.lat * Math.PI / 180), y = (fix.lat - z.lat) * 111320;
     const reject = reason => { if (diagnostic) diagnostic.reason = reason; return null; };
+    if (z.roadMapLimitSource) {
+        range = Math.min(range, z.coverageRadiusM);
+        if (!Number.isFinite(fix.accuracyM) || fix.accuracyM > 10) return reject('MAP_ACCURACY');
+    }
     if (x * x + y * y > (range + 20) * (range + 20)) return reject('OUT_OF_RANGE');
     const hits = z.roads.map(r => project(r, x, y)).filter(Boolean).sort((a, b) => a.error - b.error), hit = hits[0];
     if (diagnostic && hit) { diagnostic.way = hit.road.id; diagnostic.lateralErrorM = hit.error; }
     // Retention never expands the source road corridor or its heading gates.
-    const corridor = fix.accuracyM === null ? 6 : Math.min(12, Math.max(6, fix.accuracyM));
+    const corridor = z.roadMapLimitSource ? Math.min(6, Math.max(3, fix.accuracyM)) :
+        fix.accuracyM === null ? 6 : Math.min(12, Math.max(6, fix.accuracyM));
     if (!hit || hit.error > corridor) return reject('OFF_ROAD');
     if (hit.road.cam === null) {
         if (diagnostic) diagnostic.connectingWay = connectsAtCamera(hit, fix, z.travel);
         return reject('CAMERA_WAY_MISSING');
     }
     // Without metre uncertainty admit only well-separated roads.
-    const ambiguityMargin = fix.accuracyM === null ? ADMISSION_ACCURACY_M + 3 : Math.max(8, fix.accuracyM + 3);
+    const ambiguityMargin = z.roadMapLimitSource ? Math.max(12, fix.accuracyM + 6) :
+        fix.accuracyM === null ? ADMISSION_ACCURACY_M + 3 : Math.max(8, fix.accuracyM + 3);
     const tied = hits.slice(1).filter(other => other.error - hit.error < ambiguityMargin);
     if (tied.length) {
         if (diagnostic) diagnostic.unrelatedWay = tied.some(other =>
@@ -83,7 +114,12 @@ function candidate(z, fix, range, diagnostic, tracking) {
         if (diagnostic) diagnostic.pastCamera = -signedDistance;
         return reject('CAMERA_PASSED');
     }
-    return { id: z.id, way: hit.road.id, sign, distanceM, limitKmh: z.limit, confidence: 'road', roadConfirmed: true };
+    const result = { id: z.id, way: hit.road.id, sign, distanceM, limitKmh: z.limit, confidence: 'road', roadConfirmed: true };
+    if (z.roadMapLimitSource && hit.road.id === z.roadMapLimitSource.wayId) {
+        result.roadMapLimitKmh = z.roadMapLimitKmh;
+        result.roadMapLimitSource = z.roadMapLimitSource;
+    }
+    return result;
 }
 const ADMISSION_ACCURACY_M = 15;
 /* Once a road approach is confirmed, brief GNSS quality degradation must not
@@ -115,7 +151,7 @@ function reachable(from, to) {
     return seconds > 0 && distance(from, to) <= speed * seconds * 1.5 + 8;
 }
 function travelBearing(from, to) {
-    return angle((to.lon - from.lon) * Math.cos(from.lat * Math.PI / 180), to.lat - from.lat);
+    return angle(longitudeDelta(to.lon, from.lon) * Math.cos(from.lat * Math.PI / 180), to.lat - from.lat);
 }
 function createGuidance(data) {
     const suppliedZones = (data || pack).zones;
@@ -128,10 +164,22 @@ function createGuidance(data) {
         const record = byId[z.id];
         return record && !covered.has(z.id) && record.position.lat === z.lat && record.position.lon === z.lon;
     });
-    const zones = suppliedZones.map(prepare).concat(reviewed.map(z => prepare(Object.assign({}, z, { roadOnly: true }))));
+    reviewed.forEach(z => covered.add(z.id));
+    const mapZones = qleverRoads.zones.filter(z => {
+        const record = byId[z.id];
+        return record && !covered.has(z.id) && record.providerId === 'osm-russia' &&
+            record.sourcePublishedAt === qleverRoads.sourceTimestamp &&
+            record.position.lat === z.lat && record.position.lon === z.lon;
+    });
+    const zones = suppliedZones.map(prepare)
+        .concat(reviewed.map(z => prepare(Object.assign({}, z, { roadOnly: true }))), mapZones.map(prepare));
     zones.forEach(z => { zoneById[z.id] = z; });
     const describeCamera = info.createDescriber(records);
     let prior = {}, priorNearby = {}, active = null, anchor = null, closest = null, heading = null, lastTime = null, lastSource = null, settingsKey = null;
+    let enabledIds = null;
+    function recordEnabled(record) {
+        return !!record && (!enabledIds || enabledIds.has(record.id));
+    }
     // A passed or wrong-road camera cannot instantly return via proximity.
     let passed = {}, passedRoad = {}, lastTransition = null, lastClear = null;
     // Consecutive fresh samples with a growing distance for the retained
@@ -177,11 +225,15 @@ function createGuidance(data) {
         const prefs = preferences.normalize(rawPreferences), signature = JSON.stringify(prefs);
         const changedSettings = settingsKey !== null && signature !== settingsKey;
         if (changedSettings) { prior = {}; priorNearby = {}; nearbyGrowth = 0; }
-        settingsKey = signature;
+        if (settingsKey !== signature) {
+            enabledIds = Object.keys(prefs.cameraTypes).every(type => prefs.cameraTypes[type]) ? null :
+                new Set(records.filter(record => preferences.matches(record, prefs)).map(record => record.id));
+            settingsKey = signature;
+        }
         const fresh = lastTime === null || f.timeMs > lastTime;
         const dt = fresh && lastTime !== null ? (f.timeMs - lastTime) / 1000 : 0;
         if (!fresh) {
-            if (active && !preferences.matches(byId[active.id], prefs)) return clear('TYPE_DISABLED', f);
+            if (active && !recordEnabled(byId[active.id])) return clear('TYPE_DISABLED', f);
             if (active && active.distanceM > prefs.warningDistanceM + 0.000001) return clear('OUT_OF_RANGE', f);
             const replay = f.timeMs < lastTime || distance(f, lastSource) > jitter(f);
             if (replay && active && lastTime <= now + 500 && now - lastTime <= 3000) {
@@ -194,9 +246,19 @@ function createGuidance(data) {
         const moving = Number.isFinite(f.speedKmh) && f.speedKmh >= 8 && Number.isFinite(f.headingDeg) && f.headingDeg >= 0 && f.headingDeg < 360;
         const trackingMoving = Number.isFinite(f.speedKmh) && f.speedKmh >= 3 && Number.isFinite(f.headingDeg) && f.headingDeg >= 0 && f.headingDeg < 360;
         const stopped = Number.isFinite(f.speedKmh) && f.speedKmh >= 0 && f.speedKmh < 3;
-        const nearby = records.map(r => ({ record: r, distanceM: distance(f, r.position) })).sort((a, b) => a.distanceM - b.distanceM);
-        const enabledRecords = nearby.filter(item => preferences.matches(item.record, prefs));
-        const nearest = enabledRecords[0] || nearby[0] || null, debug = {};
+        // Retain the three diagnostics and nearest enabled point anywhere.
+        // Admission still sees every enabled point within the warning range.
+        const nearestRecords = [], inRange = [];
+        let nearestEnabled = null;
+        records.forEach((record, order) => {
+            const distanceM = distance(f, record.position);
+            insertNearest(nearestRecords, record, distanceM, 3);
+            if (!recordEnabled(record)) return;
+            if (!nearestEnabled || distanceM < nearestEnabled.distanceM) nearestEnabled = { record, distanceM };
+            if (distanceM <= range + 0.000001) inRange.push({ record, distanceM, order });
+        });
+        inRange.sort((a, b) => a.distanceM - b.distanceM || a.order - b.order);
+        const nearest = nearestEnabled || nearestRecords[0] || null, debug = {};
         const ownZone = nearest && zoneById[nearest.record.id];
         if (moving && ownZone) candidate(ownZone, f, range, debug);
         // Nearby (0.8.6) admission pre-pass: one rejection reason per in-range
@@ -211,7 +273,7 @@ function createGuidance(data) {
             if (course === null) return 'COURSE_UNKNOWN';
             if (d > range + 0.000001) return 'OUT_OF_RANGE';
             if (d <= NEARBY_AT_CAMERA_M) return null;
-            const dx = (r.position.lon - f.lon) * Math.cos(f.lat * Math.PI / 180), dy = r.position.lat - f.lat;
+            const dx = longitudeDelta(r.position.lon, f.lon) * Math.cos(f.lat * Math.PI / 180), dy = r.position.lat - f.lat;
             const delta = diff(angle(dx, dy), course);
             if (delta > NEARBY_BEHIND_DEG) return 'BEHIND';
             if (delta > NEARBY_AHEAD_MAX_DEG) return 'OFF_COURSE';
@@ -225,32 +287,31 @@ function createGuidance(data) {
         };
         const nearbyReject = {};
         let candidateCount = 0;
-        for (const item of enabledRecords) {
-            if (item.distanceM > range + 0.000001) continue;
+        for (const item of inRange) {
             // A camera with a road zone belongs to the road logic; nearby is
             // only for zone-less records and never preempts road confirmation.
             if (zoneById[item.record.id]) continue;
             candidateCount++;
             nearbyReject[item.record.id] = nearbyBlockReason(item.record, item.distanceM);
         }
-        state = { mode: 'none', reason: !enabledRecords.length && nearby.length ? 'TYPE_DISABLED' : !moving ? 'WAITING_MOTION' : debug.reason || (ownZone ? 'WAITING_APPROACH' : nearest ? (nearbyReject[nearest.record.id] || 'NO_ROAD_ZONE') : 'NO_ROAD_ZONE'),
+        state = { mode: 'none', reason: !nearestEnabled && nearestRecords.length ? 'TYPE_DISABLED' : !moving ? 'WAITING_MOTION' : debug.reason || (ownZone ? 'WAITING_APPROACH' : nearest ? (nearbyReject[nearest.record.id] || 'NO_ROAD_ZONE') : 'NO_ROAD_ZONE'),
             zoneCount: zones.length, cameraCount: records.length, cameraId: nearest && nearest.record.id,
             distanceM: nearest && nearest.distanceM, way: debug.way || null, lateralErrorM: debug.lateralErrorM,
             fixTimeMs: f.timeMs, observedAtMs: now, approachSamples: 0, warningDistanceM: range,
             candidateCount: candidateCount, nearestReject: nearest ? nearbyReject[nearest.record.id] || null : null };
         state.roadReason = state.reason;
-        state.candidates = nearby.slice(0, 3).map(item => {
+        state.candidates = nearestRecords.map(item => {
             const zone = zoneById[item.record.id], detail = {};
             if (moving && zone) candidate(zone, f, range, detail);
-            return { id: item.record.id, distanceM: Math.round(item.distanceM), reason: !preferences.matches(item.record, prefs) ? 'TYPE_DISABLED' :
+            return { id: item.record.id, distanceM: Math.round(item.distanceM), reason: !recordEnabled(item.record) ? 'TYPE_DISABLED' :
                 item.distanceM > range + 0.000001 ? 'OUT_OF_RANGE' : !moving ? 'WAITING_MOTION' : zone ? detail.reason || 'WAITING_APPROACH' :
                 (nearbyReject[item.record.id] || 'NO_ROAD_ZONE'),
                 way: detail.way || null, lateralErrorM: detail.lateralErrorM === undefined ? null : detail.lateralErrorM };
         });
-        const roadCandidates = moving ? zones.filter(z => byId[z.id] && preferences.matches(byId[z.id], prefs)).map(z => candidate(z, f, range)).filter(Boolean).sort((a, b) => a.distanceM - b.distanceM) : [];
+        const roadCandidates = moving ? zones.filter(z => recordEnabled(byId[z.id])).map(z => candidate(z, f, range)).filter(Boolean).sort((a, b) => a.distanceM - b.distanceM) : [];
         let selected = null, retained = false, clearReason = null, pastCamera = null;
         const whyJump = previous && anchor && fresh && !stationary && !reachable(anchor, f);
-        if (previous && !preferences.matches(byId[previous.id], prefs)) clearReason = 'TYPE_DISABLED';
+        if (previous && !recordEnabled(byId[previous.id])) clearReason = 'TYPE_DISABLED';
         else if (previous && previous.distanceM > range + 0.000001 && changedSettings) clearReason = 'OUT_OF_RANGE';
         else if (whyJump) clearReason = 'POSITION_JUMP';
         if (previous && stationary && !clearReason) {
@@ -294,9 +355,8 @@ function createGuidance(data) {
         const nearbyCandidates = [];
         if (!selected && !(previous && stationary) && (!data || data.nearby !== false)) {
             const possible = [];
-            for (const item of enabledRecords) {
+            for (const item of inRange) {
                 const r = item.record, d = item.distanceM;
-                if (d > range + 0.000001) continue;
                 const tracked = previous && !previous.roadConfirmed && previous.id === r.id;
                 if (tracked ? clearReason === 'POSITION_JUMP' || clearReason === 'OUT_OF_RANGE' && changedSettings : !canAdmit) continue;
                 const next = { id: r.id, distanceM: d, confidence: 'nearby', roadConfirmed: false, limitKmh: null };
@@ -309,11 +369,12 @@ function createGuidance(data) {
                     // including near the device where the angle alone is weak.
                     const differentRoad = detail.reason === 'CAMERA_WAY_MISSING' && !detail.connectingWay;
                     const wrongDirection = ['ONEWAY_MISMATCH', 'HEADING_MISMATCH', 'CAMERA_DIRECTION'].indexOf(detail.reason) >= 0;
-                    if (differentRoad || detail.unrelatedWay || wrongDirection) {
+                    const ambiguousMapRoad = zone.roadMapLimitSource && detail.reason === 'AMBIGUOUS_ROAD';
+                    if (differentRoad || detail.unrelatedWay || wrongDirection || ambiguousMapRoad) {
                         if (tracked) clearReason = detail.reason;
                         continue;
                     }
-                    const dx = (r.position.lon - f.lon) * Math.cos(f.lat * Math.PI / 180), dy = r.position.lat - f.lat;
+                    const dx = longitudeDelta(r.position.lon, f.lon) * Math.cos(f.lat * Math.PI / 180), dy = r.position.lat - f.lat;
                     const delta = diff(angle(dx, dy), course);
                     const lateral = d * Math.sin(delta * Math.PI / 180);
                     const aligned = lateral <= NEARBY_ADMISSION_LATERAL_M;
@@ -338,7 +399,7 @@ function createGuidance(data) {
                     // beyond the closest-sample release margin, or receding
                     // three fresh samples in a row. Stationary keeps it.
                     let reject = null;
-                    const dx = (r.position.lon - f.lon) * Math.cos(f.lat * Math.PI / 180), dy = r.position.lat - f.lat;
+                    const dx = longitudeDelta(r.position.lon, f.lon) * Math.cos(f.lat * Math.PI / 180), dy = r.position.lat - f.lat;
                     const delta = course === null ? null : diff(angle(dx, dy), course);
                     const passedCamera = delta !== null && delta > NEARBY_BEHIND_DEG &&
                         (d > NEARBY_AT_CAMERA_M || d * Math.cos(delta * Math.PI / 180) < -passMargin(f));
@@ -412,6 +473,13 @@ function createGuidance(data) {
                 state.cameraId = previous.id; state.distanceM = previous.distanceM;
                 state.way = previous.way || null;
                 transition(previous, reason, f);
+                if (previous.roadMapLimitSource && (routeDeparture.includes(reason) || reason === 'MAP_ACCURACY' || reason === 'POSITION_JUMP')) {
+                    const held = Object.assign({}, previous);
+                    delete held.roadMapLimitKmh;
+                    delete held.roadMapLimitSource;
+                    active = held;
+                    return held;
+                }
                 return previous;
             }
             if (reason === 'BEHIND' || reason === 'CAMERA_PASSED') {
@@ -468,4 +536,4 @@ function createGuidance(data) {
         return active;
     }, reset: () => clear('RESET', null, true), diagnostic: () => Object.assign({}, state), count: zones.length };
 }
-module.exports = { createGuidance, validPosition };
+module.exports = { createGuidance, validPosition, longitudeDelta, insertNearest };

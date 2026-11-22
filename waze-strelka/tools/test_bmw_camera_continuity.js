@@ -135,7 +135,9 @@ async function main() {
         assert.strictEqual(weak.gpsFix.accuracyM, null);
         assert.strictEqual(weak.gpsInput.nmeaTiming.pairReason, 'GGA_GST_OFFSET');
         assert.strictEqual(weak.gpsHold.reason, 'ACCURACY_MISSING');
-        assert.deepStrictEqual(frame(), onBoth(49));
+        assert.strictEqual(weak.alert.gpsHeld, true);
+        assert.strictEqual(Math.round(weak.alert.displayDistanceM), 49);
+        assert.deepStrictEqual(frame(), onBoth(null));
         assert.strictEqual(weak.speedWarning.overspeed, false);
 
         feed(18400, -80);
@@ -162,7 +164,9 @@ async function main() {
         assert.strictEqual(missing.gpsFix, null);
         assert.strictEqual(missing.gpsHold.active, true);
         assert.strictEqual(missing.guidance.lastClear, null);
-        assert.deepStrictEqual(frame(), onBoth(22));
+        assert.strictEqual(missing.alert.gpsHeld, true);
+        assert.strictEqual(Math.round(missing.alert.displayDistanceM), 22);
+        assert.deepStrictEqual(frame(), onBoth(null));
 
         feed(4000, -11);
         assert.deepStrictEqual(frame(), onBoth(11));

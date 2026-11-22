@@ -76,7 +76,7 @@ check('full Waze controls retained with separate camera child and confirmed opac
     const desc = JSON.parse(fs.readFileSync(path.join(rhmi, 'application.json'), 'utf8')).application;
     const texts = JSON.parse(fs.readFileSync(path.join(rhmi, 'variantGroups', 'Common', 'texts', 'en_GB.json'), 'utf8'));
     const ui = JSON.parse(fs.readFileSync(path.join(rhmi, 'uiDescriptions', 'ID7', 'uiDescription.json'), 'utf8'));
-    assert.strictEqual(texts.SID_WOC_TITLE, 'Waze Стрелка');
+    assert.strictEqual(texts.SID_WOC_TITLE, 'Яндекс Стрелка');
     assert.strictEqual(desc.uuid, 'd6f38d91-828f-47a0-8bb4-305b8f7e9a42');
     assert.strictEqual(desc.entryPoints[0].uuid, '3de1f32c-d4f4-4574-ae8f-0f37e83dabf3');
     const names = Object.values(ui.containers['1'].components).map((c) => c.name);

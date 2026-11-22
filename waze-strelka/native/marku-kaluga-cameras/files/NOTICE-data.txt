@@ -32,3 +32,16 @@ are available for correction, update and download. Points are imported with
 attribution and a per-point source link; mobile ambushes, typical police
 locations and hazard POIs are excluded at import. Community positions are
 never merged into OSM or official records.
+
+Russian national camera-point snapshot (2026-09-21): © OpenStreetMap
+contributors, Open Data Commons Open Database License (ODbL) 1.0.
+https://www.openstreetmap.org/copyright
+https://opendatacommons.org/licenses/odbl/1-0/
+Source PBF: https://planet.openstreetmap.org/pbf/planet-260921.osm.pbf
+Query service: https://qlever.dev/api/osm-planet
+Regional boundaries: geoBoundaries gbOpen RUS ADM0/ADM1, OpenStreetMap
+and Administrative Boundaries Wambacher, ODbL.
+https://www.geoboundaries.org/api/current/gbOpen/RUS/ADM1/
+The federal source contains camera nodes with original camera tags.
+Their numbers are camera metadata. Road applicability requires additional
+road geometry and evidence. See docs/russia-camera-data-0.10.0.md.

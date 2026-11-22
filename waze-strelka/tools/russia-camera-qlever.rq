@@ -1,0 +1,11 @@
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+PREFIX osmkey: <https://www.openstreetmap.org/wiki/Key:>
+PREFIX osmnode: <https://www.openstreetmap.org/node/>
+SELECT ?camera ?point ?limit ?condition ?direction ?enforcement WHERE {
+  ?camera osmkey:highway "speed_camera"; geo:hasGeometry/geo:asWKT ?point .
+  FILTER(STRSTARTS(STR(?camera), STR(osmnode:)))
+  OPTIONAL { ?camera osmkey:maxspeed ?limit }
+  OPTIONAL { ?camera <https://www.openstreetmap.org/wiki/Key:maxspeed:conditional> ?condition }
+  OPTIONAL { ?camera osmkey:direction ?direction }
+  OPTIONAL { ?camera osmkey:enforcement ?enforcement }
+}

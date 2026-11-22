@@ -62,6 +62,7 @@ const { LogsControl, ROWS: LOGS_ROWS } = require('./logs_control.js');
 const { qrPng } = require('./qr.js');
 const { CameraControl } = require('./control.js');
 const cameraView = require('./view_model.js');
+const tripView = require('./trip_view.js');
 const cameraDiagnostics = require('./diagnostics_view.js');
 const { BmwGpsBridge } = require('./bmw_gps_bridge.js');
 const { BmwNavigationBridge } = require('./bmw_navigation_bridge.js');
@@ -113,7 +114,8 @@ const CAMERA_STATE = 'ST_OnlineApps_WazeStrelkaCameras';
 const DIAG_STATE = 'ST_OnlineApps_WazeStrelkaDiagnostics';
 // Every native state participates in resources, visibility and overlay restore.
 // Calibration has one static canonical parent (Cameras), including diagnostic entry.
-const PAGE_STATES = Object.freeze({main:STATE_NAME,logs:LOGS_STATE,cameras:CAMERA_STATE,diagnostics:DIAG_STATE,
+const PAGE_STATES = Object.freeze({trip:'ST_OnlineApps_StrelkaTrip',cameraDetail:'ST_OnlineApps_StrelkaCamera',
+    about:'ST_OnlineApps_StrelkaAbout',regions:'ST_OnlineApps_StrelkaRegions',main:STATE_NAME,logs:LOGS_STATE,cameras:CAMERA_STATE,diagnostics:DIAG_STATE,
     diagnosticPhoto:'ST_OnlineApps_CameraDiagnosticPhoto',
     alerts:'ST_OnlineApps_CameraAlerts',types:'ST_OnlineApps_CameraTypes',calibration:'ST_OnlineApps_CameraCalibration',
     position:'ST_OnlineApps_CameraPosition',database:'ST_OnlineApps_CameraDatabase',overspeed:'ST_OnlineApps_CameraOverspeed'});
@@ -186,9 +188,12 @@ class WazeClusterApp extends OnlineApp {
         this._cameraCardTarget = 'hud'; this._cameraCardSelectionReason = null;
         this._cameraFocusedArrow=null; this._cameraInputEvents=[]; this._cameraConsumedArrow=null; this._cameraSuppressUntil=0;
         this._cameraSuppressStartedAt=null; this._cameraHoldStop=null;
-        this._shownPage = 'main';   /* the page last shown, which shows again when the app does */
+        this._shownPage = 'trip';   /* the page last shown, which shows again when the app does */
         this._hideTimer = null;
         this._qr = { url: undefined, file: null, chain: Promise.resolve() };
+        this._regionChoice = null;
+        this._regionPage = null;
+        this._tripImage = { key: null, context: null, wantedContext: null, file: null, uploadingFile: null, pending: null, rendering: null, sequence: 0 };
         this._sawForeground = false;
         this._shutdownPromise = null;
         this._shuttingDown = false;
@@ -304,7 +309,7 @@ class WazeClusterApp extends OnlineApp {
             AA_ENABLE_NAME, AA_DISABLE_NAME, AA_ZOOM_NAME, AA_ZOOM_OUT_NAME, AA_ZOOM_IN_NAME, AA_CARD_NAME, RESTART_NAME, GUIDE_NAME,
             HEAD_GENERAL_NAME, HEAD_HUD_NAME, SHOW_ON_NAME, PROFILE_NAME, HUD_NAME, HUD_KEEP_NAME, HUD_SIZE_NAME, HUD_OPACITY_NAME, HUD_POS_NAME]
             .concat(Object.values(HUD_MOVE_NAMES), [HUD_CENTRE_NAME, CAPTURE_NAME, CAPTURE_STATUS,
-                LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL, CAMERA_LINK], LOGS_ROW_NAMES, CAMERA_NAMES, DIAG_NAMES, CARD_NAMES, PREFERENCE_NAMES, OVERSPEED_NAMES);
+                LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL, CAMERA_LINK], LOGS_ROW_NAMES, CAMERA_NAMES, DIAG_NAMES, CARD_NAMES, PREFERENCE_NAMES, OVERSPEED_NAMES, tripView.NAMES);
         names.forEach((name) => { this._components[name] = rhmi.getByName(name); });
         const missing = names.filter((name) => !this._components[name]);
         if (missing.length) {
@@ -485,12 +490,10 @@ class WazeClusterApp extends OnlineApp {
             delete this._written['cell:'+name+':0:Value'];
             setImmediate(()=>this._renderCameraCard());
         }));
-        this._bind('cameraDiagnostics', () => {
-            this._diagPage = 0; this._diagBlock = 0;
-            this._diagnosticSnapshot = null;
-            this._cameras.send({ cmd: 'status' }); this._renderDiagnostics();
-            return this._openCameraPage('diagnostics');
-        });
+        ['cameraDiagnostics','tripDiagnostics','tripCameraDiagnostics'].forEach(name=>
+            this._bind(name, () => this._openDiagnostics()));
+        Object.keys(tripView.COMMANDS).forEach(name =>
+            this._bind(name, () => this._openCameraPage(tripView.COMMANDS[name])));
         this._bind('cameraDiagFreeze', () => {
             const snapshot = cameraDiagnostics.capture(this._cameraDiagnosticState(), this._packageJson.version, Date.now());
             const rows = cameraDiagnostics.photoRows(snapshot, !!this._cameras.state && this._cameras.link === 'up',
@@ -500,6 +503,23 @@ class WazeClusterApp extends OnlineApp {
             cameraDiagnostics.PHOTO_NAMES.forEach((name, index) => this._write(name, rows[index]));
             return this._openCameraPage('diagnosticPhoto');
         });
+        this._components.tripRegionSelector.on('action',event=>{
+            const row=event&&event.row, view=this._regionView();
+            if(Number.isInteger(row) && view.rows[row]){
+                this._regionChoice=view.rows[row].region;
+                this._regionPage=null;
+            }
+            delete this._written['cell:tripRegionSelector:SelectedItem'];
+            this._renderRegions();
+        });
+        this._bind('tripRegionPage', () => {
+            const view=this._regionView();
+            this._regionPage=(view.index+1)%view.pages;
+            this._renderRegions();
+        });
+        this._bind('tripRegionRefresh', () => this._regionalCommand('regional-list'));
+        this._bind('tripRegionDownload', () => this._regionalCommand('regional-download'));
+        this._bind('tripRegionRollback', () => this._regionalCommand('regional-rollback'));
         this._components.cameraDiagSelector.on('action',event=>{
             const row=event&&event.row;
             if(Number.isInteger(row)&&row>=0&&row<cameraDiagnostics.PAGE_TITLES.length){this._diagPage=row;this._diagBlock=0;}
@@ -550,6 +570,8 @@ class WazeClusterApp extends OnlineApp {
             logger.info('RESTORE_HMI: re-pushing page content');
             this._written = {};
             this._qr.url = undefined;
+            this._tripImage.key = null;
+            this._tripImage.context = null;
             this._render();
             this._renderLogs();
             this._renderCameras();
@@ -667,6 +689,13 @@ class WazeClusterApp extends OnlineApp {
             .then(()=>true,err=>{logger.warn('camera page: '+(err&&err.message));return false;});
     }
 
+    _openDiagnostics() {
+        this._diagPage = 0; this._diagBlock = 0;
+        this._diagnosticSnapshot = null;
+        this._cameras.send({ cmd: 'status' }); this._renderDiagnostics();
+        return this._openCameraPage('diagnostics');
+    }
+
     _openCalibration(target) {
         if(target!=='hud'&&target!=='map')return Promise.resolve(false);
         this._cancelCameraHold('TARGET_CHANGED');
@@ -694,7 +723,7 @@ class WazeClusterApp extends OnlineApp {
         }
         const description = ours.getDescription();
         return ours.init()
-            .then(() => this.rhmiApplication.mapEntryState(description.uuid, this._state))
+            .then(() => this.rhmiApplication.mapEntryState(description.uuid, this._rhmiStates.trip))
             .then(() => Promise.resolve()
                 .then(() => ours.entryPoint.setText(description.textId))
                 .then(() => (description.icon ? ours.entryPoint.setIcon(description.icon) : undefined))
@@ -710,7 +739,7 @@ class WazeClusterApp extends OnlineApp {
         this._sawForeground = true;
         /* the tile opens the main page, whichever page the app was left on;
          * its stack change may have come first and opened the Logs page's socket */
-        this._shownPage = 'main';
+        this._shownPage = 'trip';
         this._pages = this._emptyPages();
         this._logs.close();
         this._cancelCameraHold('ENTRY_POINT');
@@ -748,6 +777,8 @@ class WazeClusterApp extends OnlineApp {
         if (visible) {
             this._sawForeground = true;
             this._setVisible(true);
+            if (page === 'trip' || page === 'cameraDetail') this._renderTrip();
+            if (page === 'regions') this._renderRegions();
         } else if (!Object.keys(this._pages).some(key=>this._pages[key])) {
             this._hideTimer = setTimeout(() => {
                 this._hideTimer = null;
@@ -955,7 +986,8 @@ class WazeClusterApp extends OnlineApp {
         }
         this._cameraInfoMode = null;
         const requestId=this._cameraClientId+'-'+(++this._cameraCommandSequence).toString(36);
-        const commandName={'display-test':'тест предупреждения','calibration-test':'проверка границ',
+        const commandName={'regional-list':'проверка списка регионов','regional-download':'обновление пакета',
+            'regional-rollback':'откат пакета','display-test':'тест предупреждения','calibration-test':'проверка границ',
             'display-test-stop':'сохранение и остановка теста','card-layout':'настройка предупреждения',
             'card-layout-reset':'сброс настроек предупреждения','card-move':'положение предупреждения',
             'alert-preferences':'настройки предупреждений','overspeed-preferences':'настройки превышения',
@@ -1080,8 +1112,8 @@ class WazeClusterApp extends OnlineApp {
             test=state.displayTest||{}, guard=cameraDiagnostics.action(this._cameras.state,'cardLayout'), storage=state.storage||{},
             name=target==='hud'?'HUD':'Приборы', move=this._cameraMoveGuard(), feedback=this._cameraFeedback,
             cardFeedback=feedback&&feedback.target===target&&(/^(card-|display-test|calibration-test)/.test(feedback.command||''));
-        this._write('cameraCalibrationTitle','Настройка '+name);
-        this._write('cameraPositionTitle','Положение '+name);
+        this._write('cameraCalibrationTitle','Яндекс Стрелка · Настройка '+name);
+        this._write('cameraPositionTitle','Яндекс Стрелка · Положение '+name);
         this._write('cameraHeadCalibration',name+' • настройка на стоянке');
         this._write('cameraCardOutput','Вывод предупреждений на '+name);
         this._setSelected('cameraCardOutput',!!(state.outputs||{})[target==='hud'?'hud':'cluster']);
@@ -1273,6 +1305,8 @@ class WazeClusterApp extends OnlineApp {
     _renderCameras() {
         this._observeAppClock();
         if (!this._cameraState || this._shutdownPromise) return;
+        this._renderTrip();
+        this._renderRegions();
         const view = cameraView.model(this._cameras.state);
         if (!this._cameras.state) view.text.cameraStatus = this._cameras.diagnostic();
         if (this._cameraInfoMode === 'diagnostics') view.text.cameraInfo = this._cameras.state ? cameraView.diagnostics(this._cameras.state) : this._cameras.diagnostic();
@@ -1290,6 +1324,9 @@ class WazeClusterApp extends OnlineApp {
             const name='cameraCardResultLine'+(i+1);this._write(name,commandLines[i]||' ');this._setVisibleComp(name,i<commandLines.length);
         }
         this._write('cameraStatus',cameraView.hubSummary(this._cameras.state));
+        const update=(this._cameras.state||{}).databaseUpdate||{};
+        if(update.message)this._write('cameraCoverage',update.message+' • '+view.text.cameraCoverage);
+        this._write('cameraUpdate',update.busy?'Проверка базы выполняется':'Проверить / продолжить');
         const links={cameraDiagnostics:'Диагностика',cameraAlertsLink:'Оповещения',cameraTypesLink:'Типы камер',
             cameraHudSetup:'HUD',cameraMapSetup:'Приборы',cameraDatabaseLink:'База',cameraOverspeedLink:'Мигание и звук',cameraCoverageDetails:'Подробности покрытия'};
         Object.keys(links).forEach(name=>{this._write(name,links[name]);this._setEnabled(name,true);});
@@ -1307,6 +1344,109 @@ class WazeClusterApp extends OnlineApp {
         this._renderOverspeedPreferences();
         this._renderCameraCard();
         this._renderDiagnostics();
+    }
+
+    _regionView() {
+        return tripView.regionsModel(this._cameras.link === 'up' ? this._cameras.state : null, this._regionChoice, this._regionPage);
+    }
+
+    _regionalCommand(command) {
+        const view=this._regionView();
+        if (!view.data || view.busy || (command !== 'regional-list' && !this._mayChangeRegion())) return;
+        if (command === 'regional-download' && !view.download) return;
+        if (command === 'regional-rollback' && !view.rollback) return;
+        const request = {cmd:command};
+        if (command !== 'regional-list') request.region=view.selected.region;
+        this._cameraCommand(request);
+    }
+
+    _mayChangeRegion() {
+        const state=this._cameras.state;
+        return cameraDiagnostics.action(state,'databaseCheck').allowed && cameraDiagnostics.action(state,'cardLayout').allowed;
+    }
+
+    _renderRegions() {
+        const view=this._regionView(), canChange=this._mayChangeRegion();
+        Object.keys(view.text).forEach(name=>this._write(name,view.text[name]));
+        if (view.data && !view.busy && !canChange)
+            this._write('tripRegionStatus',view.text.tripRegionStatus+' • действия на стоянке');
+        this._writeCell('tripRegionSelector','HeaderText','Регион','Text');
+        for (let i=0;i<tripView.REGION_ROWS;i++) {
+            const entry=view.rows[i];
+            this._writeCell('tripRegionSelector','ItemText',entry ? tripView.regionName(entry) : '—','Text',i);
+        }
+        this._writeCell('tripRegionSelector','SelectedItem',Math.max(0,view.selectedRow),'UInt');
+        this._setEnabled('tripRegionSelector',view.rows.length>0);
+        this._setEnabled('tripRegionPage',view.pages>1);
+        const available=!!view.data && !view.busy;
+        this._setEnabled('tripRegionRefresh',available);
+        this._setEnabled('tripRegionDownload',available && canChange && view.download);
+        this._setEnabled('tripRegionRollback',available && canChange && view.rollback);
+        const feedback=this._cameraFeedback, result=(this._cameras.state||{}).commandResult;
+        const response=feedback&&/^regional-/.test(feedback.command||'')?feedback:result&&/^regional-/.test(result.command||'')?result:null;
+        this._write('tripRegionResult',response&&response.message?'Команда: '+oneRow(response.message):'Команда —');
+    }
+
+    _renderTrip() {
+        if (!this._rhmiStates.trip || this._shutdownPromise) return;
+        // The control clears state when the live service disconnects.
+        const view = tripView.model(this._cameras.link === 'up' ? this._cameras.state : null, this._packageJson.version);
+        Object.keys(view.text).forEach(name => this._write(name, view.text[name]));
+        if (!this._visible || this._shownPage !== 'trip' || !this._pages.trip) return;
+        const images = this._tripImage;
+        const context = [view.active, view.cameraId, view.phase === 'gps', view.limit, view.limitScope].join(':');
+        images.wantedContext = context;
+        images.pending = { view, context, key: [context, view.distance, view.speed].join(':') };
+        // A slow upload must not leave a previous camera, limit or stale
+        // distance visible. The native reading remains available immediately.
+        this._setVisibleComp('tripGraphic', images.context === context);
+        this._renderTripImage();
+    }
+
+    _renderTripImage() {
+        const images = this._tripImage, rhmi = this.rhmiApplication, pending = images.pending;
+        if (images.rendering || !pending || this._shuttingDown || !this._visible ||
+            this._shownPage !== 'trip' || typeof rhmi.getResourceBundle !== 'function') return;
+        images.pending = null;
+        if (images.key === pending.key) return;
+        let bundle, file;
+        images.rendering = Promise.resolve()
+            .then(() => {
+                try { fs.mkdirSync(QR_DIR, 0o755); } catch (err) { if (err.code !== 'EEXIST') throw err; }
+                if (this._shuttingDown) return;
+                file = path.join(QR_DIR, 'pulse_' + this._cameraClientId + '_' + (++images.sequence) + '.png');
+                images.uploadingFile = file;
+                fs.writeFileSync(file, tripView.graphic(pending.view), { mode: 0o644, flag: 'wx' });
+                fs.chmodSync(file, 0o644);
+                bundle = rhmi.getResourceBundle();
+                return bundle.createResourceHandles([file]);
+            })
+            .then(() => {
+                if (this._shuttingDown || images.wantedContext !== pending.context) return false;
+                return Promise.resolve(this._components.tripGraphic.setValue(0, 'Graphic', file, 'ResourceId'))
+                    .then(() => rhmi.flush()).then(() => true);
+            })
+            .then(written => {
+                if (!written) return file ? this._retireQr(bundle, file) : undefined;
+                const old = images.file;
+                images.file = file;
+                images.key = pending.key;
+                images.context = pending.context;
+                if (!this._shuttingDown && this._visible && this._shownPage === 'trip')
+                    this._setVisibleComp('tripGraphic',images.wantedContext === pending.context);
+                return old ? this._retireQr(bundle, old) : undefined;
+            })
+            .catch(err => {
+                if (!this._shuttingDown) logger.warn('Trip graphic: ' + err.message);
+                if (!file) return;
+                if (bundle) return this._retireQr(bundle, file);
+                try { fs.unlinkSync(file); } catch (e) { /* no partial image */ }
+            })
+            .then(() => {
+                images.uploadingFile = null;
+                images.rendering = null;
+                this._renderTripImage();
+            });
     }
 
     _renderDiagnostics() {
@@ -1398,7 +1538,7 @@ class WazeClusterApp extends OnlineApp {
 
     _removeStaleQr() {
         try {
-            fs.readdirSync(QR_DIR).filter((n) => /^qr_\d+\.png$/.test(n))
+            fs.readdirSync(QR_DIR).filter((n) => /^(?:qr_\d+|pulse_strelka-[a-z0-9-]+_\d+)\.png$/.test(n))
                 .forEach((n) => fs.unlinkSync(path.join(QR_DIR, n)));
         } catch (e) {
             /* no folder yet */
@@ -1429,6 +1569,9 @@ class WazeClusterApp extends OnlineApp {
                 /* gone already */
             }
         }
+        [this._tripImage.file, this._tripImage.uploadingFile].filter(Boolean).forEach(filename => {
+            try { fs.unlinkSync(filename); } catch (e) { /* already retired */ }
+        });
         this._shutdownPromise = Promise.resolve()
             .then(() => this.destroyBundles().catch((err) =>
                 logger.info(`destroyBundles: ${err && err.message}`)))

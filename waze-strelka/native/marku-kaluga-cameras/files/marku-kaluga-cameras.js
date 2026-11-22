@@ -11,6 +11,7 @@ var databaseCoverage = require('./database-coverage');
 var officialData = require('./official-camera-data'), databaseVersion = require('./database-version.json');
 var captureData = require('./capture-data');
 var crypto = require('crypto');
+var regionalData = require('./russia-regional-store');
 function clockSnapshot(now, input) {
   var c = input && typeof input === 'object' ? input : {}, wall = Number.isFinite(now) ? now : null;
   function num(key) { return Number.isFinite(c[key]) ? c[key] : null; }
@@ -69,15 +70,28 @@ function loadDatabase(file) {
   });
   return p;
 }
-function nearest(records, fix, describeCamera) {
-  if (!fix) return null;
-  var best = null, rad = Math.PI / 180;
-  records.forEach(function (r) {
-    var x = (r.position.lon - fix.lon) * Math.cos((r.position.lat + fix.lat) * rad / 2), y = r.position.lat - fix.lat;
-    var d = Math.sqrt(x * x + y * y) * rad * 6371008.8;
-    if (d <= 2000 && (!best || d < best.distanceM)) best = Object.assign({}, (describeCamera || cameraInfo.describe)(r), { id: r.id, distanceM: Math.round(d), limitKmh: r.limitKmh, confidence: 'unconfirmed' });
+function nearestCandidates(records, fix, count, describeCamera, preferences) {
+  if (!fix) return [];
+  var search = require('./vehicle-guidance'), closest = [], rad = Math.PI / 180;
+  var maxLatitudeDifference = 2000 / (rad * 6371008.8);
+  records.forEach(function (record) {
+    var y = record.position.lat - fix.lat;
+    if (Math.abs(y) > maxLatitudeDifference) return;
+    var x = search.longitudeDelta(record.position.lon, fix.lon) * Math.cos((record.position.lat + fix.lat) * rad / 2);
+    var distanceM = Math.sqrt(x * x + y * y) * rad * 6371008.8;
+    // The service previously ranked rounded metres; preserve that order.
+    if (distanceM <= 2000) search.insertNearest(closest, record, Math.round(distanceM), count);
   });
-  return best;
+  return closest.map(function(item) {
+    var r = item.record;
+    var result = Object.assign({}, (describeCamera || cameraInfo.describe)(r),
+      { id: r.id, distanceM: item.distanceM, limitKmh: r.limitKmh, confidence: 'unconfirmed' });
+    if (preferences) result.filterMatched = alertPreferences.matches(r, preferences);
+    return result;
+  });
+}
+function nearest(records, fix, describeCamera) {
+  return nearestCandidates(records, fix, 1, describeCamera)[0] || null;
 }
 function start(options) {
   options = options || {};
@@ -90,7 +104,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.9.14', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.10.0', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -111,7 +125,22 @@ function start(options) {
     gpsHold: { active: false, sinceMs: null, ageMs: null, reason: null },
     storage: { persistent: !storageError, settingsSaved: false, error: storageError } };
   var database = null, guidance = null, display = null, dimmer = null, store = null, audio = null, commandCounter = 0, clients = [], lastStatus = '', closed = false, ownsSocket = false, server;
-  var lastGoodFix = null;
+  var lastGoodFix = null, regionalStore = null, curatedBundle = null;
+  state.regionalDatabase = { phase: 'unavailable', errorCode: null, selectedRegion: null, regions: [] };
+  try {
+    regionalStore = (options.regionalStoreFactory || regionalData.createRegionalStore)({
+      dataDir: dataDir, snapshot: options.russiaSnapshot || path.join(__dirname, 'russia-camera-baseline.json'),
+      beforeInstall: function () {
+        var now = gpsNow();
+        if (!actionsAt(now, gps.current(now)).cardLayout.allowed) {
+          throw Object.assign(new Error('Для установки региональной базы остановитесь'), { code: 'REGION_PARK_REQUIRED' });
+        }
+      },
+      onChange: function () { if (curatedBundle) activateDatabase(curatedBundle); },
+      onStatus: function (value) { state.regionalDatabase = value; broadcast(true); }
+    });
+    state.regionalDatabase = regionalStore.status();
+  } catch (e) { state.regionalDatabase.errorCode = e.code || 'REGION_BASELINE_INVALID'; }
   var describeCamera = cameraInfo.describe;
   var selectedVersion = databaseVersion;
   try {
@@ -205,7 +234,7 @@ function start(options) {
     bundle.records.forEach(function(r){var d=describer(r);if(Number.isFinite(d.cameraLimitKmh)||d.limitReference&&d.limitReference.state==='known'&&Number.isFinite(d.limitReference.valueKmh))known++;});
     return { state: 'ready', source: bundle.displaySource || bundle.source, baseSource: bundle.source,
       osmCount: bundle.osmCount, reportedCount: bundle.reportedCount, relationCount: bundle.relationCount || 0, officialCount: bundle.officialCount || 0,
-      openSpeedcamCount: bundle.openSpeedcamCount || 0,
+      openSpeedcamCount: bundle.openSpeedcamCount || 0, nationalOsm: bundle.nationalOsm || null,
       speedLimitCoverage: {known:known,unknown:bundle.records.length-known,total:bundle.records.length}, sourceMetadata: bundle.sourceMetadata || null, speedLimitMetadata: bundle.speedLimitMetadata || null, countUnit: 'source-position-records',
       updated: bundle.sourceTimestamp, generatedAt: bundle.generatedAt, count: bundle.records.length, version: bundle.version,
       regions: Array.isArray(bundle.regions) ? bundle.regions.slice() : ['RU-KLU'], regionalSources: Array.isArray(bundle.regionalSources) ? bundle.regionalSources.map(function (r) { return Object.assign({}, r); }) : [],
@@ -216,7 +245,8 @@ function start(options) {
   }
   function activateDatabase(bundle) {
     var nextGuidance = options.guidance || require('./vehicle-guidance').createGuidance({ zones: bundle.zones, records: bundle.records });
-    database = bundle; guidance = nextGuidance; describeCamera = cameraInfo.createDescriber(bundle.records); state.database = describeDatabase(bundle);
+    var nextDescription = describeDatabase(bundle), nextDescriber = cameraInfo.createDescriber(bundle.records);
+    database = bundle; guidance = nextGuidance; describeCamera = nextDescriber; state.database = nextDescription;
     state.sourceAssembly.activeVersion = bundle.version;
   }
   var activateDatabaseBase = activateDatabase;
@@ -224,7 +254,11 @@ function start(options) {
     // Stored bundles from before 0.9.0 predate the Moscow merge and the
     // capture field: derive both. The merge is idempotent.
     try { bundle = require('./region-osm').merge(bundle, require('./region-osm').load(path.join(__dirname, 'moscow-osm.json'))); } catch (ignored) {}
-    activateDatabaseBase(require('./capture-data').augment(bundle));
+    var domestic = require('./capture-data').augment(bundle);
+    var working = regionalStore ? regionalData.merge(domestic, regionalStore.current()) : domestic;
+    activateDatabaseBase(working);
+    curatedBundle = bundle;
+    if (regionalStore) state.regionalDatabase = regionalStore.status();
   };
   function updateStatus(value) {
     state.databaseUpdate = Object.assign({}, value, { source: dataModule.SOURCE_URL, busy: ['checking','downloading','installing'].indexOf(value.phase) >= 0 });
@@ -434,11 +468,8 @@ function start(options) {
       state.gps = 'Для теста скорость ' + gpsLabel(sample.source) + ' ' + sample.speedKmh.toFixed(1) +
         ' км/ч (UTC ' + new Date(sample.motionTimeMs).toISOString() + ') • ' + state.gps;
     }
-    state.nearestCandidates = database && fix ? database.records.map(function(r) {
-      var item = nearest([r],fix,describeCamera);
-      if (item) item.filterMatched = alertPreferences.matches(r,settings.alertPreferences);
-      return item;
-    }).filter(Boolean).sort(function(a,b){return a.distanceM-b.distanceM;}).slice(0,3) : [];
+    state.nearestCandidates = database ?
+      nearestCandidates(database.records, fix, 3, describeCamera, settings.alertPreferences) : [];
     state.nearest = state.nearestCandidates[0] || null;
     var alert = null;
     var previousAlert = state.alert;
@@ -486,7 +517,7 @@ function start(options) {
       return Object.assign({},item,{reason:!validPosition(fix,now)?'GPS_INVALID':detail?detail.reason:'NO_ROAD_ZONE',way:detail&&detail.way||null});
     });
     state.observedAtMs = now;
-    state.alert = alert ? Object.assign({}, alert, { filterMatched: true, limit: alert.limitKmh, distance: Math.round(Number.isFinite(alert.displayDistanceM) ? alert.displayDistanceM : alert.distanceM), stage: alert.stage || (alert.roadConfirmed ? 'approach' : 'nearby') }) : null;
+    state.alert = alert ? Object.assign({}, alert, { gpsHeld: holding || (guidanceHeld && state.guidance.holdReason === 'GPS_REPLAY'), filterMatched: true, limit: alert.limitKmh, distance: Math.round(Number.isFinite(alert.displayDistanceM) ? alert.displayDistanceM : alert.distanceM), stage: alert.stage || (alert.roadConfirmed ? 'approach' : 'nearby') }) : null;
     state.speedWarning = warningPolicy.evaluate(state.alert,warningFix,now,settings.overspeedPreferences);
     if(roadBlocked)state.speedWarning.reason=motion.conflict?'MOTION_CONFLICT':'MOTION_EPOCH_MISMATCH';
     else if(!settings.enabled)state.speedWarning.reason='DISABLED';
@@ -498,7 +529,7 @@ function start(options) {
       if (warningFix && Number.isFinite(warningFix.headingDeg)) state.alert.captureClass = captureData.classify(state.alert.capture, warningFix.headingDeg, state.alert.cameraFacing); }
     if (state.displayTest.active && (!state.actions.displayTest.allowed || !testTargetEnabled(state.displayTest.target))) stopDisplayTest(!state.actions.displayTest.allowed ? state.actions.displayTest.code : 'OUTPUTS_OFF');
     var displayAlert = state.displayTest.active ? { id: '__display_test__', test: true, title: 'ТЕСТ УВЕДОМЛЕНИЯ',
-      description: 'Проверка приборов и HUD', controls: ['redlight','speed'], distanceM: 150, roadConfirmed: true, limitKmh: 60, speedKmh: fix && fix.speedKmh, confidence: 'test', calibration: !!state.displayTest.calibration } : state.alert;
+      description: 'Проверка приборов и HUD', controls: ['redlight','speed'], distanceM: 180, roadConfirmed: true, limitKmh: 40, speedKmh: 0, confidence: 'test', calibration: !!state.displayTest.calibration } : state.alert;
     var displayOutputs = state.displayTest.active && state.displayTest.target ? {
       cluster: state.displayTest.target === 'map' && settings.outputs.cluster, hud: state.displayTest.target === 'hud' && settings.outputs.hud
     } : settings.outputs;
@@ -542,6 +573,26 @@ function start(options) {
       state.displayTest.calibration = msg.cmd === 'calibration-test';
       state.displayTest.active = true; state.displayTest.pinned = true; state.displayTest.target = target; state.displayTest.stoppedReason = null;
       state.displayTest.untilMs = 0; tick(); return;
+    }
+    if (['regional-list', 'regional-download', 'regional-rollback'].indexOf(msg.cmd) >= 0) {
+      if (!regionalStore) throw new Error('Региональная база недоступна');
+      if (msg.cmd !== 'regional-list') {
+        tick();
+        if (!state.actions.databaseCheck.allowed) throw new Error(state.actions.databaseCheck.reason);
+        if (!state.actions.cardLayout.allowed) throw new Error('Для обновления региональной базы остановитесь и дождитесь измерения скорости');
+      }
+      var regionRequestId = state.commandResult.id;
+      regionalStore.run(msg.cmd, msg.region).then(function (status) {
+        if (closed || state.commandResult.id !== regionRequestId) return;
+        var phase = status.phase, names = { listed: 'Каталог получен', updated: 'Региональная база сохранена', current: 'База региона актуальна',
+          'rolled-back': 'Предыдущая версия региона восстановлена' };
+        var reason = status.errorCode === 'REGION_PARK_REQUIRED' ? 'Для установки региональной базы остановитесь' : status.errorCode;
+        commandResult(msg.cmd, phase === 'error' ? 'error' : 'finished', names[phase] || reason || phase, regionRequestId);
+        tick();
+      }, function (error) {
+        if (!closed && state.commandResult.id === regionRequestId) { commandResult(msg.cmd, 'error', error.message, regionRequestId); tick(); }
+      });
+      return;
     }
     if (msg.cmd === 'database-check' || msg.cmd === 'database-rollback') {
       tick(); var dataPolicy = state.actions[msg.cmd === 'database-check' ? 'databaseCheck' : 'databaseRollback'];
@@ -651,7 +702,7 @@ function start(options) {
     if(userCommand) { commandResult(msg.cmd,'requested','Выполняется: ' + msg.cmd, null, requestToken(msg)); broadcast(true); }
     try {
       var answer=execute(msg);
-      if(userCommand && state.commandResult.phase==='requested' && ['display-test','calibration-test','database-check','database-rollback','audio-test'].indexOf(msg.cmd)<0)
+      if(userCommand && state.commandResult.phase==='requested' && ['display-test','calibration-test','database-check','database-rollback','audio-test','regional-list','regional-download','regional-rollback'].indexOf(msg.cmd)<0)
         commandResult(msg.cmd,'finished',state.storage.settingsSaved === false && ['card-layout','card-layout-reset','card-move','alert-preferences','overspeed-preferences'].indexOf(msg.cmd) >= 0 ? 'Настройка действует временно: хранилище недоступно' : 'Настройка применена',state.commandResult.id);
       if(userCommand)broadcast(true);return answer;
     } catch(error) {
@@ -730,7 +781,7 @@ function start(options) {
   try { gps.start(); } catch (e) { state.error = 'GPS start: ' + e.message; }
   var timer = setInterval(tick, 500); tick();
   function close() {
-    if (closed) return; stopDisplayTest('SERVICE_CLOSED'); closed = true; clearInterval(timer); gps.close(); if (display) display.close(); if (dimmer) dimmer.close(); if(store)store.close(); if(audio)audio.close();
+    if (closed) return; stopDisplayTest('SERVICE_CLOSED'); closed = true; clearInterval(timer); gps.close(); if (display) display.close(); if (dimmer) dimmer.close(); if(store)store.close(); if(regionalStore)regionalStore.close(); if(audio)audio.close();
     if(typeof gps.removeListener==='function'){gps.removeListener('fix',tick);gps.removeListener('status',onGpsStatus);}
     clients.forEach(function (c) { c.destroy(); }); try { server.close(); } catch (e) {}
     if (ownsSocket) { try { fs.unlinkSync(socketPath); } catch (e) {} }

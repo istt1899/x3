@@ -85,6 +85,8 @@ async function main() {
   app.command({ cmd: 'display-test', target: 'hud', requestId: 'pinned-hud' });
   assert(app.state().displayTest.active && app.state().displayTest.pinned); assert.strictEqual(app.state().displayTest.untilMs, 0);
   assert.deepStrictEqual(run.latest().outputs, { cluster: false, hud: true }); assert.strictEqual(app.state().commandResult.phase, 'shown');
+  const stationaryCard = require('../native/marku-kaluga-cameras/files/alert-card').presentation(run.latest().alert);
+  assert.deepStrictEqual([stationaryCard.test, stationaryCard.distance, stationaryCard.limit, stationaryCard.speedText], [true, 180, 40, '0']);
   time += 6500; run.refresh(); assert(app.state().displayTest.active, 'Pinned test survives the former five-second timeout');
   app.command({ cmd: 'card-layout', target: 'hud', x: 0, y: 1000, scalePct: 125, brightnessPct: 10, opacityPct: 10 });
   assert.deepStrictEqual(app.state().cardLayout.map, defaults.map); assert.strictEqual(run.latest().layouts.hud.brightnessPct, 10);

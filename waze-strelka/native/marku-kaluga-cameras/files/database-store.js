@@ -227,7 +227,7 @@ function allowed(url, manifest) {
   if (manifest ? url !== SOURCE : !/^\/istt1899\/(?:bmw-kaluga-cameras|x3)\/[a-f0-9]{40}\/(?:waze-strelka\/)?data\/camera-database-[A-Za-z0-9._-]+\.json$/.test(u.pathname)) fail('UPDATE_URL');
   return u;
 }
-function fetchBounded(url, max, requests, redirects) {
+function fetchBounded(url, max, requests, redirects, allowURL) {
   return new Promise(function (resolve, reject) {
     var done = false, req, deadline;
     function finish(err, value) { if (done) return; done = true; clearTimeout(deadline); if (req) { var at = requests.indexOf(req); if (at >= 0) requests.splice(at, 1); } if (err) reject(err); else resolve(value); }
@@ -239,9 +239,9 @@ function fetchBounded(url, max, requests, redirects) {
     req = https.get(requestOptions, function (res) {
       if ([301, 302, 303, 307, 308].indexOf(res.statusCode) >= 0) {
         res.resume(); var target;
-        try { target = new URL(res.headers.location, url).toString(); allowed(target, url === SOURCE); if ((redirects || 0) >= 2) fail('UPDATE_REDIRECT'); }
+        try { target = new URL(res.headers.location, url).toString(); if (allowURL) allowURL(target); else allowed(target, url === SOURCE); if ((redirects || 0) >= 2) fail('UPDATE_REDIRECT'); }
         catch (e) { finish(e); return; }
-        fetchBounded(target, max, requests, (redirects || 0) + 1).then(function (bytes) { finish(null, bytes); }, finish); return;
+        fetchBounded(target, max, requests, (redirects || 0) + 1, allowURL).then(function (bytes) { finish(null, bytes); }, finish); return;
       }
       if (res.statusCode !== 200) { res.resume(); finish(Object.assign(new Error('HTTP ' + res.statusCode), { code: 'UPDATE_HTTP_' + res.statusCode })); return; }
       if (Number(res.headers['content-length']) > max) { res.destroy(); finish(Object.assign(new Error('Download too large'), { code: 'UPDATE_SIZE' })); return; }
@@ -408,7 +408,10 @@ function createStore(options) {
       }
       update({ phase: 'downloading' });
       ensureOpen();
-      return transport(m.artifact.url, Math.min(m.artifact.size, MAX_BUNDLE)).then(function (payload) {
+      var payloadTask = test && test.transport ? transport(m.artifact.url, m.artifact.size) :
+        require('./database-download')(m.artifact, { dir: options.dataDir, requests: requests, timeout: TIMEOUT, get: https.get,
+          allow: function (url) { allowed(url, false); }, ensureOpen: ensureOpen });
+      return payloadTask.then(function (payload) {
         ensureOpen();
         if (!Buffer.isBuffer(payload) || payload.length !== m.artifact.size || crypto.createHash('sha256').update(payload).digest('hex') !== m.artifact.sha256) fail('UPDATE_CHECKSUM');
         var next = validateBundle(parse(payload, MAX_BUNDLE));
@@ -454,4 +457,4 @@ function createStore(options) {
   return { current: function () { return clone(active); }, status: status, check: check, rollback: rollback,
     close: function () { if (closed) return; closed = true; Object.assign(state, { phase: 'closed', errorCode: 'UPDATE_CLOSED', canCheck: false, canRollback: false }); requests.slice().forEach(function (r) { r.destroy(Object.assign(new Error('Store closed'), { code: 'UPDATE_CLOSED' })); }); } };
 }
-module.exports = { validateBundle: validateBundle, loadActive: loadActive, createStore: createStore, mergeRelations: mergeRelations, SOURCE_URL: SOURCE };
+module.exports = { fetchBounded: fetchBounded, writeAtomic: writeAtomic, parse: parse, validateBundle: validateBundle, loadActive: loadActive, createStore: createStore, mergeRelations: mergeRelations, SOURCE_URL: SOURCE };

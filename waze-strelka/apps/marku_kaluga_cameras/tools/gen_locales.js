@@ -31,7 +31,7 @@ const TEXTS = path.join(TREE, 'rhmiData', 'variantGroups', 'Common', 'texts');
 
 /* The string ids of application.json and uiDescription.json, in English. */
 const RHMI_TEXTS = {
-    SID_WOC_TITLE: 'Waze Стрелка',
+    SID_WOC_TITLE: 'Яндекс Стрелка',
     SID_WOC_CAMERAS: 'Cameras',
     SID_WOC_LOGS: 'Logs'
 };

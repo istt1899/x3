@@ -1,9 +1,9 @@
 {
   "id": "marku-kaluga-cameras",
   "kind": "tool",
-  "version": "0.9.14",
-  "title": "Waze Strelka camera service",
-  "description": "Local Kaluga OSM camera snapshot, strict GPS diagnostics and optional verified-road camera alerts",
+  "version": "0.10.0",
+  "title": "Сервис камер Пульс",
+  "description": "Офлайн-база камер, предупреждения на приборной панели и проекции BMW ID7",
   "optional": true,
   "uninstallable": true,
   "internet": true,
@@ -42,6 +42,14 @@
       "mode": "0644"
     },
     {
+      "path": "russia-regional-store.js",
+      "mode": "0644"
+    },
+    {
+      "path": "russia-camera-baseline.json",
+      "mode": "0644"
+    },
+    {
       "path": "gps-source.js",
       "mode": "0644"
     },
@@ -63,6 +71,10 @@
     },
     {
       "path": "reviewed-road-zones.json",
+      "mode": "0644"
+    },
+    {
+      "path": "qlever-road-zones.json",
       "mode": "0644"
     },
     {
@@ -187,6 +199,10 @@
     },
     {
       "path": "capture-data.js",
+      "mode": "0644"
+    },
+    {
+      "path": "database-download.js",
       "mode": "0644"
     }
   ],

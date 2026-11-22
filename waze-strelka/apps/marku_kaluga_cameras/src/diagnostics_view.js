@@ -1,5 +1,6 @@
 'use strict';
 const cameraView = require('./view_model.js');
+const tripView = require('./trip_view.js');
 const KEYS = ['stamp','versions','service','health','nmeaPair','nmeaRmc','nmeaGga','nmeaGst','nmeaRmcGga','nmeaGgaGst',
     'position','fixUtc','age','accuracy','motion','gnss','bridge','counts','reject','navigation','gpsStatus','gpsStatusMore','rejectReason',
     'nearest','type','description','descriptionMore','limit','mode','reason','way','samples','candidates','alert','outputs','map','hud','test','dimmer','database','error','errorMore'];
@@ -52,7 +53,7 @@ function values(state, version, frozen) {
         nearest:'Объект: ' + clean(c.id) + ' • ' + n(c.distanceM === undefined ? c.distance : c.distanceM,0) + ' м',
         type:'Тип: ' + clean(c.title || TYPES[c.type]), description:(c.provenance === 'owner-report' ? 'Сообщение владельца: ' : 'Описание OSM: ') + clean(c.description).slice(0,50),
         descriptionMore:clean(c.description).length>50?'Описание далее: '+clean(c.description).slice(50,100):'Описание далее: —',
-        limit:'Лимит объекта: ' + n(c.cameraLimitKmh === undefined ? (c.limitKmh === undefined ? c.limit : c.limitKmh) : c.cameraLimitKmh,0) + ' км/ч',
+        limit:'Лимит в записи: ' + n(c.cameraLimitKmh === undefined ? (c.limitKmh === undefined ? c.limit : c.limitKmh) : c.cameraLimitKmh,0) + ' км/ч',
         mode:'Режим: ' + (c.positionKind === 'intersection' ? 'ориентир перекрёстка' : clean(g.mode)) + ' • UTC NMEA: ' + n(Number.isFinite(input.sourceUtcAgeMs)?input.sourceUtcAgeMs/1000:null,2) + ' с',
         reason:'Дорожный фильтр: ' + clean(REASONS[g.roadReason || g.reason] || g.roadReason || g.reason),
         way:'Дорога OSM: ' + clean(g.way) + ' • отклонение ' + n(g.lateralErrorM) + ' м',
@@ -114,9 +115,13 @@ function photoRows(report, serviceReady, target) {
     const selectedLayer = renderer[test.target || target] || {};
     const attempt = test.result || {};
     const phaseLabel = {requested:'запрошен', shown:'сцена OK', unconfirmed:'без подтв.', error:'ошибка'};
-    const result = attempt.code ? code(attempt.code) : test.stoppedReason ? code(test.stoppedReason) :
+    const lastCommand = s.commandResult || {};
+    const commandPhase = {requested:'запрошена', shown:'показ', finished:'выполнена', error:'ошибка',
+        unconfirmed:'без подтв.', played:'звук', timeout:'таймаут', unavailable:'недоступна', 'outcome-unknown':'итог неизвестен'};
+    const commandResult = lastCommand.code ? code(lastCommand.code) : commandPhase[lastCommand.phase];
+    const result = commandResult || (attempt.code ? code(attempt.code) : test.stoppedReason ? code(test.stoppedReason) :
         phaseLabel[attempt.phase] || (test.active ? 'АКТИВЕН' :
-            selectedLayer.state === 'отказ' ? code(selectedLayer.targetReason || selectedLayer.reason) : 'запуска нет');
+            selectedLayer.state === 'отказ' ? code(selectedLayer.targetReason || selectedLayer.reason) : 'запуска нет'));
     const vehicleMotion = s.vehicleMotion || {};
     const gpsSpeed = s.gpsMotion ? s.gpsMotion.speedKmh : fix && fix.speedKmh;
     const speed = Number.isFinite(vehicleMotion.speedKmh) ? vehicleMotion.speedKmh : gpsSpeed;
@@ -134,9 +139,14 @@ function photoRows(report, serviceReady, target) {
     const cameraId = alert.id || lastClear.cameraId;
     // The source ID is available in full under the detailed camera report.
     const cameraSuffix = typeof cameraId === 'string' ? cameraId.slice(-8) : '';
-    const cameraDistance = Number.isFinite(alert.displayDistanceM) ? alert.displayDistanceM : alert.distanceM;
-    const cameraStatus = Number.isFinite(cameraDistance) && cameraDistance >= 0 && cameraDistance <= 10000 ?
-        n(cameraDistance, 0) + ' м' : code(roadReason);
+    const cameraDistance = tripView.cameraDistance(alert);
+    const cameraStatus = cameraDistance !== null ? cameraDistance + ' м' : alert.gpsHeld === true ? 'GPS устарел' : code(roadReason);
+    const limit = tripView.approachLimit(alert);
+    const limitLabel = tripView.limitText(limit) + (limit.scope === 'road' ? ' (подход)' : '');
+    const way = alert.roadConfirmed === true && /^\d{1,14}$/.test(String(alert.way)) ? String(alert.way) : '';
+    const sign = alert.sign === 1 ? '+' : alert.sign === -1 ? '−' : '';
+    const approach = alert.id ? ('Путь '+(way ? way+sign : alert.roadConfirmed === true ? 'подтв.' : '—')+
+        ' • '+limitLabel) : '';
     const cameraSummary = cameraSuffix && (alert.id ? 'Кам. ' + cameraSuffix + ' • ' + cameraStatus +
         (holdReason ? ' • ' + code(holdReason) : '') : 'Снята ' + cameraSuffix + ' • ' + code(lastClear.reason));
     const nav = s.gpsNavigation;
@@ -146,14 +156,18 @@ function photoRows(report, serviceReady, target) {
     const referenceRow = 'Опора ' + ref + ' • RTC ' + code(clock.rtcStatus) + ' • NTP ' + code(clock.networkStatus);
     const showNav = navStatus && (!fix || fix.source === 'bmw-navigation');
     const showClockIssue = clock.issue && clock.issue !== 'NONE' && (!fix || fix.source !== 'bmw-navigation');
-    const gpsStatus = !fix || showClockIssue ? code(clock.issue) : 'кам. ' + cameraStatus;
+    const gpsIssue = code(showClockIssue ? clock.issue : holdReason || timing.pairReason);
+    const accuracy = showClockIssue ? gpsIssue : fix && Number.isFinite(fix.accuracyM) && fix.accuracyM >= 0 ? '±'+n(fix.accuracyM,1)+' м' :
+        fix && fix.accuracySource === 'bmw-road-match' ? 'дор. привязка' : gpsIssue !== '—' ? gpsIssue : 'точность —';
+    const positionAge = fix && Number.isFinite(fix.timeMs) && Number.isFinite(s.observedAtMs) ? s.observedAtMs - fix.timeMs : packetAge;
     return [
         'Прил. ' + version(report.appVersion) + ' • Сервис ' + version(s.serviceVersion) + ' • ' + (serviceReady ? 'связь OK' : 'нет связи'),
         'UTC MGU ' + shortUtc(clock.serviceWallUtc || app.wallUtc, clock.serviceWallMs) +
             ' • RMC ' + shortUtc(clock.rawSourceUtc || clock.sourceUtc, clock.sourceUtcMs),
-        (cameraSummary || referenceRow) + (showNav ? ' • Нав. ' + navStatus : ''),
-        'GPS ' + (fix ? positionSources[fix.source] || 'есть' : 'нет') + ' • ' + gpsStatus + ' • пакет ' + ms(packetAge) + ' мс',
-        'RMC приём/рост ' + ms(timing.lastRmcAgeMs) + '/' + ms(input.rmcAdvanceAgeMs) + ' мс • ' + code(timing.pairReason),
+        (cameraSummary ? 'Опора '+ref+' • '+cameraSummary : referenceRow + (showNav ? ' • Нав. ' + navStatus : '')),
+        'GPS ' + (fix ? positionSources[fix.source] || 'есть' : 'нет') + ' • ' + accuracy + (fix ? ' • ' : ' • пакет ') + ms(positionAge) + ' мс',
+        approach || (roadReason && !cameraSummary ? 'Кам. ' + code(roadReason) :
+            'RMC приём/рост ' + ms(timing.lastRmcAgeMs) + '/' + ms(input.rmcAdvanceAgeMs) + ' мс • ' + code(timing.pairReason)),
         (speedText === '—' ? speedSource : speedText + ' км/ч ' + speedSource) +
             ' • тест ' + targetLabel + ' • ' + (display.allowed && !target ? 'OUTPUTS_OFF' : code(display.code)),
         'HUD ' + targetStatus(outputs.hud, 'hud') + ' • Приб. ' + targetStatus(outputs.cluster, 'map') + ' • итог ' + result
@@ -276,6 +290,12 @@ function reportPage(report, live, version, pageIndex, blockIndex, localResult, c
         ' км/ч • звук выбран '+on(overspeed.soundEnabled)+' +'+overspeed.soundOffsetKmh+' км/ч':'Превышение: '+overspeed.reason;
     const warningSummary='Политика превышения: '+(typeof warning.eligible==='boolean'?(warning.eligible?'доступна':'недоступна'):'не подтверждена')+' • '+clean(warning.reason||warning.code);
     const transition=g.transition||{};
+    const approachLimit=tripView.approachLimit(s.alert);
+    const mapSource=approachLimit.scope === 'map' ? approachLimit.source : null;
+    const roadLimitRows=mapSource ? [tripView.limitText(approachLimit),
+        'Основание по карте: OpenStreetMap • участок №'+mapSource.wayId+' • '+mapSource.tag,
+        'Снимок карты: '+mapSource.sourceTimestamp] : approachLimit.scope === 'posted' ?
+        [tripView.limitText(approachLimit), 'Основание: знак на подходе'] : [];
     const pages=[
         [existing.service,existing.health,'GPS: '+clean(s.gps),existing.outputs,existing.alert,preferenceSummary,
             overspeedSummary,warningSummary,
@@ -303,6 +323,7 @@ function reportPage(report, live, version, pageIndex, blockIndex, localResult, c
             'Описание: '+clean(c.description),existing.limit,
             'Справочный лимит: '+n((c.limitReference||{}).valueKmh,0)+' км/ч • '+clean((c.limitReference||{}).state)+' • '+clean((c.limitReference||{}).kind),
             'Лимит по подтверждённой дороге: '+n(c.roadConfirmed?c.limitKmh:null,0)+' км/ч',
+            ...roadLimitRows,
             'Основание лимита: '+clean((c.speedLimitEvidence||{}).kind)+' • OSM '+clean((c.speedLimitEvidence||{}).sourceTimestamp),
             'Исходные ограничения: '+(Array.isArray((c.speedLimitEvidence||{}).sources)?c.speedLimitEvidence.sources.map(f=>clean(f.sourceUrl)+' • '+JSON.stringify(f.tags)).join('; '):'—'),
             'Источники справочного лимита: '+(Array.isArray((c.limitReference||{}).records)?c.limitReference.records.map(e=>clean(e.id)+' = '+n(e.valueKmh,0)+' • '+clean(e.url)).join('; '):'—'),
@@ -350,7 +371,9 @@ function reportPage(report, live, version, pageIndex, blockIndex, localResult, c
             'Ошибка сборки источников: '+clean((s.sourceAssembly||{}).errorCode)+' • '+clean((s.sourceAssembly||{}).reason),
             'UTC базы: '+clean(db.updated||db.generatedAt||db.sourceTimestamp),
             'Хеш: '+clean(db.sha256||db.digest||db.pbfMd5),
-            'OSM '+clean(db.osmCount)+' • сообщения владельца '+clean(db.reportedCount)+' • отношения '+clean(db.relationCount)+' • ГИБДД '+clean(db.officialCount),
+            (cameraView.osmDatabaseCounts(db)||'OSM —')+
+                (db.nationalOsm?' • в базу добавлено '+clean(db.nationalOsm.additionalRecords):'')+
+                ' • сообщения владельца '+clean(db.reportedCount)+' • отношения OSM '+clean(db.relationCount)+' • ГИБДД '+clean(db.officialCount),
             'Количество — записи источников, не число физических камер; совпадения автоматически не склеиваются',
             'Лимиты: известно '+clean((db.speedLimitCoverage||{}).known)+' из '+clean((db.speedLimitCoverage||{}).total)+' • неизвестно '+clean((db.speedLimitCoverage||{}).unknown),
             'Дополненные лимиты: '+JSON.stringify((db.speedLimitMetadata||{}).counts||{})+' • источник '+clean((db.speedLimitMetadata||{}).sourceTimestamp),

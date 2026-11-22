@@ -91,12 +91,17 @@ assert.strictEqual(cameraCompilation({maxspeed:otherCameraLimit},false,true).rec
 var qualifiedCamera=clone(supplement);qualifiedCamera.records.find(function(e){return e.id===cameraEntry.id;}).sources[0].tags['maxspeed:forward']=otherCameraLimit;
 assert.throws(function(){api.augment(base,qualifiedCamera);},function(e){return e.code==='LIMIT_VALUE_SOURCE_MISMATCH';},'Camera node directional constraints also cannot be flattened into the generic value');
 var info=require('../native/marku-kaluga-cameras/files/camera-info'),card=require('../native/marku-kaluga-cameras/files/alert-card'),describe=info.createDescriber(db.records),visible=0,values={};
-db.records.forEach(function(r){var d=describe(r),p=card.presentation(Object.assign({},d,{roadConfirmed:false,limitKmh:null}));if(p.limit!==null){visible++;values[p.limit]=(values[p.limit]||0)+1;}if(r.speedLimitEvidence)assert.strictEqual(p.limit,r.speedLimitEvidence.valueKmh);});
+db.records.forEach(function(r){
+ var d=describe(r),p=card.presentation(Object.assign({},d,{roadConfirmed:false,limitKmh:null}));
+ var reference=d.cameraLimitKmh||(d.limitReference&&d.limitReference.state==='known'&&d.limitReference.valueKmh);
+ assert.strictEqual(p.limit,null,'Camera records and references do not fill the applicable speed-limit sign');
+ if(reference){visible++;values[reference]=(values[reference]||0)+1;}
+ if(r.speedLimitEvidence)assert.strictEqual(reference,r.speedLimitEvidence.valueKmh);
+});
 assert.strictEqual(visible,203);assert(values[40]&&values[50]&&values[60]&&values[70]&&values[90]);
-// The new compact badge can only affect its reserved header; warning contents,
-// limit, overspeed computation and other pixels are unchanged.
+// The compact decoy annotation is confined to the camera header.
 var warning={controls:['speed','redlight','belt','stopline'],roadConfirmed:true,limitKmh:40,speedKmh:50,overspeed:true,distanceM:70};
 var a=card.card(warning,'map'),b=card.card(Object.assign({},warning,{decoyReport:{state:'reported'}}),'map');assert(!a.equals(b));
-for(var y=0;y<96;y++)for(var x=0;x<320;x++)if(x<63||x>=149||y<1||y>=21)for(var channel=0;channel<4;channel++)assert.strictEqual(a[(y*320+x)*4+channel],b[(y*320+x)*4+channel]);
+for(var y=0;y<96;y++)for(var x=0;x<320;x++)if(x<110||x>=228||y>=27)for(var channel=0;channel<4;channel++)assert.strictEqual(a[(y*320+x)*4+channel],b[(y*320+x)*4+channel]);
 assert.strictEqual(card.presentation(Object.assign({},warning,{decoyReport:{state:'reported'}})).overspeed,true);
-console.log('PASS 49 explicit RU camera codes + 5 relation codes, 38 shared-road references, 57 address/geometry-matched road references, intersection/direction/conditional/vehicle and drivable-access guards, complete exact relation evidence, camera/relation conflict guards, immutable prior data and compact decoy badge without suppressing ordinary warning; visible limits '+visible+'/308 '+JSON.stringify(values));
+console.log('PASS 49 explicit RU camera codes + 5 relation codes, 38 shared-road references, 57 address/geometry-matched road references, intersection/direction/conditional/vehicle and drivable-access guards, complete exact relation evidence, camera/relation conflict guards, immutable prior data and compact decoy badge without suppressing ordinary warning; reference limits '+visible+'/308 '+JSON.stringify(values));

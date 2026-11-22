@@ -90,11 +90,21 @@ function captureInfo(camera) {
     const source = CAPTURE_SOURCES[capture.source] || null;
     return 'Контроль: ' + where + (source ? ' • ' + source + (capture.verified ? ' (подтверждено)' : ' (не подтверждено)') : '');
 }
+function osmDatabaseCounts(db) {
+    const labels = [];
+    if (Number.isSafeInteger(db.osmCount) && db.osmCount >= 0) labels.push('OSM Калуж. обл. ' + db.osmCount);
+    const national = db.nationalOsm && db.nationalOsm.sourceRecords;
+    if (Number.isSafeInteger(national) && national >= 0) labels.push('OSM РФ ' + national);
+    return labels.join(' • ');
+}
+
 function model(state) {
     const s = state || {}, db = s.database || {}, outputs = s.outputs || {};
     const connected = !!state;
     const a = s.alert;
     const count = Number.isFinite(db.count) ? db.count : 0;
+    const osmCounts = osmDatabaseCounts(db);
+    const databaseCounts = [osmCounts, db.officialCount ? 'ГИБДД ' + db.officialCount : '', 'всего ' + count + ' записей'];
     const fix=s.gpsFix||{}, street=s.street||{}, c=a||s.nearest||{}, result=s.commandResult||{}, update=s.databaseUpdate||{};
     const fixAge=Number.isFinite(s.observedAtMs)&&Number.isFinite(fix.timeMs)?s.observedAtMs-fix.timeMs:null;
     const fresh=Number.isFinite(fixAge)&&fixAge>=-500&&fixAge<=3000;
@@ -110,8 +120,8 @@ function model(state) {
             s.nearest ? (s.nearest.filterMatched===false?'Ближайшая: ':'')+clean(s.nearest.title || TYPES[s.nearest.type], 'Камера') + ' • ' + distance(s.nearest.distanceM) +
                 (s.nearest.filterMatched===false?' • тип отключён':s.nearest.positionKind === 'intersection' ? ' • до перекрёстка' : ' • рядом') : 'Активных предупреждений нет',
         cameraDescription: 'Описание камеры: ' + clean((a || s.nearest || {}).description, 'не указано в базе'),
-        cameraDatabase: connected ? db.officialCount?'База: OSM '+((db.osmCount||0)+(db.relationCount||0))+' • ГИБДД '+db.officialCount+' • всего '+count+' записей':
-            'База: ' + clean(db.source, 'нет источника') + ' • ' + count + ' объектов' : 'База: ожидание ответа сервиса',
+        cameraDatabase: connected ? 'База: ' + (osmCounts || db.officialCount ? databaseCounts.filter(Boolean).join(' • ') :
+            clean(db.source, 'нет источника') + ' • ' + count + ' объектов') : 'База: ожидание ответа сервиса',
         cameraDate: connected ? official?'Сборка: '+date(db.generatedAt)+' • перечень ГИБДД: '+date(official.publishedAt):
             'Дата базы: ' + date(db.updated || db.generatedAt || db.sourceUpdated) : 'Дата базы: ожидание ответа сервиса',
         cameraGps: 'Положение: ' + clean(s.gps, 'нет подтверждённых координат'),
@@ -187,4 +197,4 @@ function hubSummary(state) {
 }
 
 module.exports = { model, outputCommand, diagnostics, date, distance, ALERT_TYPES, alertPreferences, hubSummary, gpsClockReference,
-    gpsClockWaiting, canResetGps, OVERSPEED_RECOMMENDED, overspeedPreferences, coverageRows, cameraFacing, captureInfo };
+    gpsClockWaiting, canResetGps, OVERSPEED_RECOMMENDED, overspeedPreferences, coverageRows, cameraFacing, captureInfo, osmDatabaseCounts };

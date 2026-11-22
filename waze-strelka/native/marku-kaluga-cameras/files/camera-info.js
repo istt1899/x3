@@ -19,6 +19,17 @@ function title(camera) {
     if (c.length === 2 && c.indexOf('redlight') >= 0 && c.indexOf('speed') >= 0) return 'Светофор и скорость';
     return c.map(k => LABELS[k]).join(' / ') || 'Камера';
 }
+// Evidence recorded for both Stepan Razin approaches in 2024. The official
+// camera row confirms the site only. A current sign survey is still needed.
+function tulskayaApproachEvidence(camera) {
+    if (camera.id !== 'gibdd:ru-klu:f6d3371c82091721' || !camera.position ||
+        camera.position.lat !== 54.510372 || camera.position.lon !== 36.274224) return null;
+    return { status: 'historical', valueKmh: 40, ways: [23971863, 133739860], effectiveDirection: null,
+        sources: [
+            { date: '2024-04-12', url: 'https://www.kaluga-gov.ru/news/45417/', role: 'commission' },
+            { date: '2024-10-23', url: 'https://www.vest-news.ru/news/216889', role: 'installation-report' }
+        ] };
+}
 function describe(camera) {
     const context = camera.officialSiteContext && camera.officialSiteContext.scope === 'enforcement-location' ? camera.officialSiteContext : null;
     const side = ['front','rear'].indexOf(camera.captureSide)>=0 && typeof camera.captureSideSourceUrl==='string' &&
@@ -26,6 +37,8 @@ function describe(camera) {
         Number.isFinite(Date.parse(camera.captureSideVerifiedAt)) ? camera.captureSide : null;
     return { type: controls(camera).indexOf('redlight') >= 0 ? 'redlight' : camera.type || 'speed', controls: controls(camera), controlLabels: controls(camera).map(k=>LABELS[k]), title: title(camera),
         cameraLimitKmh: camera.limitKmh === undefined ? null : camera.limitKmh,
+        cameraLimitConditional: camera.cameraLimitConditional || null,
+        approachLimitEvidence: tulskayaApproachEvidence(camera), dataRegion: camera.dataRegion || null,
         description: camera.description || null, sourceUrl: camera.sourceUrl || null,
         provenance: camera.provenance || 'OpenStreetMap', positionKind: camera.positionKind || 'camera-node',
         positionSourceUrl: camera.positionSourceUrl || camera.sourceUrl || null,
@@ -45,7 +58,7 @@ function describe(camera) {
 }
 function validLimit(value) { return Number.isFinite(value) && value > 0 && value <= 300; }
 function limitEvidence(record) {
-    return record && /^osm:(?:node|way|relation):[0-9]+$/.test(record.id || '') &&
+    return record && record.providerId !== 'osm-russia' && /^osm:(?:node|way|relation):[0-9]+$/.test(record.id || '') &&
         typeof record.sourceUrl === 'string' && /^https:\/\/(?:www\.)?openstreetmap\.org\/(?:node|way|relation)\/[0-9]+$/.test(record.sourceUrl) && validLimit(record.limitKmh) ?
         { id: record.id, url: record.sourceUrl, valueKmh: record.limitKmh } : null;
 }
