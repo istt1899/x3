@@ -12,6 +12,7 @@ try {
 const database = require('./kaluga-speed.json');
 const info = require('./camera-info');
 const preferences = require('./alert-preferences');
+const speedcam = require('./speedcam-private');
 const captureData = require('./capture-data');
 const { validPosition, navigationAccuracyReady } = require('./gps-source');
 function angle(x, y) { return (Math.atan2(x, y) * 180 / Math.PI + 360) % 360; }
@@ -251,6 +252,11 @@ function createGuidance(data) {
         const nearestRecords = [], inRange = [];
         let nearestEnabled = null;
         records.forEach((record, order) => {
+            // Latitude alone bounds distance from below. A country-wide pack should
+            // not require a trigonometric projection for each distant point every tick.
+            const latitudeM = Math.abs(f.lat - record.position.lat) * 111320;
+            if (nearestRecords.length === 3 && latitudeM > nearestRecords[2].distanceM &&
+                latitudeM > range + 0.000001 && (nearestEnabled && latitudeM > nearestEnabled.distanceM || !recordEnabled(record))) return;
             const distanceM = distance(f, record.position);
             insertNearest(nearestRecords, record, distanceM, 3);
             if (!recordEnabled(record)) return;
@@ -272,6 +278,7 @@ function createGuidance(data) {
             if (!moving) return 'STATIONARY';
             if (course === null) return 'COURSE_UNKNOWN';
             if (d > range + 0.000001) return 'OUT_OF_RANGE';
+            if (r.providerId === 'speedcamonline' && !speedcam.matchApproach(r, f, course, false)) return 'DIRECTION';
             if (d <= NEARBY_AT_CAMERA_M) return null;
             const dx = longitudeDelta(r.position.lon, f.lon) * Math.cos(f.lat * Math.PI / 180), dy = r.position.lat - f.lat;
             const delta = diff(angle(dx, dy), course);
@@ -413,6 +420,7 @@ function createGuidance(data) {
                             diff(travelBearing(consistentMotion, f), course) <= 55;
                         reject = alongApproach && forward ? 'BEHIND' : 'BEARING_CHANGED';
                     }
+                    else if (r.providerId === 'speedcamonline' && course !== null && !speedcam.matchApproach(r, f, course, false)) reject = 'DIRECTION';
                     else if (d > range + jitter(f)) reject = 'OUT_OF_RANGE';
                     else if (delta !== null && d * Math.sin(delta * Math.PI / 180) > NEARBY_RETENTION_LATERAL_M) reject = 'OFF_ROUTE';
                     else if (fresh) {
@@ -473,8 +481,9 @@ function createGuidance(data) {
                 state.cameraId = previous.id; state.distanceM = previous.distanceM;
                 state.way = previous.way || null;
                 transition(previous, reason, f);
-                if (previous.roadMapLimitSource && (routeDeparture.includes(reason) || reason === 'MAP_ACCURACY' || reason === 'POSITION_JUMP')) {
+                if (previous.speedcamApproach || previous.roadMapLimitSource && (routeDeparture.includes(reason) || reason === 'MAP_ACCURACY' || reason === 'POSITION_JUMP')) {
                     const held = Object.assign({}, previous);
+                    delete held.speedcamApproach;
                     delete held.roadMapLimitKmh;
                     delete held.roadMapLimitSource;
                     active = held;
@@ -505,6 +514,12 @@ function createGuidance(data) {
         if (active && (!previous || previous.id !== active.id || mode(previous) !== mode(active))) activeSinceMs = f.timeMs;
         if (!active) activeSinceMs = null;
         if (active) {
+            const record = byId[active.id];
+            if (record.speedcamApproaches && !active.stopped) {
+                const details = speedcam.applicable(speedcam.matchApproach(record, f, course, active.roadConfirmed), active);
+                if (details) active.speedcamApproach = details;
+                else delete active.speedcamApproach;
+            }
             const same = previous && previous.id === active.id && mode(previous) === mode(active);
             closest = same && closest !== null ? Math.min(closest, active.distanceM) : active.distanceM;
             const sameDisplay = previous && (previous.id === active.id || promoted);

@@ -17,8 +17,12 @@ function presentation(alert) {
         Number.isSafeInteger(mapSource.wayId) && mapSource.wayId > 0 && String(mapSource.wayId) === String(alert.way) &&
         typeof mapSource.sourceTimestamp === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(mapSource.sourceTimestamp) &&
         Number.isFinite(Date.parse(mapSource.sourceTimestamp)) ? alert.roadMapLimitKmh : null;
-    const limit = roadLimit !== null ? roadLimit : postedLimit !== null ? postedLimit : mapLimit;
-    const limitScope = roadLimit !== null ? 'road' : postedLimit !== null ? 'posted' : mapLimit !== null ? 'map' : 'unknown';
+    const approach = alert.speedcamApproach;
+    const speedcamLimit = !alert.gpsHeld && approach && approach.source === 'SpeedCamOnLine' &&
+        /^sco:[a-f0-9]{20}$/.test(approach.id) && Number.isInteger(approach.courseDeg) &&
+        approach.courseDeg >= 0 && approach.courseDeg < 360 && validLimit(approach.limitKmh) ? approach.limitKmh : null;
+    const limit = roadLimit !== null ? roadLimit : postedLimit !== null ? postedLimit : mapLimit !== null ? mapLimit : speedcamLimit;
+    const limitScope = roadLimit !== null ? 'road' : postedLimit !== null ? 'posted' : mapLimit !== null ? 'map' : speedcamLimit !== null ? 'speedcam' : 'unknown';
     const rawSpeed = Number.isFinite(alert.speedKmh) && alert.speedKmh >= 0 && alert.speedKmh <= 400 ? alert.speedKmh : null;
     const speed = rawSpeed === null ? null : Math.round(rawSpeed), warning = alert.speedWarning || {};
     const overspeed = alert.roadConfirmed === true && alert.overspeed === true && roadLimit !== null && rawSpeed !== null && rawSpeed > roadLimit;
@@ -92,13 +96,13 @@ function card(alert, target) {
         }
     }
 
-    const labelledLimit = model.limitScope === 'posted' || model.limitScope === 'map';
+    const labelledLimit = ['posted','map','speedcam'].includes(model.limitScope);
     const signColor = model.limitScope === 'road' ? red : labelledLimit ? amber : muted;
     circle(39, 36, 26, signColor);
     circle(39, 36, 21, white);
     centered(model.limit === null ? '—' : model.limit, 39, 44, 24, ink);
     centered('Лимит', 39, labelledLimit ? 78 : 85, 18, muted);
-    if (labelledLimit) centered(model.limitScope === 'map' ? 'карта' : 'знак', 39, 94, 18, amber);
+    if (labelledLimit) centered(model.limitScope === 'map' ? 'карта' : model.limitScope === 'speedcam' ? 'база' : 'знак', 39, 94, 18, amber);
 
     // Retain compact control pictograms and capture direction under the
     // large distance and speed. Neither footer moves the important numbers.

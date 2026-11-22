@@ -45,3 +45,6 @@ https://www.geoboundaries.org/api/current/gbOpen/RUS/ADM1/
 The federal source contains camera nodes with original camera tags.
 Their numbers are camera metadata. Road applicability requires additional
 road geometry and evidence. See docs/russia-camera-data-0.10.0.md.
+
+Optional directional camera data: SpeedCamOnLine, https://speedcamonline.ru/
+Source archive supplied by OpenNeoDB: https://github.com/korableg/openneodb/releases/tag/russia-2026-11-01

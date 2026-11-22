@@ -12,6 +12,8 @@ var officialData = require('./official-camera-data'), databaseVersion = require(
 var captureData = require('./capture-data');
 var crypto = require('crypto');
 var regionalData = require('./russia-regional-store');
+var speedcamPrivate = require('./speedcam-private');
+var speedcamDownload = require('./speedcam-download');
 function clockSnapshot(now, input) {
   var c = input && typeof input === 'object' ? input : {}, wall = Number.isFinite(now) ? now : null;
   function num(key) { return Number.isFinite(c[key]) ? c[key] : null; }
@@ -104,7 +106,7 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.10.0', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+  var state = { serviceVersion: '0.10.2', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
     cardLayout: settings.cardLayout,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -234,6 +236,7 @@ function start(options) {
     bundle.records.forEach(function(r){var d=describer(r);if(Number.isFinite(d.cameraLimitKmh)||d.limitReference&&d.limitReference.state==='known'&&Number.isFinite(d.limitReference.valueKmh))known++;});
     return { state: 'ready', source: bundle.displaySource || bundle.source, baseSource: bundle.source,
       osmCount: bundle.osmCount, reportedCount: bundle.reportedCount, relationCount: bundle.relationCount || 0, officialCount: bundle.officialCount || 0,
+      speedcamOnline: bundle.speedcamOnline,
       openSpeedcamCount: bundle.openSpeedcamCount || 0, nationalOsm: bundle.nationalOsm || null,
       speedLimitCoverage: {known:known,unknown:bundle.records.length-known,total:bundle.records.length}, sourceMetadata: bundle.sourceMetadata || null, speedLimitMetadata: bundle.speedLimitMetadata || null, countUnit: 'source-position-records',
       updated: bundle.sourceTimestamp, generatedAt: bundle.generatedAt, count: bundle.records.length, version: bundle.version,
@@ -249,6 +252,15 @@ function start(options) {
     database = bundle; guidance = nextGuidance; describeCamera = nextDescriber; state.database = nextDescription;
     state.sourceAssembly.activeVersion = bundle.version;
   }
+  var speedcamLayer = speedcamPrivate.load([path.join(dataDir, 'speedcam-private.json'), path.join(__dirname, 'speedcam-private.json')]);
+  var speedcamInstaller = null;
+  if (speedcamLayer.phase === 'active') {
+    state.speedcamDownload = {phase: 'local', errorCode: null, retryInMs: null};
+  } else {
+    var downloadedLayer = speedcamDownload.cached(dataDir);
+    if (downloadedLayer) speedcamLayer = downloadedLayer;
+    state.speedcamDownload = {phase: downloadedLayer ? 'ready' : 'scheduled', errorCode: null, retryInMs: null};
+  }
   var activateDatabaseBase = activateDatabase;
   activateDatabase = function (bundle) {
     // Stored bundles from before 0.9.0 predate the Moscow merge and the
@@ -256,7 +268,7 @@ function start(options) {
     try { bundle = require('./region-osm').merge(bundle, require('./region-osm').load(path.join(__dirname, 'moscow-osm.json'))); } catch (ignored) {}
     var domestic = require('./capture-data').augment(bundle);
     var working = regionalStore ? regionalData.merge(domestic, regionalStore.current()) : domestic;
-    activateDatabaseBase(working);
+    activateDatabaseBase(speedcamPrivate.merge(working, speedcamLayer));
     curatedBundle = bundle;
     if (regionalStore) state.regionalDatabase = regionalStore.status();
   };
@@ -750,6 +762,18 @@ function start(options) {
   function listening() {
     ownsSocket = !inherited;
     if (!inherited) { try { fs.chmodSync(socketPath, 0o660); } catch (e) {} }
+    if (!closed && speedcamLayer.phase !== 'active') {
+      speedcamInstaller = speedcamDownload.createInstaller(Object.assign({}, options.speedcamDownload, {
+        dir: dataDir,
+        onStatus: function (value) { state.speedcamDownload = value; broadcast(true); },
+        onReady: function (layer) {
+          var previous = speedcamLayer;
+          speedcamLayer = layer;
+          try { if (curatedBundle) activateDatabase(curatedBundle); }
+          catch (error) { speedcamLayer = previous; throw error; }
+        }
+      }));
+    }
     if (options.onListening) options.onListening();
   }
   if (inherited) server.listen({ fd: 3 }, listening);
@@ -781,7 +805,7 @@ function start(options) {
   try { gps.start(); } catch (e) { state.error = 'GPS start: ' + e.message; }
   var timer = setInterval(tick, 500); tick();
   function close() {
-    if (closed) return; stopDisplayTest('SERVICE_CLOSED'); closed = true; clearInterval(timer); gps.close(); if (display) display.close(); if (dimmer) dimmer.close(); if(store)store.close(); if(regionalStore)regionalStore.close(); if(audio)audio.close();
+    if (closed) return; stopDisplayTest('SERVICE_CLOSED'); closed = true; clearInterval(timer); if (speedcamInstaller) speedcamInstaller.close(); gps.close(); if (display) display.close(); if (dimmer) dimmer.close(); if(store)store.close(); if(regionalStore)regionalStore.close(); if(audio)audio.close();
     if(typeof gps.removeListener==='function'){gps.removeListener('fix',tick);gps.removeListener('status',onGpsStatus);}
     clients.forEach(function (c) { c.destroy(); }); try { server.close(); } catch (e) {}
     if (ownsSocket) { try { fs.unlinkSync(socketPath); } catch (e) {} }

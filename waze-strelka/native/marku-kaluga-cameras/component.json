@@ -1,7 +1,7 @@
 {
   "id": "marku-kaluga-cameras",
   "kind": "tool",
-  "version": "0.10.0",
+  "version": "0.10.2",
   "title": "Сервис камер Пульс",
   "description": "Офлайн-база камер, предупреждения на приборной панели и проекции BMW ID7",
   "optional": true,
@@ -35,6 +35,22 @@
     },
     {
       "path": "camera-orientation.js",
+      "mode": "0644"
+    },
+    {
+      "path": "speedcam-private.js",
+      "mode": "0644"
+    },
+    {
+      "path": "speedcam-download.js",
+      "mode": "0644"
+    },
+    {
+      "path": "speedcam-converter.js",
+      "mode": "0644"
+    },
+    {
+      "path": "speedcam-selection.json",
       "mode": "0644"
     },
     {

@@ -1382,9 +1382,10 @@ class WazeClusterApp extends OnlineApp {
         this._setEnabled('tripRegionRefresh',available);
         this._setEnabled('tripRegionDownload',available && canChange && view.download);
         this._setEnabled('tripRegionRollback',available && canChange && view.rollback);
-        const feedback=this._cameraFeedback, result=(this._cameras.state||{}).commandResult;
+        const state=this._cameras.state||{};
+        const feedback=this._cameraFeedback, result=state.commandResult;
         const response=feedback&&/^regional-/.test(feedback.command||'')?feedback:result&&/^regional-/.test(result.command||'')?result:null;
-        this._write('tripRegionResult',response&&response.message?'Команда: '+oneRow(response.message):'Команда —');
+        this._write('tripRegionResult',response&&response.message?'Команда: '+oneRow(response.message):tripView.speedcamStatus(state.database,state.speedcamDownload));
     }
 
     _renderTrip() {

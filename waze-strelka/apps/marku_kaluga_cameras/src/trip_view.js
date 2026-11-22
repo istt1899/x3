@@ -19,10 +19,15 @@ function speedValue(value) {
 }
 function approachLimit(alert) {
     const unknown = { value:null, scope:'unknown' };
-    if (!alert || alert.roadConfirmed !== true) return unknown;
+    if (!alert) return unknown;
+    const valid = value => Number.isInteger(value) && value > 0 && value <= 300;
+    const entry = alert.speedcamApproach;
+    const camera = entry && entry.source === 'SpeedCamOnLine' && short(entry.id) &&
+        Number.isFinite(entry.courseDeg) && entry.courseDeg >= 0 && entry.courseDeg < 360 && valid(entry.limitKmh) ?
+        {value:entry.limitKmh, scope:'speedcam', source:entry} : unknown;
+    if (alert.roadConfirmed !== true) return camera;
     const verified = Number.isFinite(alert.limitKmh) ? Math.round(alert.limitKmh) : 0;
     if (verified > 0 && alert.limitKmh <= 300) return { value:verified, scope:'road' };
-    const valid = value => Number.isInteger(value) && value > 0 && value <= 300;
     if (valid(alert.postedApproachLimitKmh)) return { value:alert.postedApproachLimitKmh, scope:'posted' };
     const source = alert.roadMapLimitSource;
     if (valid(alert.roadMapLimitKmh) && source && source.provider === 'openstreetmap' && source.tag === 'maxspeed' &&
@@ -31,10 +36,10 @@ function approachLimit(alert) {
         Number.isFinite(Date.parse(source.sourceTimestamp))) {
         return { value:alert.roadMapLimitKmh, scope:'map', source };
     }
-    return unknown;
+    return camera;
 }
 function limitText(limit) {
-    const suffix = limit.scope === 'map' ? ' (по карте)' : limit.scope === 'posted' ? ' (знак)' : '';
+    const suffix = limit.scope === 'speedcam' ? ' (по базе камер)' : limit.scope === 'map' ? ' (по карте)' : limit.scope === 'posted' ? ' (знак)' : '';
     return 'Лимит ' + (limit.value === null ? '—' : limit.value + ' км/ч' + suffix);
 }
 function cameraDistance(alert) {
@@ -81,7 +86,7 @@ function model(state, version) {
     const reading = alert ? distanceText + ' • ' + limitLabel + ' • ' : '';
     const camera = alert && (short(alert.title) || 'Камера');
     const source = short(alert && alert.limitEvidence && alert.limitEvidence.source);
-    const evidence = limit.scope === 'map' ? 'OpenStreetMap • участок №' + limit.source.wayId +
+    const evidence = limit.scope === 'speedcam' ? 'SpeedCamOnLine • курс ' + limit.source.courseDeg + '°' : limit.scope === 'map' ? 'OpenStreetMap • участок №' + limit.source.wayId +
         ' • ' + limit.source.sourceTimestamp.slice(0,10) : limit.scope === 'posted' ? 'знак на подходе' :
         limit.scope === 'road' ? source || 'подтверждённый подход' : '—';
     return {
@@ -132,6 +137,28 @@ const REGION_NAMES = {
 function regionName(entry) {
     const code = short(entry.region);
     return REGION_NAMES[code.slice(3)] || short(entry.name) || code;
+}
+
+function speedcamStatus(database, download) {
+    const layer = database && database.speedcamOnline;
+    if ((!layer || layer.phase !== 'active') && download) {
+        const phases = {
+            scheduled: 'ожидает загрузки',
+            downloading: 'идёт загрузка',
+            converting: 'проверка и импорт данных',
+            retry: 'загрузка будет повторена'
+        };
+        const label = phases[download.phase];
+        if (label) {
+            const error = download.phase === 'retry' && short(download.errorCode);
+            return 'SpeedCamOnLine • ' + label + (error ? ' • ' + error : '');
+        }
+    }
+    if (!layer) return 'SpeedCamOnLine • нет данных о загрузке';
+    if (layer.phase === 'absent') return 'SpeedCamOnLine • пакет отсутствует';
+    if (layer.phase === 'invalid') return 'SpeedCamOnLine • ошибка пакета';
+    if (layer.phase !== 'active') return 'SpeedCamOnLine • состояние неизвестно';
+    return 'SpeedCamOnLine • загружен • ' + (short(layer.sourceDate) || 'дата неизвестна');
 }
 
 const REGION_ROWS = 6;
@@ -245,8 +272,9 @@ function graphic(view) {
         }
         box(338,22,1,104,[89,57,70]);
         const map = view.limitScope === 'map';
+        const advisory = map || view.limitScope === 'speedcam';
         dial(431,76,view.speed,view.limitScope === 'road' ? view.limit : null);
-        ring(566,75,46,5,view.limit===null ? SOFT : map ? AMBER : RED);
+        ring(566,75,46,5,view.limit===null ? SOFT : advisory ? AMBER : RED);
         glyph(view.limit,566,map ? 50 : 56,3,SILK);
         if (map) MAP_CAPTION.forEach((letters,y) => letters.forEach((letter,i) => {
             for (let x=0;x<letter.length;x++) if (letter[x] === '1') box(537+i*12+x*2,91+y*2,2,2,AMBER);
@@ -257,4 +285,4 @@ function graphic(view) {
     return rgbaPng(WIDTH, HEIGHT, raw, 2);
 }
 
-module.exports = { NAMES, COMMANDS, model, approachLimit, limitText, roadDirection, cameraDistance, regionsModel, regionName, REGION_ROWS, graphic };
+module.exports = { NAMES, COMMANDS, model, approachLimit, limitText, roadDirection, cameraDistance, regionsModel, regionName, REGION_ROWS, speedcamStatus, graphic };

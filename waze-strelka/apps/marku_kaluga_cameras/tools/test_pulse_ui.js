@@ -73,6 +73,19 @@ function verifyMapLimit() {
     assert(detail.some(row=>row.includes('OpenStreetMap • участок №23971863 • maxspeed')));
     assert(detail.some(row=>row.includes('2026-09-21T00:00:00Z')));
 }
+function verifySpeedcamLimit() {
+    const entry = {source:'SpeedCamOnLine', id:'sco:test', courseDeg:162, limitKmh:40};
+    const alert = {id:'sample', roadConfirmed:false, speedcamApproach:entry};
+    const view = trip.model({...state, alert});
+    assert.strictEqual(view.limitScope, 'speedcam');
+    assert.strictEqual(view.text.tripCameraLimit, 'Лимит 40 км/ч (по базе камер)');
+    assert(view.text.tripCameraEvidence.includes('SpeedCamOnLine • курс 162°'));
+    assert.strictEqual(trip.approachLimit({...mapAlert,speedcamApproach:entry}).scope, 'map');
+    for (const invalid of [{source:'other'},{id:null},{courseDeg:360},{limitKmh:0}]) {
+        assert.strictEqual(trip.approachLimit({...alert,speedcamApproach:{...entry,...invalid}}).value, null);
+    }
+}
+
 function verifyRegionNames() {
     for (const entry of [...baseline.regions,...regionalManifest.regions]) {
         assert.match(trip.regionName(entry),/^[А-Яа-яЁё]/,entry.region);
@@ -88,6 +101,7 @@ async function openFromHome(name, expected) {
 }
 async function main() {
     verifyMapLimit();
+    verifySpeedcamLimit();
     verifyRegionNames();
     // Simulate actual EntryPointManager handover and the registered native tile.
     app.appDescription = {application:{entryPoints:[{uuid:'pulse'}]}};
@@ -180,6 +194,15 @@ async function main() {
     assert(!photo.some(row=>row.includes('54.516')));
     await openFromHome('tripDatabase','ST_OnlineApps_StrelkaRegions');
     assert(c.tripRegionVersion.text().includes('Калужская область'));
+    assert(c.tripRegionResult.text().includes('нет данных о загрузке'));
+    for (const [phase, label] of [['absent','пакет отсутствует'], ['invalid','ошибка пакета'], ['active','загружен • 2026-11-01']]) {
+        h.setState({...state, database:{...state.database, speedcamOnline:{phase, sourceDate:'2026-11-01', added:12, enriched:7}}});
+        assert(c.tripRegionResult.text().includes('SpeedCamOnLine • '+label));
+    }
+    for (const [phase, label] of [['scheduled','ожидает загрузки'],['downloading','идёт загрузка'],['converting','проверка и импорт данных'],['retry','загрузка будет повторена • NO_UPLINK']]) {
+        h.setState({...state, speedcamDownload:{phase,errorCode:'NO_UPLINK'}, database:{...state.database,speedcamOnline:{phase:'absent'}}});
+        assert(c.tripRegionResult.text().includes('SpeedCamOnLine • '+label));
+    }
     assert.strictEqual(c.tripRegionSelector.cells['0:ItemText'],'Калужская область');
     assert.strictEqual(c.tripRegionSelector.cells['1:ItemText'],'Москва');
     assert.strictEqual(c.tripRegionSelector.cells['2:ItemText'],'Московская область');
@@ -196,7 +219,7 @@ async function main() {
     await settle();
     assert.strictEqual(h.current(),'ST_OnlineApps_CameraDatabase');
     await openFromHome('tripAbout','ST_OnlineApps_StrelkaAbout');
-    assert(c.tripAboutVersion.text().includes('0.10.0'));
+    assert(c.tripAboutVersion.text().includes(require('../mgu-app.json').version));
     assert(trip.model(null).text.tripReading.includes('—'));
     app._shuttingDown=true;
     await app._tripImage.rendering;

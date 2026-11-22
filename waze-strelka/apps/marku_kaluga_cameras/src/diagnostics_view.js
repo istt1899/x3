@@ -295,7 +295,8 @@ function reportPage(report, live, version, pageIndex, blockIndex, localResult, c
     const roadLimitRows=mapSource ? [tripView.limitText(approachLimit),
         'Основание по карте: OpenStreetMap • участок №'+mapSource.wayId+' • '+mapSource.tag,
         'Снимок карты: '+mapSource.sourceTimestamp] : approachLimit.scope === 'posted' ?
-        [tripView.limitText(approachLimit), 'Основание: знак на подходе'] : [];
+        [tripView.limitText(approachLimit), 'Основание: знак на подходе'] : approachLimit.scope === 'speedcam' ?
+        [tripView.limitText(approachLimit), 'SpeedCamOnLine • курс '+approachLimit.source.courseDeg+'° • '+approachLimit.source.id] : [];
     const pages=[
         [existing.service,existing.health,'GPS: '+clean(s.gps),existing.outputs,existing.alert,preferenceSummary,
             overspeedSummary,warningSummary,
@@ -365,7 +366,10 @@ function reportPage(report, live, version, pageIndex, blockIndex, localResult, c
             'Фокус стрелки: '+clean((s.calibrationInput||{}).focusedDirection)+' • повтор '+clean(((s.calibrationInput||{}).repeat||{}).active)+' • стоп '+clean((s.calibrationInput||{}).stopReason),
             'Удержание сенсорной стрелки: контракт отпускания не подтверждён; доступны ползунки X/Y',
             'Последние события стрелок: '+JSON.stringify((s.calibrationInput||{}).events||[])],
-        [existing.database,'Версия: '+clean(db.version)+' • регион '+clean(db.region)].concat(cameraView.coverageRows(s),[
+        [existing.database,'Версия: '+clean(db.version)+' • регион '+clean(db.region), tripView.speedcamStatus(db,s.speedcamDownload)].concat(
+            db.speedcamOnline && db.speedcamOnline.phase === 'active' ? [
+                'SpeedCamOnLine • новых записей '+clean(db.speedcamOnline.added)+' • дополнено '+clean(db.speedcamOnline.enriched)
+            ] : [], cameraView.coverageRows(s),[
             'Покрытие — полные данные: '+JSON.stringify(db.coverage||null),
             'Сборка источников: '+clean((s.sourceAssembly||{}).state)+' • выбрана '+clean((s.sourceAssembly||{}).selectedVersion)+' • нужна '+clean((s.sourceAssembly||{}).wantedVersion),
             'Ошибка сборки источников: '+clean((s.sourceAssembly||{}).errorCode)+' • '+clean((s.sourceAssembly||{}).reason),
