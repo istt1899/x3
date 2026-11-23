@@ -8,6 +8,7 @@ const menu = [
 const sectionPages=['cameraDetail','main','regions','diagnostics','cameras','about'];
 const sections=['trip'].concat(sectionPages);
 const labels=['Поездка'].concat(menu.map(item=>item[1]));
+const exitButton={command:'atlasExit',label:'Выход',x:177,y:24,w:115,h:56,enabled:true};
 const subSection={logs:'main',database:'regions',diagnosticPhoto:'diagnostics',alerts:'cameras',types:'cameras',
     calibration:'cameras',position:'cameras',overspeed:'cameras',atlasMenu:'trip'};
 function section(page){return subSection[page]||page;}
@@ -72,7 +73,7 @@ function menuIcon(c,i,x,y) {
     c.arc(x+13,y+12,10,12,0,360,C.green);text(c,'i',x+13,y+19,19,C.green,true,'center');
 }
 function menuTargets() {
-    return menu.map((v,i)=>({command:v[0],label:v[1],x:18,y:105+i*66,w:274,h:60,enabled:true}));
+    return menu.map((v,i)=>({command:v[0],label:v[1],x:18,y:105+i*66,w:274,h:60,enabled:true})).concat(exitButton);
 }
 function optic(c,x,y,side){
     c.roundRect(x+5,y+20,26,53,7,C.dim);
@@ -98,7 +99,9 @@ function drawMap(c,v) {
         // A north-up local projection. Clip each segment at the panel to avoid drawing across adjacent controls.
         const radius=Math.max(340,Math.min(2100,(v.distance||380)*1.18));
         const scale=204/radius, lat=v.origin[0],lon=v.origin[1], cy=286;
-        const project=p=>[center+((((p[1]-lon+540)%360)-180)*111195*Math.cos(lat*Math.PI/180))*scale,cy-(p[0]-lat)*111195*scale];
+        // scaleX is the horizontal-to-vertical pixel ratio of this drawing surface.
+        const aspect=c.scaleX||1, horizontalScale=scale/aspect;
+        const project=p=>[center+((((p[1]-lon+540)%360)-180)*111195*Math.cos(lat*Math.PI/180))*horizontalScale,cy-(p[0]-lat)*111195*scale];
         const inside=p=>p[0]>=x+4 && p[0]<right-4 && p[1]>=66 && p[1]<475;
         v.roads.forEach(r=>{
             const pts=r.points.map(project);const street=r.current?C.green:'#758d7e';
@@ -112,8 +115,8 @@ function drawMap(c,v) {
         });
         if(v.active&&v.camera){const p=project(v.camera);if(inside(p))cameraIcon(c,p[0]-14,p[1]-14,29,C.green,C.panel);}
         c.circle(center,cy,15,C.panel);c.circle(center,cy,8,C.green);
-        if(Number.isFinite(v.heading)){const rad=v.heading*Math.PI/180;c.line(center,cy,center+Math.sin(rad)*23,cy-Math.cos(rad)*23,4,C.green);}
-        c.line(x+35,457,x+35+100*scale,457,3,C.dim);text(c,'100 м',x+35,447,18,C.dim);
+        if(Number.isFinite(v.heading)){const rad=v.heading*Math.PI/180;c.line(center,cy,center+Math.sin(rad)*23/aspect,cy-Math.cos(rad)*23,4,C.green);}
+        c.line(x+35,457,x+35+100*horizontalScale,457,3,C.dim);text(c,'100 м',x+35,447,18,C.dim);
         text(c,'Север',right-44,452,19,C.dim,false,'right');
         c.line(right-30,453,right-30,435,2,C.dim);
         stroke(c,[[right-36,442],[right-30,434],[right-24,442]],C.dim,2);
@@ -148,6 +151,12 @@ function drawRail(c,page,focus) {
     if(focus===top.command)c.strokeRoundRect(top.x,top.y,top.w,top.h,9,2,C.green);
     text(c,'Атлас',30,61,45,C.text,true);
     text(c,'Поездка',32,90,23,page==='trip'?C.green:C.dim,page==='trip');
+    if(page==='trip'){
+        const b=exitButton, active=focus===b.command;
+        c.roundRect(b.x,b.y,b.w,b.h,8,active?'#294a39':'#203b2d');
+        c.strokeRoundRect(b.x,b.y,b.w,b.h,8,active?3:1,active?C.green:C.stroke);
+        text(c,b.label,b.x+b.w/2,b.y+37,24,C.text,active,'center');
+    }
     rail.slice(1).forEach((b,i)=>{
         const focused=focus===(page==='trip'?menu[i][0]:b.command);
         if(b.selected||focused)c.roundRect(b.x,b.y,b.w,b.h,8,b.selected?'#294a39':'#203b2d');

@@ -43,35 +43,44 @@ function actionTarget(page,view,command){
     return all.find(b=>b.enabled!==false && b.kind==='slider' && b.source===value[1] &&
         Number.isInteger(b.step) && Number(value[2])<=b.max)||null;
 }
-// Detail painters work in their logical 1600-wide coordinate system. This
-// adapter keeps hit tests, tracks and painted rows in the same physical pane.
-function contentCanvas(cv){
-    const x=value=>contentLeft+value*contentScale, w=value=>value*contentScale;
+// Layout coordinates stretch to the viewport. Glyphs, circular signs and QR
+// modules keep square pixels, including inside the narrower detail pane.
+function paneCanvas(canvas,left,sx,sy) {
+    const x=value=>left+value*sx;
+    const unit=Math.min(sx,sy);
     return {
-        scaleX:contentScale,
-        square:(a,b,size)=>({canvas:cv,x:Math.round(x(a)),y:Math.round(b),size:Math.floor(w(size))}),
-        fillRect:(a,b,c,d,color)=>cv.fillRect(x(a),b,w(c),d,color),
-        roundRect:(a,b,c,d,r,color)=>cv.roundRect(x(a),b,w(c),d,w(r),color),
-        strokeRoundRect:(a,b,c,d,r,n,color)=>cv.strokeRoundRect(x(a),b,w(c),d,w(r),n,color),
-        circle:(a,b,r,color)=>cv.circle(x(a),b,w(r),color),
-        arc:(a,b,r,R,start,end,color)=>cv.arc(x(a),b,w(r),w(R),start,end,color),
-        line:(a,b,c,d,n,color)=>cv.line(x(a),b,x(c),d,n,color),
-        polyline:(points,n,color)=>cv.polyline(points.map(v=>[x(v[0]),v[1]]),n,color),
-        text:(str,a,b,size,color,opts)=>cv.text(str,x(a),b,w(size),color,opts),
-        textWidth:(str,size,opts)=>cv.textWidth(str,w(size),opts)/contentScale
+        scaleX:sx/sy,
+        square:(a,b,size)=>({canvas,x:Math.round(x(a)),y:Math.round(b*sy),size:Math.floor(size*unit)}),
+        fillRect:(a,b,w,h,color)=>{
+            const leftEdge=Math.round(x(a)),topEdge=Math.round(b*sy);
+            canvas.fillRect(leftEdge,topEdge,Math.round(x(a+w))-leftEdge,Math.round((b+h)*sy)-topEdge,color);
+        },
+        roundRect:(a,b,w,h,r,color)=>canvas.roundRect(x(a),b*sy,w*sx,h*sy,r*unit,color),
+        strokeRoundRect:(a,b,w,h,r,n,color)=>canvas.strokeRoundRect(x(a),b*sy,w*sx,h*sy,r*unit,n*unit,color),
+        circle:(a,b,r,color)=>canvas.circle(x(a),b*sy,r*unit,color),
+        arc:(a,b,r,R,start,end,color)=>canvas.arc(x(a),b*sy,r*unit,R*unit,start,end,color),
+        line:(a,b,c,d,n,color)=>canvas.line(x(a),b*sy,x(c),d*sy,n*unit,color),
+        polyline:(points,n,color)=>canvas.polyline(points.map(v=>[x(v[0]),v[1]*sy]),n*unit,color),
+        text:(str,a,b,size,color,opts)=>canvas.text(str,x(a),b*sy,size*unit,color,opts),
+        textWidth:(str,size,opts)=>canvas.textWidth(str,size*unit,opts)/sx
     };
 }
-function scene(canvas,page,view,focus,interactive) {
-    if(!interactive){
-        if(page==='trip')home.drawSummary(canvas,view);
-        else detail.drawSummary(canvas,page,view);
-        return;
-    }
-    if(page==='trip'){home.drawHome(canvas,view,focus);return;}
-    detail.drawDetail(contentCanvas(canvas),page,view,focus);
-    home.drawRail(canvas,page,focus);
+function sceneAtSize(canvas,page,view,focus,screenWidth,screenHeight) {
+    const sx=screenWidth/width, sy=screenHeight/height;
+    const surface=paneCanvas(canvas,0,sx,sy);
+    if(page==='trip'){home.drawHome(surface,view,focus);return;}
+    detail.drawDetail(paneCanvas(canvas,contentLeft*sx,contentScale*sx,sy),page,view,focus);
+    home.drawRail(surface,page,focus);
     const target=targets(page,view).find(item=>item.kind!=='section' && item.enabled!==false&&(item.focusKey||item.command)===focus);
-    if(target)canvas.strokeRoundRect(target.x+2,target.y+2,target.w-4,target.h-4,8,3,'#b6f3bf');
+    if(target)surface.strokeRoundRect(target.x+2,target.y+2,target.w-4,target.h-4,8,3,'#b6f3bf');
+}
+function scene(canvas,page,view,focus,interactive) {
+    if(interactive)sceneAtSize(canvas,page,view,focus,width,height);
+    else if(page==='trip')home.drawSummary(canvas,view);
+    else detail.drawSummary(canvas,page,view);
+}
+function sameSize(placement,screen) {
+    return !!(placement && screen && placement.w===screen.w && placement.h===screen.h);
 }
 // The SDK reports a short and a held deflection for each direction.
 function tiltAxis(value,positive,negative){
@@ -98,14 +107,20 @@ class Stage {
         this.view=view;
         if(!page)return;
         if(!this.gpu && this.driver.available())this.connect();
-        if(this.gpu && (changed||signature!==this.key))this.present();
+        if(this.gpu && (changed||signature!==this.key||!sameSize(this.placement,this.gpu.screen)))this.present();
         this.key=signature;
     }
     connect() {
         const gpu=new this.driver('marku_kaluga_cameras',this.log,{native:true});
         this.gpu=gpu;
-        gpu.on('ready',()=>{this.lastCcu=null;this.present();});
-        gpu.on('tick',()=>{if(this.dirty)this.present();});
+        gpu.on('ready',()=>{
+            this.lastCcu=null;
+            this.present();
+            if(this.page)this.invalidate();
+        });
+        gpu.on('tick',()=>{
+            if(this.dirty || (this.page && !sameSize(this.placement,gpu.screen)))this.present();
+        });
         gpu.on('state',s=>{
             const previous=this.front;
             this.confirmedFront=!!(s.front&&s.onScreen);
@@ -118,7 +133,10 @@ class Stage {
             }
             if(previous!==this.front)this.invalidate();
         });
-        gpu.on('touch',(phase,x,y)=>this.touch(phase,x,y));
+        gpu.on('touch',(phase,x,y)=>{
+            const area=this.placement;
+            if(sameSize(area,gpu.screen))this.touch(phase,x*width/area.w,y*height/area.h);
+        });
         gpu.on('ccu',v=>this.controller(v));
         gpu.on('closed',()=>{this.forgetForeground();this.release();this.blocked=true;this.invalidate();});
         gpu.on('close',()=>{this.forgetForeground();this.release();this.invalidate();});
@@ -127,25 +145,35 @@ class Stage {
     owns() {
         const g=this.gpu;
         return !!(this.page && !this.blocked && g && g.ready && g.native &&
-            g.touch && g.info && g.info.touch && g.info.controller && g.info.frontGate && g.screen.w===1920 && g.screen.h===720);
+            g.touch && g.info && g.info.touch && g.info.controller && g.info.frontGate && g.screen &&
+            Number.isInteger(g.screen.w) && g.screen.w>0 && g.screen.w<=0x7fffffff &&
+            Number.isInteger(g.screen.h) && g.screen.h>0 && g.screen.h<=0x7fffffff);
     }
     selected(items) {
         return items.find(t=>(t.focusKey||t.command)===this.focus[this.page]&&t.enabled!==false)||items.find(t=>t.enabled!==false);
     }
     present() {
-        const gpu=this.gpu;if(!this.owns())return;
+        const gpu=this.gpu;
+        if(!this.owns()){
+            if(this.placement){this.release();this.invalidate();}
+            return;
+        }
+        const screen=gpu.screen;
+        if(!sameSize(this.placement,screen)){
+            this.finishNudge(false);
+            this.cancelTouch(false);
+            this.placement={x:0,y:0,w:screen.w,h:screen.h,scale:1,ox:0,oy:0};
+            gpu.place(this.placement);
+            this.front=this.confirmedFront;
+        }
         if(gpu.waiting){this.dirty=true;return;}
         this.dirty=false;
-        // Measured RHMI Laptimer content area. BMW's own Back, title and native
-        // chrome remain outside this surface, including on the detailed pages.
-        if(!this.placement){this.placement={x:124,y:82,w:width,h:height,scale:1,ox:0,oy:0};gpu.place(this.placement);}
         const items=targets(this.page,this.view), selected=this.selected(items);
-        const frame=new Recorder(width,height);
-        scene(frame,this.page,this.sliderPreview?Object.assign({},this.view,{sliderPreview:this.sliderPreview}):this.view,selected&&(selected.focusKey||selected.command),true);
+        const frame=new Recorder(screen.w,screen.h);
+        const shown=this.sliderPreview?Object.assign({},this.view,{sliderPreview:this.sliderPreview}):this.view;
+        sceneAtSize(frame,this.page,shown,selected&&(selected.focusKey||selected.command),screen.w,screen.h);
         gpu.show(true);gpu.frame(frame);
-        // All pixels on our surface belong to this frame, including its empty
-        // space. A tap between cards must not reach an HMI widget underneath.
-        gpu.claim([{x:0,y:0,w:width,h:height}]);
+        gpu.claim([{x:0,y:0,w:screen.w,h:screen.h}]);
         if(this.front){
             gpu.grab(true);
             if(selected&&selected.kind!=='section')this.contentFocus[this.page]=selected.focusKey||selected.command;
@@ -267,4 +295,4 @@ class Stage {
         this.release();this.page=null;if(this.gpu)this.gpu.close();this.gpu=null;
     }
 }
-module.exports={Stage,drawPng,scene,targets,actionTarget,width,height,summaryHeight};
+module.exports={Stage,drawPng,scene,sceneAtSize,targets,actionTarget,width,height,summaryHeight};

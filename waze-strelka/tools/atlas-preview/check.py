@@ -22,10 +22,24 @@ def check(file, screenshot_dir):
         page.set_default_timeout(12000)
         def val(name): return page.locator("#"+name)
         def where(): return val("screen").get_attribute("data-page")
+        def check_surface():
+            page.wait_for_function("""() => {
+                const c=document.querySelector('#central'), r=c.getBoundingClientRect();
+                return c.width===Math.round(r.width) && c.height===Math.round(r.height);
+            }""")
+            return val("central").evaluate("""c=>{
+                const ctx=c.getContext('2d'), w=c.width, h=c.height;
+                for(const [x,y] of [[0,0],[w-1,0],[0,h-1],[w-1,h-1]]){
+                    const [r,g,b,a]=ctx.getImageData(x,y,1,1).data;
+                    if(!a||!(r||g||b))throw Error('Пустой край '+x+','+y);
+                }
+                return [w,h];
+            }""")
         def commands(): return val("hits").locator("button").evaluate_all("(ns)=>ns.map(n=>n.dataset.command)")
         def native(name, touch=False):
             button=page.locator(f'[data-command="{name}"]')
             assert button.is_enabled(), name
+            button.scroll_into_view_if_needed()
             box = button.bounding_box()
             assert box["width"]>1 and box["height"]>1, (name,box)
             center = [box["x"]+box["width"]/2,box["y"]+box["height"]/2]
@@ -288,9 +302,25 @@ def check(file, screenshot_dir):
                 home()
             if width==390:
                 val("zoom").click();assert val("headunit").evaluate("n=>n.classList.contains('zoomed')")
-                assert val("scrollscreen").evaluate("n=>n.scrollWidth>n.clientWidth")
+                assert val("scrollscreen").evaluate("n=>n.scrollWidth===n.clientWidth")
+                check_surface()
                 native("tripCamera",touch=True);assert where()=="cameraDetail";back()
                 val("zoom").click();save("03-mobile")
+        val("zoom").click()
+        # Change aspect ratio while the same page is open and check the actual rendered edges and touch mapping.
+        native("tripCamera");assert where()=="cameraDetail"
+        for width,height in [(1920,840),(1280,720),(1024,480)]:
+            page.set_viewport_size({"width":width,"height":height})
+            w,h=check_surface()
+            bar_height=sum(val("headunit").locator(sel).bounding_box()["height"] for sel in ("header",".controller"))
+            assert abs(w-width)<=1 and abs(h+bar_height-height)<=1,(w,h,bar_height,width,height)
+            native("atlasNav:main",touch=True);assert where()=="main"
+            native("atlasNav:cameraDetail",touch=True);assert where()=="cameraDetail"
+        val("zoom").click();home();check_surface()
+        native("atlasExit",touch=True);assert where()=="outside" and val("reopen").is_visible()
+        val("reopen").click();assert where()=="trip"
+        back();assert where()=="outside"
+        val("ok").click();assert where()=="trip"
         assert not network,network
         assert not errors,errors
         browser.close()

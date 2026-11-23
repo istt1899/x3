@@ -1627,6 +1627,11 @@ class WazeClusterApp extends OnlineApp {
         if(!name.startsWith('atlasValue:'))this._flushAtlasInput();
         const item=atlasStage.actionTarget(page,stage.view,name);
         if(!item)return;
+        if(name==='atlasExit'){
+            return this.rhmiApplication.closeState(PAGE_STATES.trip)
+                .then(()=>{if(stage.focus.trip==='atlasExit')delete stage.focus.trip;})
+                .catch(error=>logger.warn('Atlas exit: '+error.message));
+        }
         if(item.kind==='section'){
             const destination=item.destination;
             if(destination==='trip'){

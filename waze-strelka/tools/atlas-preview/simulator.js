@@ -33,7 +33,7 @@ function persist() {
 let page='trip', history=[], panel=emptyPanel(), target='hud', selected='', region='RU-KLU', regionPage=null;
 let diagnosticPage=0, diagnosticBlock=0, resultBlock=0, snapshot=null, test=null, timer=null, capture=false, activeOutput=null;
 let message='', lastState, view, buttons=[], lastBitmap='', logEntries=[], datasetStatus='idle', updateAvailable=true;
-let cropped=false;
+let cropped=false, outside=false;
 const outputCards={hud:null,map:null};
 const inputStage=new stage.Stage(()=>{},command=>activate(command),()=>{});
 inputStage.gpu={ready:true,native:true,touch:true,info:{touch:true,controller:true,frontGate:true},
@@ -53,7 +53,8 @@ function syncInput(){
 function ccu(push,deflection=0) {
     inputStage.controller({frontRotaryEncoderOperation:rotary,frontRotaryEncoderPushButton:push,frontRotaryEncoderDeflection:deflection});
 }
-const screenRaster=new Raster(stage.width,stage.height), px=node=>node.getContext('2d');
+let screenRaster;
+const px=node=>node.getContext('2d');
 const cardCanvas=document.createElement('canvas');cardCanvas.width=card.width;cardCanvas.height=card.height;
 const nav={...trip.COMMANDS,tripDiagnostics:'diagnostics',tripCameraDiagnostics:'diagnostics',cameraDiagnostics:'diagnostics',
     cameraAlertsLink:'alerts',cameraTypesLink:'types',cameraDatabaseLink:'database',cameraOverspeedLink:'overspeed',
@@ -175,6 +176,7 @@ function endInput() {
 window.addEventListener('pagehide',endInput);
 function go(next,replacing=false) {
     endInput();
+    outside=false;
     if(!replacing&&next!==page)history.push({page,panel:{...panel},selected,target});
     page=next;panel=emptyPanel();selected='';
 }
@@ -183,7 +185,15 @@ function back() {
     if(panel.edit){selected='atlasEdit:'+panel.edit;panel={sheet:panel.sheet,edit:null};return;}
     const old=history.pop();
     if(old){page=old.page;panel=old.panel;selected=old.selected;target=old.target;}
+    else if(page==='trip')exitAtlas();
     else {page='trip';panel=emptyPanel();selected='';}
+}
+function exitAtlas(){
+    endInput();history=[];panel=emptyPanel();selected='';page='trip';outside=true;
+    inputStage.lastCcu=null;
+}
+function reopenAtlas(){
+    go('trip',true);render();el('hits').firstElementChild?.focus({preventScroll:true});
 }
 function configure(out) {
     endInput();
@@ -297,14 +307,26 @@ function updateHits(oldFocus) {
 function drawStage(){
     const current=buttons.find(b=>focusId(b)===selected);
     const sceneFocus=focusId(current)||'';
+    const node=el('central'), rect=el('screen').getBoundingClientRect();
+    if(!rect.width||!rect.height||outside)return;
+    // On high-DPI browsers bound the software buffer, preserving the viewport's aspect ratio.
+    const density=Math.min(window.devicePixelRatio||1, Math.sqrt(3000000/(rect.width*rect.height)));
+    const width=Math.max(1,Math.round(rect.width*density)), height=Math.max(1,Math.round(rect.height*density));
+    if(!screenRaster||node.width!==width||node.height!==height){
+        inputStage.cancelTouch(false);
+        inputStage.gpu.screen={w:width,h:height};
+        screenRaster=new Raster(width,height);
+        node.width=width;node.height=height;
+    }
     const shown=inputStage.sliderPreview?{...view,sliderPreview:inputStage.sliderPreview}:view;
-    const key=JSON.stringify([page,shown,sceneFocus]);
+    const key=JSON.stringify([width,height,page,shown,sceneFocus]);
     if(key===lastBitmap)return;
-    stage.scene(screenRaster,page,shown,sceneFocus,true);
-    bitmap(el('central'),screenRaster.d,stage.width,stage.height);lastBitmap=key;
+    stage.sceneAtSize(screenRaster,page,shown,sceneFocus,width,height);
+    bitmap(node,screenRaster.d,width,height);lastBitmap=key;
 }
 function render() {
     const domFocus=el('hits').contains(document.activeElement);
+    const justExited=outside&&el('exited').hidden;
     const s=stateNow(),reg=trip.regionsModel(s,region,regionPage),writes=written(s,reg);
     lastState=s;view=page==='trip'?home.model(s,config.version):detail.model(page,{state:s,written:writes,
         version:config.version,atlasPanel:panel,region:reg,target,snapshot,serviceReady:true,diagnosticState:s,
@@ -312,14 +334,19 @@ function render() {
     if(!view)throw Error('Отсутствует экран '+page);
     buttons=stage.targets(page,view);
     if(!buttons.some(b=>focusId(b)===selected&&b.enabled!==false))selected=focusId(buttons.find(b=>b.enabled!==false))||'';
+    inputStage.front=!outside;
+    el('hits').hidden=el('central').hidden=outside;
+    el('exited').hidden=!outside;
     syncInput();drawStage();updateHits(domFocus);renderOutputs(s);
-    el('screen').dataset.page=page;el('screen').dataset.sheet=String(panel.sheet);el('screen').dataset.edit=panel.edit||'';
-    el('path').textContent=view.title||'Поездка';el('central').setAttribute('aria-label',page==='trip'?view.text.tripReading:view.title+' · '+(view.lead||''));
+    if(justExited)el('reopen').focus({preventScroll:true});
+    el('screen').dataset.page=outside?'outside':page;el('screen').dataset.sheet=String(panel.sheet);el('screen').dataset.edit=panel.edit||'';
+    el('path').textContent=outside?'Меню BMW':(view.title||'Поездка');el('central').setAttribute('aria-label',page==='trip'?view.text.tripReading:view.title+' · '+(view.lead||''));
     el('metres').textContent=el('phase').value==='gps'?'—':el('distance').value+' м';
     el('limit-note').textContent=notes[el('limit').value];
     const phase=el('phase').value;
     el('distance').disabled=['stop','gps','passed','idle','parallel'].includes(phase);
-    el('back').disabled=!history.length&&!panel.edit;
+    el('back').disabled=outside;
+    el('prev').disabled=el('next').disabled=outside;
     // Exposed DOM state is also useful to assistive technologies and offline verification.
     document.documentElement.dataset.ready='true';
 }
@@ -353,6 +380,7 @@ function execute(command){
         selected=panel.edit&&!updated.edit?'atlasEdit:'+panel.edit:'';
         panel=updated;return;
     }
+    if(command==='atlasExit'){exitAtlas();return;}
     if(command==='atlasBack'){back();return;}
     if(command.startsWith('atlasNav:')){
         const next=command.slice('atlasNav:'.length);
@@ -443,7 +471,7 @@ function rotate(amount) {
         node?.scrollIntoView({block:'nearest',inline:'nearest'});
     }
 }
-function confirm(){syncInput();ccu(0);ccu(1);ccu(0);}
+function confirm(){if(outside){reopenAtlas();return;}syncInput();ccu(0);ccu(1);ccu(0);}
 function pointEvent(event,phase){
     const rect=el('screen').getBoundingClientRect();
     syncInput();
@@ -461,7 +489,8 @@ hits.addEventListener('pointercancel',()=>inputStage.cancelTouch());
 hits.addEventListener('lostpointercapture',()=>{if(inputStage.pressed)inputStage.cancelTouch();});
 function keyboard(event){
     if(el('detail-output').open||event.altKey||event.ctrlKey||event.metaKey||['SELECT','INPUT','SUMMARY'].includes(event.target.tagName))return;
-    if(event.key==='Escape'){event.preventDefault();if(el('headunit').classList.contains('zoomed'))toggleZoom();else{back();render();}return;}
+    if(event.key==='Escape'){event.preventDefault();if(el('headunit').classList.contains('zoomed'))toggleZoom();else if(!outside){back();render();}return;}
+    if(outside)return;
     if(['ArrowLeft','ArrowRight'].includes(event.key)&&page!=='trip'){
         event.preventDefault();syncInput();ccu(0);ccu(0,event.key==='ArrowLeft'?10:4);ccu(0);return;
     }
@@ -510,8 +539,10 @@ el('distance').addEventListener('input',()=>{stopPlay();render();});
 el('prev').onclick=()=>rotate(-1);el('next').onclick=()=>rotate(1);el('ok').onclick=confirm;
 el('vehicle-menu').onclick=()=>{if(page!=='atlasMenu')go('atlasMenu');render();};
 el('back').onclick=()=>{back();render();};el('zoom').onclick=toggleZoom;
+el('reopen').onclick=reopenAtlas;
+new ResizeObserver(()=>{if(view)drawStage();}).observe(el('screen'));
 el('screen').addEventListener('wheel',event=>{
-    if(event.ctrlKey||Math.abs(event.deltaX)>Math.abs(event.deltaY)||document.activeElement?.tagName==='INPUT')return;
+    if(outside||event.ctrlKey||Math.abs(event.deltaX)>Math.abs(event.deltaY)||document.activeElement?.tagName==='INPUT')return;
     event.preventDefault();rotate(Math.sign(event.deltaY));
 },{passive:false});
 document.addEventListener('keydown',keyboard);

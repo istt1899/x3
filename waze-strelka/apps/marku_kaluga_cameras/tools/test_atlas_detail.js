@@ -21,6 +21,29 @@ async function main() {
     const h=harness.create(), app=h.app;
     try {
         await app._setupRhmi();
+        const tripState=h.ui.containers[113].name;
+        await h.enter(tripState);
+        const exit=home.menuTargets().find(item=>item.command==='atlasExit');
+        assert(exit && home.menuTargets().every(item=>item.command===exit.command||!overlaps(item,exit)));
+        app._atlasStage.focus.trip=exit.command;
+        await app._atlasAction(exit.command);
+        assert.strictEqual(h.current(),null,'Exit closes the RHMI entry state');
+        assert.strictEqual(app._atlasStage.focus.trip,undefined,'reopening starts on the first section');
+        await h.enter(tripState);
+        await h.back();
+        assert.strictEqual(h.current(),null,'hardware Back leaves the RHMI entry state');
+        const metres100=100/111195;
+        const map=home.model({atlasMap:{origin:{lat:0,lon:0},roads:[{current:true,
+            points:[[0,0],[metres100,metres100]]}]},gpsFix:{headingDeg:45}},h.manifest.version);
+        for(const aspect of [0.75,1,1.4]){
+            const cv=stage().cv, lines=[];
+            Object.assign(cv,{scaleX:aspect,arc(){},polyline(){},strokeRoundRect(){},line(...args){lines.push(args);}});
+            home.drawHome(cv,map,exit.command);
+            const road=lines.find(v=>v[4]===9), heading=lines.find(v=>v[4]===4&&v[0]===road[0]&&v[1]===road[1]);
+            for(const v of [road,heading])assert(Math.abs((v[2]-v[0])*aspect-(v[1]-v[3]))<1e-7,'45° bearing on screen');
+            const ruler=lines.find(v=>v[1]===457&&v[1]===v[3]);
+            assert(Math.abs((road[2]-road[0])-(ruler[2]-ruler[0]))<1e-7,'100 m ruler matches projected road');
+        }
         const base={enabled:true,outputs:{hud:true,cluster:true},alert:{id:'t1',roadConfirmed:true,
             limitKmh:40,distanceM:180,captureClass:'rear'},serviceVersion:'0.11.0'};
         base.cardLayout={hud:{x:5,y:5,scalePct:80,brightnessPct:15,opacityPct:95}};

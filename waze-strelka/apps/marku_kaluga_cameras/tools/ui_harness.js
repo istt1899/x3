@@ -44,6 +44,11 @@ function create(){
         if(previous)byName[previous].emit('visible',{visible:false});
         if(rhmi.order!=='show-first')byName[name].emit('visible',{visible:true});
         return Promise.resolve();};
+    rhmi.closeState=async name=>{
+        assert.strictEqual(name,current);
+        current=null;
+        byName[name].emit('visible',{visible:false});
+    };
     const logger={};['info','warn','error','debug','verbose'].forEach(key=>{logger[key]=()=>{};});
     class OnlineApp extends EventEmitter{
         constructor(){super();this._packageJson={version:manifest.version};this.rhmiApplication=rhmi;this._initialized=true;this._appStatusService={};}
@@ -70,7 +75,10 @@ function create(){
         reset(){clearTimeout(app._cameraCommandTimer);app._cameraCommandTimer=null;app._cameraPending=null;app._cameraFeedback=null;
             app._cameras.commandError=null;app._cameras.commandErrorRequestId=null;},
         async enter(name,order){if(order)rhmi.order=order;return rhmi.openState(name);},
-        back(){const id=byName[current].desc.properties.ParentState.value;return rhmi.openState(ui.containers[id].name);},
+        back(){
+            const parent=byName[current].desc.properties && byName[current].desc.properties.ParentState;
+            return parent ? rhmi.openState(ui.containers[parent.value].name) : rhmi.closeState(current);
+        },
         controller(value){button=value;assert(controller,'controller subscribed');controller({frontRotaryEncoderPushButton:value});},
         getter(fn){getter=fn;},current:()=>current,
         close(){app._shutdownPromise=Promise.resolve();clearTimeout(app._hideTimer);clearTimeout(app._cameraCommandTimer);

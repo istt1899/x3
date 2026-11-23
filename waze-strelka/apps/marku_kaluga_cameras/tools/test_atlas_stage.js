@@ -5,6 +5,9 @@ const EventEmitter = require('events');
 const atlas = require('../src/atlas-home.js');
 const {Stage, targets, width, height} = require('../src/atlas-stage.js');
 const {create} = require('./ui_harness.js');
+const kit='../'+require('../mgu-app.json').tree+'/javascript/atlas-kit/';
+const {Canvas}=require(kit+'canvas');
+const {play}=require(kit+'record');
 
 class Display extends EventEmitter {
     static available() { return true; }
@@ -20,15 +23,30 @@ class Display extends EventEmitter {
     show(on) { this.visible = on; }
     claim(rects) { this.rects = rects; }
     grab(on) { this.grabbing = on; }
-    frame(recorder) { assert(recorder.words().length > 50); this.frames++; }
+    frame(recorder) { assert(recorder.words().length > 50); this.frameSent=recorder; this.frames++; }
     front(on) { this.onScreen = on; this.emit('state',{front:on,onScreen:on}); }
     knob(counter,button,tilt) {
         this.emit('ccu',{frontRotaryEncoderOperation:counter,frontRotaryEncoderPushButton:button,frontRotaryEncoderDeflection:tilt||0});
     }
-    tap(item) { this.emit('touch',1,item.x+8,item.y+8); this.emit('touch',3,item.x+8,item.y+8); }
+    point(phase,x,y) { this.emit('touch',phase,x*this.screen.w/width,y*this.screen.h/height); }
+    tap(item) { this.point(1,item.x+8,item.y+8); this.point(3,item.x+8,item.y+8); }
+    resize(w,h) { this.screen={w,h}; this.emit('ready',this.screen); }
     close() { this.ready = false; }
 }
 
+// Replay the exact command buffer sent to the compositor. A full PLACE with a
+// 1600x520 drawing inside it must also fail this check.
+function verifyEdges(display) {
+    const {w,h}=display.screen;
+    assert.deepStrictEqual(display.rect,{x:0,y:0,w,h,scale:1,ox:0,oy:0});
+    assert.deepStrictEqual(display.rects,[{x:0,y:0,w,h}]);
+    assert.deepStrictEqual([display.frameSent.w,display.frameSent.h],[w,h]);
+    const canvas=new Canvas(w,h);
+    play(display.frameSent.words(),canvas);
+    for(const [x,y] of [[0,0],[w-1,0],[0,h-1],[w-1,h-1],[Math.floor(w*.7),h-1]]){
+        assert.strictEqual(canvas.d[4*(y*w+x)+3],255,'unpainted edge at '+[x,y]+' on '+[w,h]);
+    }
+}
 const HOME='ST_OnlineApps_StrelkaTrip';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function slot(h,command) {
@@ -52,8 +70,7 @@ async function graphics() {
         await app._setupRhmi();
         await h.enter(HOME);
         const stage=app._atlasStage, display=stage.gpu, menu=atlas.menuTargets();
-        assert.deepStrictEqual(display.rect,{x:124,y:82,w:width,h:height,scale:1,ox:0,oy:0});
-        assert.deepStrictEqual(display.rects,[{x:0,y:0,w:width,h:height}]);
+        verifyEdges(display);
         assert(!display.grabbing);
         display.tap(menu[1]);
         assert.strictEqual(h.current(),HOME,'background touch discarded');
@@ -81,8 +98,8 @@ async function graphics() {
         display.tap(back);
         assert.strictEqual(h.current(),HOME);
         display.front(true);
-        display.emit('touch',1,menu[0].x+9,menu[0].y+9);
-        display.emit('touch',3,menu[4].x+9,menu[4].y+9);
+        display.point(1,menu[0].x+9,menu[0].y+9);
+        display.point(3,menu[4].x+9,menu[4].y+9);
         assert.strictEqual(h.current(),HOME,'cross-row drag cancels');
         display.tap(menu[0]);
         assert.strictEqual(h.current(),'ST_OnlineApps_StrelkaCamera');
@@ -103,9 +120,30 @@ async function graphics() {
         assert.strictEqual(display.visible,false);
         assert.strictEqual(stage.page,null);
         await h.enter(HOME);
-        display.screen.w=1440;
-        assert.strictEqual(stage.owns(),false,'unmeasured surface uses native controls');
-        display.screen.w=1920;display.info.controller=false;
+        display.front(true);
+        for(const [w,h] of [[1280,480],[1440,540],[1440,720],[1920,720]]){
+            display.resize(w,h);
+            assert(stage.owns() && stage.front);
+            delete app._lastPress.tripMaps; // independent drive cycles within a fast test
+            verifyEdges(display);
+            display.tap(menu[1]);
+            assert.strictEqual(app._shownPage,'main','touch from resized screen opens phone maps');
+            verifyEdges(display);
+            const next=targets(stage.page,stage.view).find(t=>t.command==='atlasBack');
+            display.tap(next);
+            assert.strictEqual(app._shownPage,'trip');
+        }
+        display.point(1,menu[1].x+8,menu[1].y+8);
+        display.resize(1280,480);
+        display.point(3,menu[1].x+8,menu[1].y+8);
+        assert.strictEqual(app._shownPage,'trip','release after resize discards the old contact');
+        display.resize(0,720);
+        assert(!stage.owns() && !display.visible && !display.grabbing);
+        assert.deepStrictEqual(display.rects,[]);
+        assert(slot(h,'tripCamera').visible,'native controls recover on invalid dimensions');
+        display.resize(1920,720);
+        assert(stage.front && display.grabbing && !slot(h,'tripCamera').visible);
+        display.info.controller=false;
         assert.strictEqual(stage.owns(),false);
     } finally {app._atlasStage.close();h.close();}
 }
@@ -202,15 +240,15 @@ async function slidersAndSections(){
         assert(rail.find(item=>item.destination==='cameras').selected);
         assert(all.filter(item=>item.kind!=='section').every(item=>item.x>=309));
         const start=bar.track.x+bar.track.w/3, top=bar.y+2;
-        display.emit('touch',1,start,top);
-        display.emit('touch',2,bar.track.x+bar.track.w,top);
+        display.point(1,start,top);
+        display.point(2,bar.track.x+bar.track.w,top);
         assert.strictEqual(stage.sliderPreview.step,bar.max,'thick touch area accepts a finger above the painted track');
         assert(!h.commands.some(cmd=>cmd.cmd==='card-layout'));
-        stage.cancelTouch();
-        assert.strictEqual(stage.sliderPreview,null);
-        display.emit('touch',3,bar.track.x+bar.track.w,top);
-        assert(!h.commands.some(cmd=>cmd.cmd==='card-layout'),'cancelling a drag never commits it');
-        display.emit('touch',1,start,top); display.emit('touch',3,1600,top);
+        display.resize(1280,480);
+        assert.strictEqual(stage.sliderPreview,null,'old touch is cancelled when the display changes size');
+        display.point(3,bar.track.x+bar.track.w,top);
+        assert(!h.commands.some(cmd=>cmd.cmd==='card-layout'),'a finger released after a resize cannot commit the old drag');
+        display.point(1,start,top); display.point(3,1600,top);
         const changes=h.commands.filter(cmd=>cmd.cmd==='card-layout');
         assert.strictEqual(changes.length,1);
         assert.strictEqual(changes[0].scalePct,150);
@@ -256,14 +294,14 @@ async function slidersAndSections(){
         await app._openCameraPage('position');
         const compact=targets(stage.page,stage.view).find(item=>item.source==='cameraCardY');
         const cx=compact.track.x+compact.track.w*.8, upper=compact.y+10, lower=compact.track.y-10;
-        display.emit('touch',1,cx,upper);
+        display.point(1,cx,upper);
         assert.strictEqual(stage.sliderPreview,null,'compact title is clickable above track');
-        display.emit('touch',3,cx,upper);
+        display.point(3,cx,upper);
         assert.strictEqual(stage.view.edit.name,'cameraCardY');
         await h.back();
-        display.emit('touch',1,cx,lower);
+        display.point(1,cx,lower);
         assert(stage.sliderPreview&&stage.sliderPreview.source==='cameraCardY','compact track accepts touch above paint');
-        display.emit('touch',3,cx,lower);
+        display.point(3,cx,lower);
         assert.strictEqual(stage.view.edit,null);
         assert.strictEqual(h.commands.filter(c=>c.cmd==='card-layout').slice(-1)[0].y,800);
         h.reset();h.setState(calibrationState());
