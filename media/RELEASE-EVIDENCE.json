@@ -47,7 +47,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "7770c50d981e4c67292d4b155d82b0eb5f481986878155ea63ad7d186f7f9c66"
+      "sha256": "413124282db0c6dba7c2df00836574f8482d1f500e82f637b98b71e440c16f65"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -63,5 +63,42 @@
       "marku_kaluga_cameras": "0.11.2"
     },
     "hardware_scope": "BMW iDrive 7. Physical X3 and X6 M display edge coverage pending."
+  },
+  "vk_playback_update": {
+    "date": "2026-11-23",
+    "package_release": "media-preview-0.4.7",
+    "source_commit": "75f99f8f2d219476a4c0066d40a83549c8824ae1",
+    "previous_catalog_sha256": "7770c50d981e4c67292d4b155d82b0eb5f481986878155ea63ad7d186f7f9c66",
+    "updated_components": {
+      "jap-ridetube-d": "0.4.7"
+    },
+    "updated_service_dependency": {
+      "jap_ridetube": "0.4.7",
+      "marku_vk_video": "0.4.7"
+    },
+    "artifacts": [
+      {
+        "name": "jap-ridetube-d@0.4.7.tgz",
+        "size": 10695578,
+        "sha256": "298ffc2a0aedff378509a2e449af7de5d72d70b645018a023d8cb760ebd77c97"
+      },
+      {
+        "name": "ffmpeg-9.0.2-mgu-media-sources.tar.xz",
+        "size": 12125968,
+        "sha256": "6f164f34bdbec44d842e399815319969a0972fc534ec652cee4018ff61d23798"
+      }
+    ],
+    "checks": {
+      "provider_python_tests_passed": 32,
+      "node8_gateway_and_socket_suite": true,
+      "expired_vk_link_refresh_to_playing": true,
+      "public_vk_videos_with_first_frame_and_audio": 2,
+      "public_vk_quality_heights": [
+        360,
+        720
+      ],
+      "packaged_runtime_check_with_production_ffmpeg": true
+    },
+    "physical_id7_playback_verified": false
   }
 }
