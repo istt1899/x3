@@ -31,6 +31,8 @@ function persist() {
 let page='trip', history=[], panel=emptyPanel(), target='hud', selected='', region='RU-KLU', regionPage=null;
 let diagnosticPage=0, diagnosticBlock=0, resultBlock=0, snapshot=null, test=null, timer=null, capture=false, activeOutput=null;
 let message='', lastState, view, buttons=[], lastBitmap='', logEntries=[], datasetStatus='idle', updateAvailable=true;
+let cropped=false;
+const outputCards={hud:null,map:null};
 const inputStage=new stage.Stage(()=>{},command=>activate(command),()=>{});
 inputStage.gpu={ready:true,native:true,touch:true,info:{touch:true,controller:true,frontGate:true},
     screen:{w:1920,h:720},grabbing:true,visible:true};
@@ -174,16 +176,23 @@ function configure(out) {
     if(!lastState.actions.cardLayout.allowed)say('Для калибровки выберите «Остановка перед камерой» в сценарии поездки.');
 }
 function inspectOutput(out) {
-    activeOutput=out;el('detail-title').textContent=out==='hud'?'Проекция HUD':'Приборная панель';
-    el('detail-surface').className=out;el('detail-output').showModal();updateInspection();
+    activeOutput=out;cropped=false;el('detail-title').textContent=out==='hud'?'Проекция HUD':'Приборная панель';
+    el('detail-output').showModal();updateInspection();
 }
 function updateInspection(){
     if(!activeOutput||!el('detail-output').open)return;
     const original=el(activeOutput);
     let copy=el('detail-surface').querySelector('canvas');
     if(!copy){copy=document.createElement('canvas');el('detail-surface').append(copy);}
-    copy.width=original.width;copy.height=original.height;px(copy).drawImage(original,0,0);
-    el('detail-note').textContent=el(activeOutput+'-state').textContent;
+    const width=cropped?card.width:original.width,height=cropped?card.height:original.height;
+    if(copy.width!==width||copy.height!==height){copy.width=width;copy.height=height;}
+    const ctx=px(copy);ctx.clearRect(0,0,width,height);
+    if(cropped){if(outputCards[activeOutput])bitmap(copy,outputCards[activeOutput],width,height);}
+    else ctx.drawImage(original,0,0);
+    el('detail-surface').className=activeOutput+(cropped?' crop':'');
+    el('detail-note').textContent=cropped?'Карточка · '+card.width+' × '+card.height+' · '+el(activeOutput+'-state').textContent.split(' · ')[0]:el(activeOutput+'-state').textContent;
+    for(const n of document.querySelectorAll('[data-crop]'))n.setAttribute('aria-pressed',String((n.dataset.crop==='card')===cropped));
+    for(const n of document.querySelectorAll('[data-side]'))n.setAttribute('aria-pressed',String(n.dataset.side===el('lens').value));
 }
 function bitmap(canvas,bytes,width,height){
     px(canvas).putImageData(new ImageData(new Uint8ClampedArray(bytes.buffer,bytes.byteOffset,bytes.byteLength),width,height),0,0);
@@ -199,10 +208,12 @@ function renderOutputs(s) {
         const info=layers.layoutFor(out,{width:node.width,height:node.height},'simulator',profile);
         ctx.clearRect(0,0,node.width,node.height);
         const show=enabled&&visibleAlert&&info.withinBounds;
+        outputCards[out]=null;
         if(show){
             const frame=reducedMotion.matches||!['approach','stop'].includes(el('phase').value)?0:(animationTime%1500)/500;
             const optical={...visibleAlert,opticsStyle:saved.opticsStyle,opticsFrame:frame};
-            bitmap(cardCanvas,layers.styledPixels(optical,out,profile),card.width,card.height);
+            outputCards[out]=layers.styledPixels(optical,out,profile);
+            bitmap(cardCanvas,outputCards[out],card.width,card.height);
             const r=info.card;ctx.drawImage(cardCanvas,r.x,r.y,r.width,r.height);
         }
         const legend=!enabled?'Вывод выключен':!info.withinBounds?'Недостаточно места':!visibleAlert?'Нет предупреждения':
@@ -429,6 +440,8 @@ el('screen').addEventListener('wheel',event=>{
 document.addEventListener('keydown',keyboard);
 for(const n of document.querySelectorAll('[data-output]'))n.onclick=()=>{configure(n.dataset.output);render();el('headunit').scrollIntoView({block:'start'});};
 for(const n of document.querySelectorAll('[data-inspect]'))n.onclick=()=>inspectOutput(n.dataset.inspect);
+for(const n of document.querySelectorAll('[data-side]'))n.onclick=()=>{el('lens').value=n.dataset.side;render();};
+for(const n of document.querySelectorAll('[data-crop]'))n.onclick=()=>{cropped=n.dataset.crop==='card';updateInspection();};
 el('close-output').onclick=()=>el('detail-output').close();
 el('detail-output').addEventListener('close',()=>{activeOutput=null;});
 say('Симулятор работает автономно.');render();

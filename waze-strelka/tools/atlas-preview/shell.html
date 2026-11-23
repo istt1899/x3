@@ -19,6 +19,10 @@
 <p>Геометрия дорог взята из встроенного дорожного участка OpenStreetMap. Поездка, датировки тестовых записей и оптическая ориентация заданы для проверки интерфейса. Изменения хранятся в этом браузере. Команды автомобиля и сетевые загрузки представлены локальными сценариями.</p>
 <p>Показана рабочая область MGU 1600 × 520. Карточка предупреждения имеет размер 320 × 96 до настройки масштаба. Холсты HUD 800 × 480 и приборов 1088 × 480 взяты из набора тестов приложения. Физические размеры проекции и подложка приборов зависят от автомобиля.</p>
 <details><summary>Лицензии и авторство</summary><p>Дорожные данные © OpenStreetMap contributors, ODbL. Экранные шрифты и программные компоненты использованы на условиях их лицензий.</p><pre>/*LICENSES*/</pre></details></details>
-<dialog id="detail-output"><header><h2 id="detail-title"></h2><button id="close-output" autofocus>Закрыть</button></header><div id="detail-surface"></div><div class="styles" role="group" aria-label="Дизайн оптики"><button data-style="beam">Луч</button><button data-style="pulse">Импульс</button><button data-style="trail">Траектория</button></div><p id="detail-note"></p></dialog>
+<dialog id="detail-output"><header><h2 id="detail-title"></h2><button id="close-output" autofocus>Закрыть</button></header><div id="detail-surface"></div><div class="dialog-controls">
+<div class="styles" role="group" aria-label="Масштаб просмотра"><span>Вид</span><button data-crop="panel" aria-pressed="true">Весь экран</button><button data-crop="card" aria-pressed="false">Крупно</button></div>
+<div class="styles" role="group" aria-label="Дизайн оптики"><span>Дизайн</span><button data-style="beam">Луч</button><button data-style="pulse">Импульс</button><button data-style="trail">Траектория</button></div>
+<div class="styles" role="group" aria-label="Сторона съёмки"><span>Съёмка</span><button data-side="front">В лоб</button><button data-side="rear">В спину</button><button data-side="both">Обе</button><button data-side="unknown" aria-label="Неизвестно">?</button></div>
+</div><p id="detail-note"></p></dialog>
 <noscript>Для интерактивного симулятора включите JavaScript.</noscript>
 </main><script>/*SCRIPT*/</script></body></html>

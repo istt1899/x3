@@ -80,10 +80,36 @@ def check(file, screenshot_dir):
         assert val("optics").input_value()=="pulse"
         assert val("detail-surface").locator("canvas").evaluate("node=>node.toDataURL()")==pixels("hud")
         save("04-hud-enlarged")
-        page.keyboard.press("Escape")
-        page.locator("[data-inspect=map]").click()
-        save("05-cluster-enlarged")
-        page.keyboard.press("Escape")
+        detail_canvas=val("detail-surface").locator("canvas")
+        def inspect_view(mode):
+            page.locator(f'[data-crop="{mode}"]').click()
+            assert page.locator(f'[data-crop="{mode}"]').get_attribute("aria-pressed")=="true"
+        for output in ["hud","map"]:
+            if output=="map":
+                val("lens").select_option("rear")
+                page.locator("[data-inspect=map]").click()
+                assert page.locator('[data-side="rear"]').get_attribute("aria-pressed")=="true"
+                save("05-cluster-enlarged")
+            assert page.locator('[data-crop="panel"]').get_attribute("aria-pressed")=="true"
+            assert detail_canvas.evaluate("n=>n.toDataURL()")==pixels(output)
+            inspect_view("card")
+            assert detail_canvas.evaluate("n=>[n.width,n.height]")==[320,96]
+            cropped_sides=set()
+            for side in ["front","both","unknown","rear"]:
+                page.locator(f'[data-side="{side}"]').tap()
+                assert val("lens").input_value()==side
+                assert page.locator(f'[data-side="{side}"]').get_attribute("aria-pressed")=="true"
+                cropped_sides.add(detail_canvas.evaluate("n=>n.toDataURL()"))
+            assert len(cropped_sides)==4,output
+            page.locator('[data-style="trail"]').click()
+            assert detail_canvas.evaluate("n=>[n.width,n.height]")==[320,96]
+            assert val("optics").input_value()=="trail"
+            page.locator('[data-style="pulse"]').click()
+            inspect_view("panel")
+            assert detail_canvas.evaluate("n=>n.toDataURL()")==pixels(output)
+            page.keyboard.press("Escape")
+            assert val("lens").input_value()=="rear"
+        val("lens").select_option("front")
         center_static=pixels("central")
         page.emulate_media(reduced_motion="no-preference")
         start=pixels("map")
@@ -166,6 +192,16 @@ def check(file, screenshot_dir):
         for width in [320,390,760,1280]:
             page.set_viewport_size({"width":width,"height":820})
             assert page.evaluate("document.documentElement.scrollWidth<=innerWidth"), width
+            if width in (320,390):
+                page.locator("[data-inspect=map]").click()
+                inspect_view("card")
+                bounds=detail_canvas.bounding_box()
+                dialog_width=val("detail-output").bounding_box()["width"]
+                assert bounds["width"]>dialog_width*.9 and abs(bounds["width"]/bounds["height"]-320/96)<.01,(width,bounds)
+                assert val("detail-output").evaluate("n=>n.scrollWidth<=n.clientWidth")
+                page.locator('[data-side="both"]').tap()
+                if width==390:save("06-mobile-card")
+                page.keyboard.press("Escape")
             if width==390:
                 val("zoom").click();assert val("headunit").evaluate("n=>n.classList.contains('zoomed')")
                 assert val("scrollscreen").evaluate("n=>n.scrollWidth>n.clientWidth")
