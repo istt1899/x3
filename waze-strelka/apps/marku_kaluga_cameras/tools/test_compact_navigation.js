@@ -34,7 +34,7 @@ let count=0;function ok(text){console.log('ok '+(++count)+' - '+text);}
         ['cameraDiagnostics','cameraAlertsLink','cameraTypesLink','cameraHudSetup','cameraMapSetup','cameraDatabaseLink']);
     const ids=matches(xml,/<(?:container|layoutGroup|component) id="(\d+)"/g).map(x=>x[1]);assert.strictEqual(new Set(ids).size,ids.length);
     Object.keys(ui.containers).forEach(id=>{const s=ui.containers[id],controls=Object.values(s.components).filter(x=>['button','checkBox','slider','dropDownMenu'].includes(x.type));
-        if(Number(id)>=100)assert(controls.length<=9,s.name+' has at most nine Atlas actions');
+        if(Number(id)>=100)assert(controls.filter(c=>/^atlasKey/.test(c.name)).length<=9,s.name+' has at most nine contextual button slots');
         else if(Number(id)>=3)assert(controls.length<=(id==='6'||id==='11'?12:8),s.name+': '+controls.length+' backing controls');
         assert.strictEqual(c[s.name].resources,s.name===N.hub?1:0,'a unit without a graphic API loads rows only for the open screen');
     });

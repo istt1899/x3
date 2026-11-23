@@ -5,6 +5,19 @@ const menu = [
     ['tripCamera','Камера'], ['tripMaps','Карты телефона'], ['tripDatabase','Базы и регионы'],
     ['tripDiagnostics','Диагностика'], ['tripSettings','Настройки'], ['tripAbout','Справка']
 ];
+const sectionPages=['cameraDetail','main','regions','diagnostics','cameras','about'];
+const sections=['trip'].concat(sectionPages);
+const labels=['Поездка'].concat(menu.map(item=>item[1]));
+const subSection={logs:'main',database:'regions',diagnosticPhoto:'diagnostics',alerts:'cameras',types:'cameras',
+    calibration:'cameras',position:'cameras',overspeed:'cameras',atlasMenu:'trip'};
+function section(page){return subSection[page]||page;}
+function railTargets(page){
+    const active=section(page);
+    return sections.map((dest,i)=>({
+        command:'atlasNav:'+dest,label:labels[i],kind:'section',destination:dest,selected:active===dest,enabled:true,
+        x:18,y:i===0?10:105+(i-1)*66,w:274,h:i===0?87:60
+    }));
+}
 const C = { panel:'#112820', map:'#1c342e', line:'#395248', text:'#edf4e9', dim:'#b8cbbd',
     green:'#a3edac', stroke:'#779687', warm:'#f1bf76', off:'#70847a' };
 const phases = { waiting:'Ожидание сервиса', disabled:'Камеры выключены', gps:'Ожидание GPS', stop:'Остановка', approach:'Камера впереди',
@@ -128,15 +141,27 @@ function drawMap(c,v) {
     fitText(c,header,x+32,53,30,w-76,C.text,true);
     if(!geo && v.street)fitText(c,v.street,x+32,96,23,w-70,C.dim);
 }
+function drawRail(c,page,focus) {
+    c.fillRect(0,0,309,520,C.panel);
+    const rail=railTargets(page);
+    const top=rail[0];
+    if(focus===top.command)c.strokeRoundRect(top.x,top.y,top.w,top.h,9,2,C.green);
+    text(c,'Атлас',30,61,45,C.text,true);
+    text(c,'Поездка',32,90,23,page==='trip'?C.green:C.dim,page==='trip');
+    rail.slice(1).forEach((b,i)=>{
+        const focused=focus===(page==='trip'?menu[i][0]:b.command);
+        if(b.selected||focused)c.roundRect(b.x,b.y,b.w,b.h,8,b.selected?'#294a39':'#203b2d');
+        if(b.selected)c.fillRect(b.x,b.y+8,4,b.h-16,C.green);
+        if(focused)c.strokeRoundRect(b.x+2,b.y+2,b.w-4,b.h-4,7,2,C.green);
+        if(!focused&&!b.selected)c.line(30,b.y+1,280,b.y+1,1,C.line);
+        menuIcon(c,i,36,b.y+20);
+        text(c,b.label,78,b.y+40,24,C.text,b.selected||focused);
+    });
+    c.line(308,0,308,520,1,C.line);
+}
 function drawHome(c,v,focus) {
     c.fillRect(0,0,1600,520,C.panel); drawMap(c,v);
-    text(c,'Атлас',30,65,51,C.text,true);text(c,'Меню поездки',32,95,22,C.dim);
-    menuTargets().forEach((b,i)=>{
-        if(focus===b.command){c.roundRect(b.x,b.y,b.w,b.h,8,'#284a37');c.fillRect(b.x,b.y+8,4,b.h-16,C.green);}
-        else c.line(30,b.y+1,280,b.y+1,1,C.line);
-        menuIcon(c,i,36,b.y+20);
-        text(c,b.label,78,b.y+40,24,C.text,focus===b.command);
-    });
+    drawRail(c,'trip',focus);
     const xx=1215, known=v.limit!==null;
     fitText(c,phases[v.phase]||'Поездка',xx,51,33,355,C.text,true);
     if(!v.active){
@@ -186,4 +211,4 @@ function drawSummary(c,v) {
     if(hint)fitText(c,hint,at[2],177,24,310,C.dim);
     c.line(28,198,1570,198,1,C.line);fitText(c,v.outputs||'—',28,228,23,1530,C.dim);
 }
-module.exports={menuTargets,model,drawHome,drawSummary,distance};
+module.exports={menuTargets,railTargets,section,drawRail,model,drawHome,drawSummary,distance};

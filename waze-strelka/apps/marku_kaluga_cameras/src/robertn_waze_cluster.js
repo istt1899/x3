@@ -125,6 +125,11 @@ const PAGE_STATES = Object.freeze({trip:'ST_OnlineApps_StrelkaTrip',atlasMenu:'S
 const ATLAS_IDS = {main:1,logs:2,cameras:3,diagnostics:4,alerts:5,types:6,calibration:7,position:8,
     database:9,overspeed:11,diagnosticPhoto:12,trip:13,cameraDetail:14,about:15,regions:16,atlasMenu:17};
 const ATLAS_EDITORS = ['main','alerts','calibration','position','overspeed'];
+const ATLAS_RANGES={
+    main:['wocHudSize','wocHudOpacity'],alerts:['cameraWarningDistance'],
+    calibration:['cameraCardScale','cameraCardBrightness','cameraCardTransparency','cameraCardX','cameraCardY'],
+    position:['cameraCardX','cameraCardY'],overspeed:['cameraVisualOffset','cameraSoundOffset','cameraSoundDistance','cameraSoundRepeat']
+};
 const ATLAS_PARENT = {main:'trip',logs:'main',cameras:'trip',diagnostics:'trip',alerts:'cameras',types:'cameras',
     calibration:'cameras',position:'calibration',database:'cameras',overspeed:'alerts',diagnosticPhoto:'diagnostics',
     cameraDetail:'trip',about:'trip',regions:'trip',atlasMenu:'trip'};
@@ -207,9 +212,11 @@ class WazeClusterApp extends OnlineApp {
         this._atlasSurface = null;
         this._atlasKeys = {};
         this._atlasReady = {};
+        this._atlasProposals = {};
         this._atlasEditorStates = {};
         this._atlasHistory = ['trip'];
         this._atlasParents = {};
+        this._atlasReturns = {};
         this._atlasRequested = null;
         // OAP runs <app>/source/javascript/app.js and registers graphics
         // from <app>/rhmiData/resources, shared with its RHMI resource bundle.
@@ -729,6 +736,7 @@ class WazeClusterApp extends OnlineApp {
 
     _openCalibration(target) {
         if(target!=='hud'&&target!=='map')return Promise.resolve(false);
+        this._flushAtlasInput();
         this._cancelCameraHold('TARGET_CHANGED');
         this._cameraCardTarget=target;this._cameraCardSelectionReason=null;
         this._renderCameraCard();
@@ -775,6 +783,7 @@ class WazeClusterApp extends OnlineApp {
         this._atlasPanels = {};
         this._atlasHistory = ['trip'];
         this._atlasParents = {};
+        this._atlasReturns = {};
         this._atlasRequested = 'trip';
         this._shownPage = 'trip';
         this._pages = this._emptyPages();
@@ -926,7 +935,8 @@ class WazeClusterApp extends OnlineApp {
         const key = `visible:${name}`;
         if (this._written[key] !== visible) {
             this._written[key] = visible;
-            Promise.resolve(this._components[name].setVisible(visible))
+            const component=this._components[name];
+            Promise.resolve(component.setVisible?component.setVisible(visible):component.setProperty('Visible',visible?1:0,'UInt'))
                 .catch((err) => logger.warn(`${name} visibility failed: ${err && err.message}`));
         }
     }
@@ -1088,7 +1098,7 @@ class WazeClusterApp extends OnlineApp {
         if(!target)return {allowed:false,reason:'Для теста включите приборы или HUD'};
         const output=target==='map'?'cluster':'hud';
         return state.outputs&&state.outputs[output]===true?allowed:
-            {allowed:false,reason:(output==='hud'?'Проекция HUD':'Приборная панель')+' выключена. Включите выбранный выход выше.'};
+            {allowed:false,reason:(output==='hud'?'Проекция HUD':'Приборная панель')+' выключена. Откройте «Вывод и состав» и включите этот выход.'};
     }
 
     _startCameraTest(calibration,fromDiagnostics) {
@@ -1463,6 +1473,46 @@ class WazeClusterApp extends OnlineApp {
                     const name=prefix+stem;
                     this._components[name]=rhmi.getByName(name);
                 });
+                if(page!=='trip'){
+                    const name='atlasSection'+stem, picker=rhmi.getByName(name);
+                    this._components[name]=picker;
+                    picker.on('action',event=>{
+                        if(!this._visible || this._atlasSurface!==stem || this._atlasStage.front&&this._atlasStage.owns())return;
+                        const row=event&&event.row, sections=atlasHome.railTargets(page);
+                        if(!Number.isInteger(row)||!sections[row])return;
+                        this._atlasAction(sections[row].command);
+                    });
+                }
+                (ATLAS_RANGES[page]||[]).forEach(source=>{
+                    const name='atlasRange'+stem+'_'+source, control=rhmi.getByName(name);
+                    this._components[name]=control;
+                    control.on('changed',step=>{
+                        if(!this._visible||this._atlasSurface!==stem||this._atlasStage.front&&this._atlasStage.owns())return;
+                        const key='cell:'+name+':0:Value';
+                        const previous=this._atlasProposals[name];
+                        if(step===this._written[key]){
+                            if(previous)clearTimeout(previous.timer);
+                            delete this._atlasProposals[name];
+                            return;
+                        }
+                        const command='atlasValue:'+source+':'+step, stage=this._atlasStage;
+                        if(!Number.isInteger(step)||!stage.view||!atlasStage.actionTarget(page,stage.view,command))return;
+                        if(previous)clearTimeout(previous.timer);
+                        const generation=this._tripImage.generation, profile=this._cameraCardTarget;
+                        const proposal={send:()=>{
+                            if(this._atlasProposals[name]!==proposal)return;
+                            clearTimeout(proposal.timer);
+                            delete this._atlasProposals[name];
+                            if(this._atlasSurface!==stem||this._tripImage.generation!==generation||
+                                this._cameraCardTarget!==profile)return;
+                            delete this._written[key];
+                            this._atlasAction(command);
+                            this._renderAtlas();
+                        }};
+                        this._atlasProposals[name]=proposal;
+                        proposal.timer=setTimeout(proposal.send,125);
+                    });
+                });
                 for(let i=0;i<size;i++){
                     const name='atlasKey'+stem+'_'+i, component=rhmi.getByName(name);
                     this._components[name]=component;
@@ -1516,9 +1566,11 @@ class WazeClusterApp extends OnlineApp {
     _atlasVisible(page,edit,visible) {
         const stem=(edit?'Edit':'')+ATLAS_IDS[page];
         if(!visible && this._atlasSurface!==stem)return;
+        if(!visible || this._atlasSurface!==stem)this._flushAtlasInput();
         if(visible){
             const last=this._atlasHistory[this._atlasHistory.length-1];
             const origin=this._atlasParents[last];
+            if(!edit && !this._atlasRequested && page===ATLAS_PARENT[last] && this._resumeAtlasSection(last))return;
             if(!edit && !this._atlasRequested && origin && page===ATLAS_PARENT[last] && page!==origin){
                 // BMW's Back selects the statically declared parent. A section
                 // also reachable from another tile returns to its actual caller.
@@ -1531,7 +1583,10 @@ class WazeClusterApp extends OnlineApp {
             const previous=this._atlasHistory.lastIndexOf(page);
             if(previous>=0)this._atlasHistory.length=previous+1;
             else this._atlasHistory.push(page);
-            if(!edit && this._atlasPanels[page])this._atlasPanels[page].edit=null;
+            if(!edit && this._atlasPanels[page] && this._atlasPanels[page].edit){
+                this._atlasStage.focus[page]='atlasEdit:'+this._atlasPanels[page].edit;
+                this._atlasPanels[page].edit=null;
+            }
             this._pages=this._emptyPages();
         }else{
             this._atlasSurface=null;
@@ -1539,7 +1594,14 @@ class WazeClusterApp extends OnlineApp {
         this._pageVisible(page,visible);
     }
 
+    _flushAtlasInput() {
+        this._atlasStage.finishNudge(true);
+        Object.values(this._atlasProposals).forEach(proposal=>proposal.send());
+    }
+
     _hideAtlas() {
+        Object.values(this._atlasProposals).forEach(proposal=>clearTimeout(proposal.timer));
+        this._atlasProposals={};
         this._atlasStage.set(null, null, null);
         this._tripImage.key=null;
         this._tripImage.context=null;
@@ -1548,13 +1610,55 @@ class WazeClusterApp extends OnlineApp {
         this._tripImage.generation=(this._tripImage.generation||0)+1;
     }
 
+    _resumeAtlasSection(page) {
+        const caller=this._atlasReturns[page];
+        if(!caller)return false;
+        delete this._atlasReturns[page];
+        this._atlasPanels[caller.page]=caller.panel;
+        if(caller.page==='calibration'||caller.page==='position')this._cameraCardTarget=caller.target;
+        this._atlasStage.focus[caller.page]=caller.focus;
+        this._navigateAtlas(caller.page,!!caller.panel.edit);
+        return true;
+    }
+
     _atlasAction(name) {
         const page=this._shownPage,stage=this._atlasStage;
         if (!this._visible || !this._pages[page] || stage.page!==page || !stage.view) return;
-        const item=atlasStage.targets(page,stage.view).find(t=>t.command===name&&t.enabled!==false);
+        if(!name.startsWith('atlasValue:'))this._flushAtlasInput();
+        const item=atlasStage.actionTarget(page,stage.view,name);
         if(!item)return;
+        if(item.kind==='section'){
+            const destination=item.destination;
+            if(destination==='trip'){
+                this._atlasParents={};
+                this._atlasReturns={};
+                this._atlasHistory=['trip'];
+            }else if(destination!==page){
+                const panel=Object.assign({sheet:0,edit:null},this._atlasPanels[page]);
+                this._atlasReturns[destination]={page,panel,target:this._cameraCardTarget,
+                    focus:panel.edit?'atlasSlider:'+panel.edit:stage.contentFocus[page]};
+            }
+            delete stage.focus[destination];
+            this._atlasPanels[destination]={sheet:0,edit:null};
+            if(destination==='diagnostics'){this._diagPage=0;this._diagBlock=0;this._diagnosticSnapshot=null;}
+            this._openCameraPage(destination);
+            return;
+        }
+        if(name==='atlasCompositionOpen:hud'||name==='atlasCompositionOpen:map'){
+            this._atlasPanels.calibration={sheet:2,edit:null};
+            this._openCalibration(name.split(':')[1]);
+            return;
+        }
+        if(name.indexOf('atlasComposition:')===0){
+            if(page!=='calibration' || typeof item.selected!=='boolean')return;
+            this._cameraAction('cardLayout','card-composition',{
+                target:this._cameraCardTarget,key:name.slice('atlasComposition:'.length),value:!item.selected
+            });
+            return;
+        }
         const panel=this._atlasPanels[page]||{sheet:0,edit:null};
         if(name==='atlasBack'&&!panel.edit){
+            if(this._resumeAtlasSection(page))return;
             const from=this._atlasHistory[this._atlasHistory.length-2]||ATLAS_PARENT[page];
             if(from)this._navigateAtlas(from,false);
             return;
@@ -1563,6 +1667,7 @@ class WazeClusterApp extends OnlineApp {
         if(next){
             this._atlasPanels[page]=next;
             if(!!next.edit!==!!panel.edit && this._atlasEditorStates[page]){
+                stage.focus[page]=next.edit?'atlasSlider:'+next.edit:'atlasEdit:'+panel.edit;
                 this._navigateAtlas(page,!!next.edit).then(opened=>{
                     if(!opened){this._atlasPanels[page]=panel;this._renderAtlas();}
                 });
@@ -1572,7 +1677,8 @@ class WazeClusterApp extends OnlineApp {
         const value=/^atlas(Value|Choice):([A-Za-z0-9_]+):([0-9]+)$/.exec(name);
         if(value){
             const component=this._components[value[2]];
-            if(!component || panel.edit!==value[2] || this._written['enabled:'+value[2]]===false)return;
+            if(!component || !(panel.edit===value[2] || item.kind==='slider'&&item.source===value[2]) ||
+                this._written['enabled:'+value[2]]===false)return;
             const step=Number(value[3]);
             if(value[1]==='Value'){
                 const key='cell:'+value[2]+':0:Value';
@@ -1614,7 +1720,7 @@ class WazeClusterApp extends OnlineApp {
         const view = home ? atlasHome.model(state, this._packageJson.version) : atlasDetail.model(page, {
             state, version:this._packageJson.version, written:this._written, serviceReady:!!state, atlasPanel:this._atlasPanels[page],
             region:page === 'regions' ? this._regionView() : null, snapshot:this._diagnosticSnapshot,
-            target:this._cameraCardTarget, diagnosticState:page === 'diagnostics' ? this._cameraDiagnosticState() : null
+            target:this._cameraCardTarget, testGuard:this._cameraTestGuard(this._cameraCardTarget), diagnosticState:page === 'diagnostics' ? this._cameraDiagnosticState() : null
         });
         if (!view) return;
         const signature = JSON.stringify(view);
@@ -1623,9 +1729,26 @@ class WazeClusterApp extends OnlineApp {
         const images = this._tripImage;
         const interactive=this._atlasStage.owns()&&this._atlasStage.front;
         const items=atlasStage.targets(page,view);
+        if(!home){
+            const name='atlasSection'+stem, sections=atlasHome.railTargets(page);
+            this._writeCell(name,'HeaderText','Раздел','Text');
+            sections.forEach((entry,row)=>this._writeCell(name,'ItemText',entry.label,'Text',row));
+            this._writeCell(name,'SelectedItem',sections.findIndex(entry=>entry.selected),'UInt');
+            this._setVisibleComp(name,!interactive);
+        }
+        (ATLAS_RANGES[page]||[]).forEach(source=>{
+            const name='atlasRange'+stem+'_'+source;
+            const range=items.find(item=>item.kind==='slider'&&item.source===source);
+            if(range){
+                this._writeCell(name,'TextDescription',range.label+' · '+range.value,'Text',0);
+                if(Number.isInteger(range.step)&&!this._atlasProposals[name])this._writeCell(name,'Value',range.step,'SInt',0);
+                this._setEnabled(name,range.enabled!==false);
+            }
+            this._setVisibleComp(name,!!range&&!interactive);
+        });
         const count=home?6:9;
         for(let i=0;i<count;i++){
-            const slot='atlasKey'+stem+'_'+i, target=items[i];
+            const slot='atlasKey'+stem+'_'+i, target=items[i]&&items[i].kind!=='section'?items[i]:null;
             this._atlasKeys[slot]=target;
             if(target){
                 let value=target.value;

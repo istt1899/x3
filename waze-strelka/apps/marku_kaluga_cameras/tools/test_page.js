@@ -169,6 +169,7 @@ class FakeComponent extends EventEmitter {
         return this.setValue(0, 'Value', value, 'SInt');
     }
     setProperty(name, value) {
+        if(name==='Visible'){this.visible=value===1;return Promise.resolve();}
         assert.strictEqual(name, 'Enabled');
         this.enabled = value === 1;
         this.enabledSeen.add(this.enabled);

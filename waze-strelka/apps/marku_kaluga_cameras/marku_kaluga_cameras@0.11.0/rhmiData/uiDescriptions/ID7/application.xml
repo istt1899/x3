@@ -1159,6 +1159,10 @@
         </layoutGroup>
         <layoutGroup id="7022" name="List">
             <property id="3" value="1"/>
+            <component id="22020" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7023" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1166,6 +1170,14 @@
             <component id="7024" type="label" widget="LT_Label_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
+            </component>
+            <component id="32020" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="32021" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
             </component>
             <component id="7025" type="button" widget="LT_Button_1Row_2Col7030_2Text">
                 <property id="2" value="0"/>
@@ -1214,6 +1226,10 @@
         </layoutGroup>
         <layoutGroup id="9022" name="List">
             <property id="3" value="1"/>
+            <component id="24020" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="9023" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1221,6 +1237,14 @@
             <component id="9024" type="label" widget="LT_Label_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
+            </component>
+            <component id="34020" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="34021" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
             </component>
             <component id="9025" type="button" widget="LT_Button_1Row_2Col7030_2Text">
                 <property id="2" value="0"/>
@@ -1269,6 +1293,10 @@
         </layoutGroup>
         <layoutGroup id="7042" name="List">
             <property id="3" value="1"/>
+            <component id="22040" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7043" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1324,6 +1352,10 @@
         </layoutGroup>
         <layoutGroup id="7062" name="List">
             <property id="3" value="1"/>
+            <component id="22060" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7063" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1379,6 +1411,10 @@
         </layoutGroup>
         <layoutGroup id="7082" name="List">
             <property id="3" value="1"/>
+            <component id="22080" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7083" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1434,6 +1470,10 @@
         </layoutGroup>
         <layoutGroup id="7102" name="List">
             <property id="3" value="1"/>
+            <component id="22100" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7103" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1441,6 +1481,10 @@
             <component id="7104" type="label" widget="LT_Label_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
+            </component>
+            <component id="32100" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
             </component>
             <component id="7105" type="button" widget="LT_Button_1Row_2Col7030_2Text">
                 <property id="2" value="0"/>
@@ -1489,6 +1533,10 @@
         </layoutGroup>
         <layoutGroup id="9102" name="List">
             <property id="3" value="1"/>
+            <component id="24100" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="9103" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1496,6 +1544,10 @@
             <component id="9104" type="label" widget="LT_Label_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
+            </component>
+            <component id="34100" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
             </component>
             <component id="9105" type="button" widget="LT_Button_1Row_2Col7030_2Text">
                 <property id="2" value="0"/>
@@ -1544,6 +1596,10 @@
         </layoutGroup>
         <layoutGroup id="7122" name="List">
             <property id="3" value="1"/>
+            <component id="22120" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7123" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1599,6 +1655,10 @@
         </layoutGroup>
         <layoutGroup id="7142" name="List">
             <property id="3" value="1"/>
+            <component id="22140" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7143" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1606,6 +1666,26 @@
             <component id="7144" type="label" widget="LT_Label_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
+            </component>
+            <component id="32140" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="32141" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="32142" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="32143" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="32144" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
             </component>
             <component id="7145" type="button" widget="LT_Button_1Row_2Col7030_2Text">
                 <property id="2" value="0"/>
@@ -1654,6 +1734,10 @@
         </layoutGroup>
         <layoutGroup id="9142" name="List">
             <property id="3" value="1"/>
+            <component id="24140" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="9143" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1661,6 +1745,26 @@
             <component id="9144" type="label" widget="LT_Label_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
+            </component>
+            <component id="34140" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="34141" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="34142" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="34143" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="34144" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
             </component>
             <component id="9145" type="button" widget="LT_Button_1Row_2Col7030_2Text">
                 <property id="2" value="0"/>
@@ -1709,6 +1813,10 @@
         </layoutGroup>
         <layoutGroup id="7162" name="List">
             <property id="3" value="1"/>
+            <component id="22160" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7163" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1716,6 +1824,14 @@
             <component id="7164" type="label" widget="LT_Label_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
+            </component>
+            <component id="32160" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="32161" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
             </component>
             <component id="7165" type="button" widget="LT_Button_1Row_2Col7030_2Text">
                 <property id="2" value="0"/>
@@ -1764,6 +1880,10 @@
         </layoutGroup>
         <layoutGroup id="9162" name="List">
             <property id="3" value="1"/>
+            <component id="24160" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="9163" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1771,6 +1891,14 @@
             <component id="9164" type="label" widget="LT_Label_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
+            </component>
+            <component id="34160" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="34161" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
             </component>
             <component id="9165" type="button" widget="LT_Button_1Row_2Col7030_2Text">
                 <property id="2" value="0"/>
@@ -1819,6 +1947,10 @@
         </layoutGroup>
         <layoutGroup id="7182" name="List">
             <property id="3" value="1"/>
+            <component id="22180" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7183" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1874,6 +2006,10 @@
         </layoutGroup>
         <layoutGroup id="7222" name="List">
             <property id="3" value="1"/>
+            <component id="22220" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7223" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1881,6 +2017,22 @@
             <component id="7224" type="label" widget="LT_Label_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
+            </component>
+            <component id="32220" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="32221" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="32222" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="32223" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
             </component>
             <component id="7225" type="button" widget="LT_Button_1Row_2Col7030_2Text">
                 <property id="2" value="0"/>
@@ -1929,6 +2081,10 @@
         </layoutGroup>
         <layoutGroup id="9222" name="List">
             <property id="3" value="1"/>
+            <component id="24220" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="9223" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -1936,6 +2092,22 @@
             <component id="9224" type="label" widget="LT_Label_1Row">
                 <property id="2" value="1"/>
                 <property id="3" value="0"/>
+            </component>
+            <component id="34220" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="34221" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="34222" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
+            </component>
+            <component id="34223" type="slider" widget="LT_Slider_LeftJustified_Fill_Steps">
+                <property id="2" value="0"/>
+                <property id="3" value="3"/>
             </component>
             <component id="9225" type="button" widget="LT_Button_1Row_2Col7030_2Text">
                 <property id="2" value="0"/>
@@ -1984,6 +2156,10 @@
         </layoutGroup>
         <layoutGroup id="7242" name="List">
             <property id="3" value="1"/>
+            <component id="22240" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7243" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -2081,6 +2257,10 @@
         </layoutGroup>
         <layoutGroup id="7282" name="List">
             <property id="3" value="1"/>
+            <component id="22280" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7283" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -2136,6 +2316,10 @@
         </layoutGroup>
         <layoutGroup id="7302" name="List">
             <property id="3" value="1"/>
+            <component id="22300" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7303" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -2191,6 +2375,10 @@
         </layoutGroup>
         <layoutGroup id="7322" name="List">
             <property id="3" value="1"/>
+            <component id="22320" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7323" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>
@@ -2246,6 +2434,10 @@
         </layoutGroup>
         <layoutGroup id="7342" name="List">
             <property id="3" value="1"/>
+            <component id="22340" type="dropDownMenu" widget="LT_DropDownMenu_1Row_2Col3070">
+                <property id="2" value="1"/>
+                <property id="3" value="3"/>
+            </component>
             <component id="7343" type="label" widget="LT_Label_1Graphic_Scalable">
                 <property id="2" value="0"/>
                 <property id="3" value="0"/>

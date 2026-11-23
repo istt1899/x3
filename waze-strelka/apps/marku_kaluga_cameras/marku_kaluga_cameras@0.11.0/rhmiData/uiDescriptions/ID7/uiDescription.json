@@ -6486,6 +6486,162 @@
               }
             }
           ]
+        },
+        "22020": {
+          "type": "dropDownMenu",
+          "name": "atlasSection1",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "32020": {
+          "type": "slider",
+          "name": "atlasRange1_wocHudSize",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Size: —",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 11,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 11,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "32021": {
+          "type": "slider",
+          "name": "atlasRange1_wocHudOpacity",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Прозрачность HUD: сервис недоступен",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 18,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 18,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 0,
+                "type": "SInt"
+              }
+            }
+          ]
         }
       },
       "properties": {
@@ -6794,6 +6950,162 @@
               }
             }
           ]
+        },
+        "24020": {
+          "type": "dropDownMenu",
+          "name": "atlasSectionEdit1",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "34020": {
+          "type": "slider",
+          "name": "atlasRangeEdit1_wocHudSize",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Size: —",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 11,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 11,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "34021": {
+          "type": "slider",
+          "name": "atlasRangeEdit1_wocHudOpacity",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Прозрачность HUD: сервис недоступен",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 18,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 18,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 0,
+                "type": "SInt"
+              }
+            }
+          ]
         }
       },
       "properties": {
@@ -7098,6 +7410,74 @@
               },
               "Text2ndCol": {
                 "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "22040": {
+          "type": "dropDownMenu",
+          "name": "atlasSection2",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
                 "type": "Text"
               }
             }
@@ -7410,6 +7790,74 @@
               }
             }
           ]
+        },
+        "22060": {
+          "type": "dropDownMenu",
+          "name": "atlasSection3",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
         }
       },
       "properties": {
@@ -7714,6 +8162,74 @@
               },
               "Text2ndCol": {
                 "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "22080": {
+          "type": "dropDownMenu",
+          "name": "atlasSection4",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
                 "type": "Text"
               }
             }
@@ -8026,6 +8542,120 @@
               }
             }
           ]
+        },
+        "22100": {
+          "type": "dropDownMenu",
+          "name": "atlasSection5",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "32100": {
+          "type": "slider",
+          "name": "atlasRange5_cameraWarningDistance",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Предупреждать за: 1000 м",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 19,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 19,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 19,
+                "type": "SInt"
+              }
+            }
+          ]
         }
       },
       "properties": {
@@ -8334,6 +8964,120 @@
               }
             }
           ]
+        },
+        "24100": {
+          "type": "dropDownMenu",
+          "name": "atlasSectionEdit5",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "34100": {
+          "type": "slider",
+          "name": "atlasRangeEdit5_cameraWarningDistance",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Предупреждать за: 1000 м",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 19,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 19,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 19,
+                "type": "SInt"
+              }
+            }
+          ]
         }
       },
       "properties": {
@@ -8638,6 +9382,74 @@
               },
               "Text2ndCol": {
                 "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "22120": {
+          "type": "dropDownMenu",
+          "name": "atlasSection6",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
                 "type": "Text"
               }
             }
@@ -8950,6 +9762,304 @@
               }
             }
           ]
+        },
+        "22140": {
+          "type": "dropDownMenu",
+          "name": "atlasSection7",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "32140": {
+          "type": "slider",
+          "name": "atlasRange7_cameraCardScale",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Размер предупреждения: 100 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 15,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 15,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 5,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "32141": {
+          "type": "slider",
+          "name": "atlasRange7_cameraCardBrightness",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Яркость предупреждения: 100 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 18,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 18,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 18,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "32142": {
+          "type": "slider",
+          "name": "atlasRange7_cameraCardTransparency",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Прозрачность предупреждения: 0 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 18,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 18,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 0,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "32143": {
+          "type": "slider",
+          "name": "atlasRange7_cameraCardX",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "По горизонтали: 50.0 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 100,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "32144": {
+          "type": "slider",
+          "name": "atlasRange7_cameraCardY",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "По вертикали: 82.0 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 164,
+                "type": "SInt"
+              }
+            }
+          ]
         }
       },
       "properties": {
@@ -9255,6 +10365,304 @@
               "Text2ndCol": {
                 "value": "",
                 "type": "Text"
+              }
+            }
+          ]
+        },
+        "24140": {
+          "type": "dropDownMenu",
+          "name": "atlasSectionEdit7",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "34140": {
+          "type": "slider",
+          "name": "atlasRangeEdit7_cameraCardScale",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Размер предупреждения: 100 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 15,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 15,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 5,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "34141": {
+          "type": "slider",
+          "name": "atlasRangeEdit7_cameraCardBrightness",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Яркость предупреждения: 100 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 18,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 18,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 18,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "34142": {
+          "type": "slider",
+          "name": "atlasRangeEdit7_cameraCardTransparency",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Прозрачность предупреждения: 0 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 18,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 18,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 0,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "34143": {
+          "type": "slider",
+          "name": "atlasRangeEdit7_cameraCardX",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "По горизонтали: 50.0 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 100,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "34144": {
+          "type": "slider",
+          "name": "atlasRangeEdit7_cameraCardY",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "По вертикали: 82.0 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 164,
+                "type": "SInt"
               }
             }
           ]
@@ -9566,6 +10974,166 @@
               }
             }
           ]
+        },
+        "22160": {
+          "type": "dropDownMenu",
+          "name": "atlasSection8",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "32160": {
+          "type": "slider",
+          "name": "atlasRange8_cameraCardX",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "По горизонтали: 50.0 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 100,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "32161": {
+          "type": "slider",
+          "name": "atlasRange8_cameraCardY",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "По вертикали: 82.0 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 164,
+                "type": "SInt"
+              }
+            }
+          ]
         }
       },
       "properties": {
@@ -9874,6 +11442,166 @@
               }
             }
           ]
+        },
+        "24160": {
+          "type": "dropDownMenu",
+          "name": "atlasSectionEdit8",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "34160": {
+          "type": "slider",
+          "name": "atlasRangeEdit8_cameraCardX",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "По горизонтали: 50.0 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 100,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "34161": {
+          "type": "slider",
+          "name": "atlasRangeEdit8_cameraCardY",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "По вертикали: 82.0 %",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 200,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 164,
+                "type": "SInt"
+              }
+            }
+          ]
         }
       },
       "properties": {
@@ -10178,6 +11906,74 @@
               },
               "Text2ndCol": {
                 "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "22180": {
+          "type": "dropDownMenu",
+          "name": "atlasSection9",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
                 "type": "Text"
               }
             }
@@ -10490,6 +12286,258 @@
               }
             }
           ]
+        },
+        "22220": {
+          "type": "dropDownMenu",
+          "name": "atlasSection11",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "32220": {
+          "type": "slider",
+          "name": "atlasRange11_cameraVisualOffset",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Порог мигания: нет подтверждённых данных",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 30,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 30,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 0,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "32221": {
+          "type": "slider",
+          "name": "atlasRange11_cameraSoundOffset",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Порог звука: нет подтверждённых данных",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 30,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 30,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 20,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "32222": {
+          "type": "slider",
+          "name": "atlasRange11_cameraSoundDistance",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Дистанция контроля: сигнал только ближе выбранной дистанции",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 100,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 700,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 12,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 400,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "32223": {
+          "type": "slider",
+          "name": "atlasRange11_cameraSoundRepeat",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Повтор сигнала: однократно / 3 / 5 / 10 с",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 3,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 3,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 2,
+                "type": "SInt"
+              }
+            }
+          ]
         }
       },
       "properties": {
@@ -10798,6 +12846,258 @@
               }
             }
           ]
+        },
+        "24220": {
+          "type": "dropDownMenu",
+          "name": "atlasSectionEdit11",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "34220": {
+          "type": "slider",
+          "name": "atlasRangeEdit11_cameraVisualOffset",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Порог мигания: нет подтверждённых данных",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 30,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 30,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 0,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "34221": {
+          "type": "slider",
+          "name": "atlasRangeEdit11_cameraSoundOffset",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Порог звука: нет подтверждённых данных",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 30,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 30,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 20,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "34222": {
+          "type": "slider",
+          "name": "atlasRangeEdit11_cameraSoundDistance",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Дистанция контроля: сигнал только ближе выбранной дистанции",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 100,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 700,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 12,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 400,
+                "type": "SInt"
+              }
+            }
+          ]
+        },
+        "34223": {
+          "type": "slider",
+          "name": "atlasRangeEdit11_cameraSoundRepeat",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "TextDescription": {
+                "value": "Повтор сигнала: однократно / 3 / 5 / 10 с",
+                "type": "Text"
+              },
+              "TextDescriptionVisible": {
+                "value": true,
+                "type": "Bool"
+              },
+              "MiddleIndicatorVisible": {
+                "value": false,
+                "type": "Bool"
+              },
+              "MinValue": {
+                "value": 0,
+                "type": "SInt"
+              },
+              "MaxValue": {
+                "value": 3,
+                "type": "SInt"
+              },
+              "NumberOfSteps": {
+                "value": 3,
+                "type": "SInt"
+              },
+              "Value": {
+                "value": 2,
+                "type": "SInt"
+              }
+            }
+          ]
         }
       },
       "properties": {
@@ -11102,6 +13402,74 @@
               },
               "Text2ndCol": {
                 "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "22240": {
+          "type": "dropDownMenu",
+          "name": "atlasSection12",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
                 "type": "Text"
               }
             }
@@ -11638,6 +14006,74 @@
               }
             }
           ]
+        },
+        "22280": {
+          "type": "dropDownMenu",
+          "name": "atlasSection14",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
         }
       },
       "properties": {
@@ -11942,6 +14378,74 @@
               },
               "Text2ndCol": {
                 "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "22300": {
+          "type": "dropDownMenu",
+          "name": "atlasSection15",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
                 "type": "Text"
               }
             }
@@ -12254,6 +14758,74 @@
               }
             }
           ]
+        },
+        "22320": {
+          "type": "dropDownMenu",
+          "name": "atlasSection16",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
+                "type": "Text"
+              }
+            }
+          ]
         }
       },
       "properties": {
@@ -12558,6 +15130,74 @@
               },
               "Text2ndCol": {
                 "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "22340": {
+          "type": "dropDownMenu",
+          "name": "atlasSection17",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "cells": {
+            "HeaderText": {
+              "value": "Раздел",
+              "type": "Text"
+            },
+            "SelectedItem": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "ItemText": {
+                "value": "Поездка",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Камера",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            },
+            {
+              "ItemText": {
+                "value": "Справка",
                 "type": "Text"
               }
             }

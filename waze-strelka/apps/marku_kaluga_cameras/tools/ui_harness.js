@@ -18,7 +18,11 @@ function create(){
             this.cells[key]=a[offset+1];if(a[offset]==='eParam_RowSelected')this.selected=a[offset+1];return Promise.resolve();}
         setStepValue(value){if(value!==this.step){this.step=value;this.emit('changed',value);}return this.setValue(0,'Value',value,'SInt');}
         setEnabled(value){this.enabled=value;return Promise.resolve();}
-        setProperty(name,value){assert.strictEqual(name,'Enabled');this.enabled=value===1;return Promise.resolve();}
+        setProperty(name,value){
+            if(name==='Visible')this.visible=value===1;
+            else{assert.strictEqual(name,'Enabled');this.enabled=value===1;}
+            return Promise.resolve();
+        }
         setVisible(value){this.visible=value;return Promise.resolve();}
         updateResources(){this.resources++;return Promise.resolve();}
         press(){if(!this.enabled)return false;if(this.desc.type==='checkBox')this.selected=!this.selected;this.emit('action');return true;}
