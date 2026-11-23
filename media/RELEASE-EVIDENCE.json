@@ -47,7 +47,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "56c74129744553a0c18a51cc4e1d378729e8b821f84502b75c866f53423a52f1"
+      "sha256": "7770c50d981e4c67292d4b155d82b0eb5f481986878155ea63ad7d186f7f9c66"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -55,13 +55,13 @@
   },
   "catalog_update": {
     "date": "2026-11-23",
-    "reason": "Persistent section navigation, per-display warning content and direction graphics, and touch and controller calibration.",
-    "previous_sha256": "bd82b2274ebb208682bdfd3f7fb9435ff22fca871d8f3b2a44b9927beb768fa1",
-    "package_commit": "c6e68efa4b686d2795cbae598b3bd7bdf9bf35ed",
+    "reason": "Adapt the central display layout and touch targets to the available MGU viewport.",
+    "previous_sha256": "56c74129744553a0c18a51cc4e1d378729e8b821f84502b75c866f53423a52f1",
+    "package_commit": "f71d8eade493118d9445a7afeb14ef024e61824a",
     "updated_components": {
-      "marku-kaluga-cameras": "0.11.1",
-      "marku_kaluga_cameras": "0.11.1"
+      "marku-kaluga-cameras": "0.11.2",
+      "marku_kaluga_cameras": "0.11.2"
     },
-    "hardware_scope": "BMW ID7. Physical X3 and X6M sleep, drive and projection verification pending."
+    "hardware_scope": "BMW iDrive 7. Physical X3 and X6 M display edge coverage pending."
   }
 }
