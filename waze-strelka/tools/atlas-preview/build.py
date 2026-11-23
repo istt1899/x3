@@ -79,7 +79,7 @@ def build():
             break
     for name in ["canvas", "fonts", "i18n"]:
         include("kit/" + name, kit / (name + ".js"))
-    for name in ["alert-card", "card-layout", "camera-layers", "action-policy", "display-limit"]:
+    for name in ["alert-card", "card-layout", "card-composition", "camera-layers", "action-policy", "display-limit"]:
         include("output/" + name, NATIVE / (name + ".js"))
     # Include a shared pure limit selector when the production card imports it.
     for name in re.findall(r"""require\(['"]\./([\w-]+?)(?:\.js)?['"]\)""", modules["output/alert-card"]):

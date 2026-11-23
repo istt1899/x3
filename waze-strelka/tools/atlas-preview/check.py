@@ -29,6 +29,8 @@ def check(file, screenshot_dir):
             box = button.bounding_box()
             assert box["width"]>1 and box["height"]>1, (name,box)
             center = [box["x"]+box["width"]/2,box["y"]+box["height"]/2]
+            if name.startswith("atlasEdit:") and button.get_attribute("role")=="slider":
+                center=[box["x"]+box["width"]*.06,box["y"]+box["height"]*.18]
             owns=button.evaluate("(button,p)=>document.elementFromPoint(p[0],p[1])===button",center)
             assert owns,(name,center)
             if touch: page.touchscreen.tap(*center)
@@ -178,6 +180,80 @@ def check(file, screenshot_dir):
         find("tripLegacyDatabase");assert where()=="database"
         find("cameraCoverageDetails");assert where()=="diagnostics";home()
         native("tripAbout");find("tripAboutLogs");assert where()=="logs";home()
+        # A real touch sequence must update the preview before release and commit only once.
+        def preferences():
+            return page.evaluate("JSON.parse(localStorage.getItem('bmw-atlas-stand.preferences.v1')).values")
+        cdp=context.new_cdp_session(page)
+        def finger(event,x=None,y=None):
+            cdp.send("Input.dispatchTouchEvent",{"type":event,"touchPoints":[] if x is None else [{"x":x,"y":y}]})
+        def slider(source):
+            return page.locator(f'button[role="slider"][data-command="atlasEdit:{source}"]')
+        def track(row,ratio):
+            box=row.bounding_box()
+            return box["x"]+box["width"]*ratio,box["y"]+box["height"]*.72
+        val("phase").select_option("approach")
+        page.locator("[data-output=hud]").click()
+        assert val("phase").input_value()=="stop"
+        assert val("hits").locator('[role=slider]:enabled').count()==5
+        sections={"cameraDetail","main","regions","diagnostics","cameras","about"}
+        assert sections<={cmd.split(":")[1] for cmd in commands() if cmd.startswith("atlasNav:")}
+        save("07-calibration")
+        independent=preferences()["cardLayout"]["map"]
+        for field,attribute in [("cameraCardX","x"),("cameraCardY","y"),("cameraCardScale","scalePct"),
+                                ("cameraCardBrightness","brightnessPct"),("cameraCardTransparency","opacityPct")]:
+            row=slider(field)
+            before=preferences()["cardLayout"]["hud"][attribute]
+            start=track(row,.50)
+            end=track(row,.67 if int(row.get_attribute("aria-valuenow"))<int(row.get_attribute("aria-valuemax"))*.58 else .42)
+            bitmap_before=pixels("hud")
+            finger("touchStart",*start);finger("touchMove",*end)
+            assert preferences()["cardLayout"]["hud"][attribute]==before,field
+            assert pixels("hud")!=bitmap_before,field
+            finger("touchEnd")
+            assert preferences()["cardLayout"]["hud"][attribute]!=before,field
+            assert preferences()["cardLayout"]["map"]==independent,field
+        row=slider("cameraCardX");prior=preferences()["cardLayout"]["hud"]["x"]
+        finger("touchStart",*track(row,.5));finger("touchMove",*track(row,.65));finger("touchCancel")
+        assert preferences()["cardLayout"]["hud"]["x"]==prior
+        # Mouse can leave the surface while dragging; the pointer is captured until release.
+        page.mouse.move(*track(row,.6));page.mouse.down()
+        frame=val("screen").bounding_box()
+        page.mouse.move(frame["x"]+frame["width"]+6,track(row,.6)[1],steps=4);page.mouse.up()
+        assert preferences()["cardLayout"]["hud"]["x"]==1000
+        row.focus();page.keyboard.press("ArrowLeft")
+        page.wait_for_function("JSON.parse(localStorage.getItem('bmw-atlas-stand.preferences.v1')).values.cardLayout.hud.x === 995")
+        page.keyboard.press("Enter")
+        assert val("screen").get_attribute("data-edit")=="cameraCardX"
+        val("prev").click()
+        val("ok").click();assert val("screen").get_attribute("data-edit")==""
+        assert preferences()["cardLayout"]["hud"]["x"]==990
+        native("atlasNav:about",touch=True);assert where()=="about"
+        native("atlasCompositionOpen:hud",touch=True)
+        assert where()=="calibration" and val("screen").get_attribute("data-sheet")=="2"
+        save("08-composition")
+        fields=["limit","distance","types","direction","speed","status"]
+        hud_original=pixels("hud");map_original=pixels("map")
+        for field in fields:
+            native("atlasComposition:"+field,touch=True)
+            assert preferences()["cardComposition"]["hud"][field] is False
+            assert preferences()["cardComposition"]["map"][field] is True
+        assert pixels("hud")!=hud_original and pixels("map")==map_original
+        assert "Все элементы скрыты" in val("hud-state").inner_text()
+        native("atlasNav:about");native("atlasCompositionOpen:map")
+        native("atlasComposition:distance")
+        assert "180 м" not in val("map").get_attribute("aria-label")
+        native("atlasNav:diagnostics");assert where()=="diagnostics"
+        native("atlasNav:regions");assert where()=="regions"
+        native("atlasNav:main");assert where()=="main"
+        native("atlasNav:cameraDetail");assert where()=="cameraDetail"
+        native("atlasNav:cameras");assert where()=="cameras"
+        stored=preferences()
+        page.reload();page.wait_for_selector("html[data-ready=true]")
+        assert preferences()["cardLayout"]==stored["cardLayout"] and preferences()["cardComposition"]==stored["cardComposition"]
+        assert "Все элементы скрыты" in val("hud-state").inner_text()
+        native("tripAbout");native("atlasCompositionOpen:map");native("atlasComposition:distance")
+        assert "180 м" in val("map").get_attribute("aria-label")
+        home()
         # The same action from virtual rotary, real key events and the mouse wheel.
         page.reload();page.wait_for_selector("html[data-ready=true]")
         assert val("optics").input_value()=="pulse"
@@ -202,6 +278,14 @@ def check(file, screenshot_dir):
                 page.locator('[data-side="both"]').tap()
                 if width==390:save("06-mobile-card")
                 page.keyboard.press("Escape")
+                page.locator("[data-output=hud]").tap()
+                row=slider("cameraCardY")
+                before=preferences()["cardLayout"]["hud"]["y"]
+                start=track(row,.5)
+                end=track(row,.30 if width==320 else .70)
+                finger("touchStart",*start);finger("touchMove",*end);finger("touchEnd")
+                assert preferences()["cardLayout"]["hud"]["y"]!=before,width
+                home()
             if width==390:
                 val("zoom").click();assert val("headunit").evaluate("n=>n.classList.contains('zoomed')")
                 assert val("scrollscreen").evaluate("n=>n.scrollWidth>n.clientWidth")

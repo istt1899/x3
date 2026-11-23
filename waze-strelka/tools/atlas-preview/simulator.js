@@ -1,12 +1,13 @@
 const home=load('app/atlas-home'), detail=load('app/atlas-detail'), stage=load('app/atlas-stage');
 const trip=load('app/trip_view'), diag=load('app/diagnostics_view'), camera=load('app/view_model');
 const layout=load('output/card-layout'), layers=load('output/camera-layers'), card=load('output/alert-card');
+const composition=load('output/card-composition');
 const policy=load('output/action-policy'), Raster=load('kit/canvas').Canvas;
 const el=id=>document.getElementById(id), clone=value=>JSON.parse(JSON.stringify(value));
 const key='bmw-atlas-stand.preferences.v1', emptyPanel=()=>({sheet:0,edit:null});
 const props={cameraVisualFlash:'visualFlash',cameraSoundEnabled:'soundEnabled',cameraSoundAppear:'soundOnCameraAppear'};
 const allTypes=()=>Object.fromEntries(camera.ALERT_TYPES.map(t=>[t.key,true]));
-const defaults=()=>({enabled:true,outputs:{hud:true,cluster:true},cardLayout:layout.defaultLayouts(),
+const defaults=()=>({enabled:true,outputs:{hud:true,cluster:true},cardLayout:layout.defaultLayouts(),cardComposition:composition.normalize(),
     alertPreferences:{warningDistanceM:1000,cameraTypes:allTypes()},overspeedPreferences:{...camera.OVERSPEED_RECOMMENDED},
     phone:{wocProfile:false,wocGuide:false,wocHudKeep:false,wocAaCard:false,wocShowOn:2,wocHudSize:5,wocHudOpacity:0,zoom:0,x:0,y:0},
     packs:{'RU-KLU':{current:'Учебная 1',previous:null}},opticsStyle:'beam'});
@@ -20,6 +21,7 @@ try {
         if(typeof p.enabled==='boolean')saved.enabled=p.enabled;
         for (const t of ['hud','cluster']) if(typeof p.outputs?.[t]==='boolean')saved.outputs[t]=p.outputs[t];
         saved.cardLayout=layout.normalizeLayouts(p.cardLayout);
+        saved.cardComposition=composition.normalize(p.cardComposition);
         if(['beam','pulse','trail'].includes(p.opticsStyle))saved.opticsStyle=p.opticsStyle;
         if(p.phone&&typeof p.phone==='object')Object.assign(saved.phone,p.phone);
         if(p.packs&&typeof p.packs==='object')saved.packs=p.packs;
@@ -37,13 +39,19 @@ const inputStage=new stage.Stage(()=>{},command=>activate(command),()=>{});
 inputStage.gpu={ready:true,native:true,touch:true,info:{touch:true,controller:true,frontGate:true},
     screen:{w:1920,h:720},grabbing:true,visible:true};
 inputStage.front=true;
-inputStage.present=()=>{selected=inputStage.focus[page];drawStage();};
+inputStage.present=()=>{
+    selected=inputStage.focus[page];
+    const item=inputStage.selected(buttons);
+    if(item&&item.kind!=='section')inputStage.contentFocus[page]=focusId(item);
+    drawStage();
+    if(lastState&&page==='calibration')renderOutputs(lastState);
+};
 let rotary=0;
 function syncInput(){
     inputStage.page=page;inputStage.view=view;inputStage.focus[page]=selected;
 }
-function ccu(push) {
-    inputStage.controller({frontRotaryEncoderOperation:rotary,frontRotaryEncoderPushButton:push,frontRotaryEncoderDeflection:0});
+function ccu(push,deflection=0) {
+    inputStage.controller({frontRotaryEncoderOperation:rotary,frontRotaryEncoderPushButton:push,frontRotaryEncoderDeflection:deflection});
 }
 const screenRaster=new Raster(stage.width,stage.height), px=node=>node.getContext('2d');
 const cardCanvas=document.createElement('canvas');cardCanvas.width=card.width;cardCanvas.height=card.height;
@@ -105,7 +113,7 @@ function stateNow() {
         (saved.alertPreferences.cameraTypes.speed||saved.alertPreferences.cameraTypes.lane);
     const fix=roadPosition(distance,phase==='parallel');
     const state={...saved,serviceVersion:config.version,observedAtMs:now,appClock:{wallMs:now,wallUtc:new Date(now).toISOString()},
-        capabilities:{alertPreferences:true,overspeedPreferences:true,outputs:true,displayTest:true,update:true,hudOpacity:true},
+        capabilities:{alertPreferences:true,overspeedPreferences:true,cardComposition:true,outputs:true,displayTest:true,update:true,hudOpacity:true},
         audio:{available:false,reason:'Учебный стенд • звуковой канал BMW не подключён'},
         gpsFix:held?null:{...fix,speedKmh:speed,timeMs:now,source:'simulator'},vehicleMotion:{code:held?'UNAVAILABLE':'READY',speedKmh:speed},
         gpsMotion:{state:held?'unknown':speed===0?'stopped':'moving',speedKmh:speed},
@@ -160,20 +168,33 @@ function say(value) {
     message=value;el('notice').textContent=value;
     if(capture)logEntries.push(new Date().toLocaleTimeString('ru')+' · '+value);
 }
+function endInput() {
+    inputStage.finishNudge(true);
+    inputStage.cancelTouch(false);
+}
+window.addEventListener('pagehide',endInput);
 function go(next,replacing=false) {
+    endInput();
     if(!replacing&&next!==page)history.push({page,panel:{...panel},selected,target});
     page=next;panel=emptyPanel();selected='';
 }
 function back() {
-    if(panel.edit){panel={sheet:panel.sheet,edit:null};selected='';return;}
+    endInput();
+    if(panel.edit){selected='atlasEdit:'+panel.edit;panel={sheet:panel.sheet,edit:null};return;}
     const old=history.pop();
     if(old){page=old.page;panel=old.panel;selected=old.selected;target=old.target;}
     else {page='trip';panel=emptyPanel();selected='';}
 }
 function configure(out) {
+    endInput();
+    if(test&&test!==out)test=null;
     if(page!=='calibration')go('calibration');
     target=out;panel=emptyPanel();selected='';
-    if(!lastState.actions.cardLayout.allowed)say('Для калибровки выберите «Остановка перед камерой» в сценарии поездки.');
+    if(el('phase').value!=='stop'||timer){
+        stopPlay();
+        el('phase').value='stop';
+        say('Симуляция поездки приостановлена. Можно настроить выбранный экран.');
+    }
 }
 function inspectOutput(out) {
     activeOutput=out;cropped=false;el('detail-title').textContent=out==='hud'?'Проекция HUD':'Приборная панель';
@@ -200,26 +221,42 @@ function bitmap(canvas,bytes,width,height){
 let animationTime=0;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
 el('optics').value=saved.opticsStyle;
+function setProfileStep(profile,source,step){
+    switch(source){
+    case 'cameraCardX': profile.x=step*5;break;
+    case 'cameraCardY': profile.y=step*5;break;
+    case 'cameraCardScale': profile.scalePct=75+5*step;break;
+    case 'cameraCardBrightness': profile.brightnessPct=10+5*step;break;
+    case 'cameraCardTransparency': profile.opacityPct=100-5*step;break;
+    default:return false;
+    }
+    return true;
+}
 function renderOutputs(s) {
     for(const out of ['hud','map']) {
-        const node=el(out),ctx=px(node),profile=s.cardLayout[out],enabled=s.outputs[out==='hud'?'hud':'cluster'];
+        const node=el(out),ctx=px(node),profile={...s.cardLayout[out]},fields=s.cardComposition[out],enabled=s.outputs[out==='hud'?'hud':'cluster'];
+        const preview=inputStage.sliderPreview;
+        if(preview&&out===target&&page==='calibration')setProfileStep(profile,preview.source,preview.step);
         const activeTest=test===out&&s.actions.cardLayout.allowed;
         const visibleAlert=activeTest?{...makeWarning(150,0,false),test:true,calibration:true}:s.alert;
         const info=layers.layoutFor(out,{width:node.width,height:node.height},'simulator',profile);
         ctx.clearRect(0,0,node.width,node.height);
-        const show=enabled&&visibleAlert&&info.withinBounds;
+        const show=enabled&&visibleAlert&&info.withinBounds&&(activeTest||composition.hasContent(fields));
         outputCards[out]=null;
         if(show){
             const frame=reducedMotion.matches||!['approach','stop'].includes(el('phase').value)?0:(animationTime%1500)/500;
             const optical={...visibleAlert,opticsStyle:saved.opticsStyle,opticsFrame:frame};
-            outputCards[out]=layers.styledPixels(optical,out,profile);
+            outputCards[out]=layers.styledPixels(optical,out,profile,fields);
             bitmap(cardCanvas,outputCards[out],card.width,card.height);
             const r=info.card;ctx.drawImage(cardCanvas,r.x,r.y,r.width,r.height);
         }
         const legend=!enabled?'Вывод выключен':!info.withinBounds?'Недостаточно места':!visibleAlert?'Нет предупреждения':
-            activeTest?'Стояночный тест':visibleAlert.gpsHeld?'Нет свежего GPS':'Предупреждение';
+            activeTest?'Стояночный тест':!composition.hasContent(fields)?'Все элементы скрыты':visibleAlert.gpsHeld?'Нет свежего GPS':'Предупреждение';
         const content=show?card.presentation(visibleAlert):null;
-        node.setAttribute('aria-label',legend+(content?' · '+(content.distance??'—')+' м · лимит '+(content.limit??'—')+' км/ч':''));
+        const accessible=[legend];
+        if(content&&fields.distance)accessible.push((content.distance??'—')+' м');
+        if(content&&fields.limit)accessible.push('лимит '+(content.limit??'—')+' км/ч');
+        node.setAttribute('aria-label',accessible.join(' · '));
         el(out+'-state').textContent=legend+' · '+node.width+' × '+node.height;
     }
     updateInspection();
@@ -235,6 +272,18 @@ function updateHits(oldFocus) {
         }
         existing.delete(id);
         button.dataset.command=b.command;button.setAttribute('aria-label',b.label||b.command);
+        button.dataset.kind=b.kind||'action';
+        if(b.kind==='section'&&b.selected)button.setAttribute('aria-current','page');
+        else button.removeAttribute('aria-current');
+        if(b.kind==='toggle'||b.kind==='check')button.setAttribute('aria-pressed',String(!!b.selected));
+        else button.removeAttribute('aria-pressed');
+        if(b.kind==='slider'){
+            button.setAttribute('role','slider');
+            button.setAttribute('aria-valuemin','0');
+            button.setAttribute('aria-valuemax',String(b.max));
+            button.setAttribute('aria-valuenow',String(b.step));
+            button.setAttribute('aria-valuetext',b.value||String(b.step));
+        }
         button.disabled=b.enabled===false;button.setAttribute('aria-disabled',String(button.disabled));
         Object.assign(button.style,{left:(100*b.x/stage.width)+'%',top:(100*b.y/stage.height)+'%',
             width:(100*b.w/stage.width)+'%',height:(100*b.h/stage.height)+'%'});
@@ -248,27 +297,29 @@ function updateHits(oldFocus) {
 function drawStage(){
     const current=buttons.find(b=>focusId(b)===selected);
     const sceneFocus=focusId(current)||'';
-    const key=JSON.stringify([page,view,sceneFocus]);
+    const shown=inputStage.sliderPreview?{...view,sliderPreview:inputStage.sliderPreview}:view;
+    const key=JSON.stringify([page,shown,sceneFocus]);
     if(key===lastBitmap)return;
-    stage.scene(screenRaster,page,view,sceneFocus,true);
+    stage.scene(screenRaster,page,shown,sceneFocus,true);
     bitmap(el('central'),screenRaster.d,stage.width,stage.height);lastBitmap=key;
 }
 function render() {
     const domFocus=el('hits').contains(document.activeElement);
     const s=stateNow(),reg=trip.regionsModel(s,region,regionPage),writes=written(s,reg);
     lastState=s;view=page==='trip'?home.model(s,config.version):detail.model(page,{state:s,written:writes,
-        version:config.version,atlasPanel:panel,region:reg,target,snapshot,serviceReady:true,diagnosticState:s});
+        version:config.version,atlasPanel:panel,region:reg,target,snapshot,serviceReady:true,diagnosticState:s,
+        testGuard:!s.outputs[target==='hud'?'hud':'cluster']?{allowed:false,reason:'Включите вывод на выбранный экран.'}:s.actions.displayTest});
     if(!view)throw Error('Отсутствует экран '+page);
     buttons=stage.targets(page,view);
     if(!buttons.some(b=>focusId(b)===selected&&b.enabled!==false))selected=focusId(buttons.find(b=>b.enabled!==false))||'';
-    drawStage();updateHits(domFocus);renderOutputs(s);
+    syncInput();drawStage();updateHits(domFocus);renderOutputs(s);
     el('screen').dataset.page=page;el('screen').dataset.sheet=String(panel.sheet);el('screen').dataset.edit=panel.edit||'';
     el('path').textContent=view.title||'Поездка';el('central').setAttribute('aria-label',page==='trip'?view.text.tripReading:view.title+' · '+(view.lead||''));
     el('metres').textContent=el('phase').value==='gps'?'—':el('distance').value+' м';
     el('limit-note').textContent=notes[el('limit').value];
     const phase=el('phase').value;
     el('distance').disabled=['stop','gps','passed','idle','parallel'].includes(phase);
-    el('back').disabled=!history.length&&!panel.edit;el('vehicle-menu').hidden=page!=='trip';
+    el('back').disabled=!history.length&&!panel.edit;
     // Exposed DOM state is also useful to assistive technologies and offline verification.
     document.documentElement.dataset.ready='true';
 }
@@ -281,11 +332,7 @@ function changeValue(control,step) {
     else if(control==='cameraSoundOffset')o.soundOffsetKmh=minmax(step,0,30);
     else if(control==='cameraSoundDistance')o.soundDistanceM=100+minmax(step,0,12)*50;
     else if(control==='cameraSoundRepeat')o.soundRepeatSec=[0,3,5,10][minmax(step,0,3)];
-    else if(control==='cameraCardX')profile.x=minmax(step*5,0,1000);
-    else if(control==='cameraCardY')profile.y=minmax(step*5,0,1000);
-    else if(control==='cameraCardScale')profile.scalePct=75+minmax(step,0,15)*5;
-    else if(control==='cameraCardBrightness')profile.brightnessPct=10+minmax(step,0,18)*5;
-    else if(control==='cameraCardTransparency')profile.opacityPct=100-minmax(step,0,18)*5;
+    else if(setProfileStep(profile,control,step)){persist();return;}
     else if(control==='wocHudOpacity'||control==='wocHudSize')saved.phone[control]=step;
     else throw Error('Неизвестный регулятор '+control);
     persist();
@@ -296,12 +343,31 @@ function download(name,obj) {
     const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 function execute(command){
-    const sourceButton=buttons.find(b=>b.command===command);
-    if(!sourceButton||sourceButton.enabled===false)return;
-    selected=focusId(sourceButton);
+    const sourceButton=stage.actionTarget(page,view,command);
+    if(!sourceButton)return;
+    const focused=inputStage.selected(buttons);
+    const nudging=focused&&focused.kind==='slider'&&command.startsWith('atlasValue:'+focused.source+':');
+    selected=focusId(nudging?focused:sourceButton);
     const updated=page==='trip'?null:detail.reducePanel(panel,command,view);
-    if(updated){panel=updated;selected='';return;}
+    if(updated){
+        selected=panel.edit&&!updated.edit?'atlasEdit:'+panel.edit:'';
+        panel=updated;return;
+    }
     if(command==='atlasBack'){back();return;}
+    if(command.startsWith('atlasNav:')){
+        const next=command.slice('atlasNav:'.length);
+        if(next==='trip')history=[];
+        go(next,next==='trip');
+        return;
+    }
+    if(command.startsWith('atlasCompositionOpen:')){
+        configure(command.split(':')[1]);panel.sheet=2;return;
+    }
+    if(command.startsWith('atlasComposition:')){
+        const field=command.split(':')[1];
+        saved.cardComposition=composition.set(saved.cardComposition,target,field,!saved.cardComposition[target][field]);
+        persist();return;
+    }
     if(command.startsWith('atlasValue:')){const [,name,step]=command.split(':');changeValue(name,Number(step));return;}
     if(command.startsWith('atlasChoice:')){const [,name,idx]=command.split(':');saved.phone[name]=Number(idx);persist();return;}
     if(command.startsWith('atlasDiagnostic:')){diagnosticPage=Number(command.split(':')[1]);diagnosticBlock=0;return;}
@@ -383,14 +449,25 @@ function pointEvent(event,phase){
     syncInput();
     inputStage.touch(phase,(event.clientX-rect.left)/rect.width*stage.width,(event.clientY-rect.top)/rect.height*stage.height);
 }
-el('hits').addEventListener('pointerdown',e=>{if(e.isPrimary&&e.button===0)pointEvent(e,1);});
-el('hits').addEventListener('pointermove',e=>{if(e.isPrimary&&e.buttons===1)pointEvent(e,2);});
-el('hits').addEventListener('pointerup',e=>{if(e.isPrimary&&e.button===0)pointEvent(e,3);});
-el('hits').addEventListener('pointercancel',()=>{inputStage.pressed=null;});
+const hits=el('hits');
+hits.addEventListener('pointerdown',event=>{
+    if(!event.isPrimary||event.button!==0)return;
+    if(event.target.closest('[data-kind="slider"]'))hits.setPointerCapture(event.pointerId);
+    pointEvent(event,1);
+});
+hits.addEventListener('pointermove',event=>{if(event.isPrimary&&event.buttons===1)pointEvent(event,2);});
+hits.addEventListener('pointerup',event=>{if(event.isPrimary&&event.button===0)pointEvent(event,3);});
+hits.addEventListener('pointercancel',()=>inputStage.cancelTouch());
+hits.addEventListener('lostpointercapture',()=>{if(inputStage.pressed)inputStage.cancelTouch();});
 function keyboard(event){
     if(el('detail-output').open||event.altKey||event.ctrlKey||event.metaKey||['SELECT','INPUT','SUMMARY'].includes(event.target.tagName))return;
     if(event.key==='Escape'){event.preventDefault();if(el('headunit').classList.contains('zoomed'))toggleZoom();else{back();render();}return;}
-    if(['ArrowLeft','ArrowUp','ArrowRight','ArrowDown'].includes(event.key)){event.preventDefault();rotate(['ArrowUp','ArrowLeft'].includes(event.key)?-1:1);return;}
+    if(['ArrowLeft','ArrowRight'].includes(event.key)&&page!=='trip'){
+        event.preventDefault();syncInput();ccu(0);ccu(0,event.key==='ArrowLeft'?10:4);ccu(0);return;
+    }
+    if(['ArrowLeft','ArrowUp','ArrowRight','ArrowDown'].includes(event.key)){
+        event.preventDefault();rotate(['ArrowUp','ArrowLeft'].includes(event.key)?-1:1);return;
+    }
     if(event.key==='Enter'&&(event.target===document.body||el('hits').contains(event.target)||event.target===el('screen'))){event.preventDefault();confirm();}
 }
 function toggleZoom(){
@@ -431,7 +508,7 @@ requestAnimationFrame(animate);
 reducedMotion.addEventListener('change',()=>{if(lastState)renderOutputs(lastState);});
 el('distance').addEventListener('input',()=>{stopPlay();render();});
 el('prev').onclick=()=>rotate(-1);el('next').onclick=()=>rotate(1);el('ok').onclick=confirm;
-el('vehicle-menu').onclick=()=>{go('atlasMenu');render();};
+el('vehicle-menu').onclick=()=>{if(page!=='atlasMenu')go('atlasMenu');render();};
 el('back').onclick=()=>{back();render();};el('zoom').onclick=toggleZoom;
 el('screen').addEventListener('wheel',event=>{
     if(event.ctrlKey||Math.abs(event.deltaX)>Math.abs(event.deltaY)||document.activeElement?.tagName==='INPUT')return;
