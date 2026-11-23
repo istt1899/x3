@@ -71,7 +71,7 @@ function merge(bundle, layer) {
     const near=indexBase(bundle.records), extras=[], linked=new Map();
     for (const row of layer.rows) {
         const [id,lat,lon,courseDeg,limitKmh,target,typeCode]=row;
-        const position={lat,lon}, approach={id,courseDeg,limitKmh,position,typeCode};
+        const position={lat,lon}, approach={id,courseDeg,limitKmh,position,typeCode,sourceDate:layer.sourceDate};
         const matches=near(position);
         if (target===null) {
             if (matches.length) continue;
@@ -109,9 +109,7 @@ function matchApproach(record, fix, course, roadConfirmed) {
 }
 function applicable(row,alert) {
     if (!row || !Number.isFinite(row.limitKmh) || alert.cameraLimitConditional) return null;
-    const ref=alert.limitReference;
-    if (ref && (ref.state==='conflict' || ref.state==='known' && ref.valueKmh!==row.limitKmh)) return null;
-    if ([alert.cameraLimitKmh,alert.limitKmh,alert.postedApproachLimitKmh,alert.roadMapLimitKmh].some(v=>Number.isFinite(v)&&v!==row.limitKmh)) return null;
-    return {id:row.id,courseDeg:row.courseDeg,limitKmh:row.limitKmh,typeCode:row.typeCode,source:SOURCE};
+    if (!ID.test(row.id) || !Number.isInteger(row.courseDeg) || row.courseDeg < 0 || row.courseDeg >= 360) return null;
+    return {id:row.id,courseDeg:row.courseDeg,limitKmh:row.limitKmh,typeCode:row.typeCode,source:SOURCE,sourceDate:row.sourceDate || null};
 }
 module.exports={load,decode,merge,matchApproach,applicable};

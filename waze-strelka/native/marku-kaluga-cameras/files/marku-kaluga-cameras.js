@@ -535,6 +535,7 @@ function start(options) {
     });
     state.observedAtMs = now;
     state.alert = alert ? Object.assign({}, alert, { gpsHeld: holding || (guidanceHeld && state.guidance.holdReason === 'GPS_REPLAY'), filterMatched: true, limit: alert.limitKmh, distance: Math.round(Number.isFinite(alert.displayDistanceM) ? alert.displayDistanceM : alert.distanceM), stage: alert.stage || (alert.roadConfirmed ? 'approach' : 'nearby') }) : null;
+    if (state.alert) state.alert.displayLimit = require('./display-limit').select(state.alert);
     state.speedWarning = warningPolicy.evaluate(state.alert,warningFix,now,settings.overspeedPreferences);
     if(roadBlocked)state.speedWarning.reason=motion.conflict?'MOTION_CONFLICT':'MOTION_EPOCH_MISMATCH';
     else if(!settings.enabled)state.speedWarning.reason='DISABLED';

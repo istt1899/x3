@@ -38,6 +38,10 @@
       "mode": "0644"
     },
     {
+      "path": "display-limit.js",
+      "mode": "0644"
+    },
+    {
       "path": "speedcam-private.js",
       "mode": "0644"
     },

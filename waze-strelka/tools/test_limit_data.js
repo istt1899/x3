@@ -92,9 +92,9 @@ var qualifiedCamera=clone(supplement);qualifiedCamera.records.find(function(e){r
 assert.throws(function(){api.augment(base,qualifiedCamera);},function(e){return e.code==='LIMIT_VALUE_SOURCE_MISMATCH';},'Camera node directional constraints also cannot be flattened into the generic value');
 var info=require('../native/marku-kaluga-cameras/files/camera-info'),card=require('../native/marku-kaluga-cameras/files/alert-card'),describe=info.createDescriber(db.records),visible=0,values={};
 db.records.forEach(function(r){
- var d=describe(r),p=card.presentation(Object.assign({},d,{roadConfirmed:false,limitKmh:null}));
+ var d=describe(r),p=card.presentation(Object.assign({id:r.id},d,{roadConfirmed:false,limitKmh:null}));
  var reference=d.cameraLimitKmh||(d.limitReference&&d.limitReference.state==='known'&&d.limitReference.valueKmh);
- assert.strictEqual(p.limit,null,'Camera records and references do not fill the applicable speed-limit sign');
+ assert.strictEqual(p.limit, d.cameraLimitConditional ? null : reference || null, 'Photographed camera limit must match its evidence');
  if(reference){visible++;values[reference]=(values[reference]||0)+1;}
  if(r.speedLimitEvidence)assert.strictEqual(reference,r.speedLimitEvidence.valueKmh);
 });

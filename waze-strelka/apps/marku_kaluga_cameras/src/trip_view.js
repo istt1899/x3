@@ -21,6 +21,9 @@ function approachLimit(alert) {
     const unknown = { value:null, scope:'unknown' };
     if (!alert) return unknown;
     const valid = value => Number.isInteger(value) && value > 0 && value <= 300;
+    const resolved = alert.displayLimit;
+    if (resolved && (valid(resolved.value) && resolved.state === 'known' || resolved.value === null &&
+        (resolved.state === 'conflict' || resolved.state === 'unknown'))) return resolved;
     const entry = alert.speedcamApproach;
     const camera = entry && entry.source === 'SpeedCamOnLine' && short(entry.id) &&
         Number.isFinite(entry.courseDeg) && entry.courseDeg >= 0 && entry.courseDeg < 360 && valid(entry.limitKmh) ?
@@ -39,7 +42,11 @@ function approachLimit(alert) {
     return camera;
 }
 function limitText(limit) {
-    const suffix = limit.scope === 'speedcam' ? ' (по базе камер)' : limit.scope === 'map' ? ' (по карте)' : limit.scope === 'posted' ? ' (знак)' : '';
+    const suffix = (limit.scope === 'camera' || limit.scope === 'speedcam') ? ' (по базе камер)' : limit.scope === 'map' ? ' (по карте)' : limit.scope === 'posted' ? ' (знак)' : '';
+    if (limit.scope === 'conflict') {
+        const values = Array.isArray(limit.values) ? limit.values.filter(v => Number.isInteger(v) && v > 0 && v <= 300) : [];
+        return values.length > 1 ? 'Лимит: расхождение ' + values.join(' / ') + ' км/ч' : 'Лимит: расхождение данных';
+    }
     return 'Лимит ' + (limit.value === null ? '—' : limit.value + ' км/ч' + suffix);
 }
 function cameraDistance(alert) {
@@ -86,7 +93,9 @@ function model(state, version) {
     const reading = alert ? distanceText + ' • ' + limitLabel + ' • ' : '';
     const camera = alert && (short(alert.title) || 'Камера');
     const source = short(alert && alert.limitEvidence && alert.limitEvidence.source);
-    const evidence = limit.scope === 'speedcam' ? 'SpeedCamOnLine • курс ' + limit.source.courseDeg + '°' : limit.scope === 'map' ? 'OpenStreetMap • участок №' + limit.source.wayId +
+    const evidence = limit.state === 'conflict' ? 'Источники расходятся: ' + limit.values.join(' / ') + ' км/ч' :
+        limit.state === 'known' ? limit.source + (limit.sourceDate ? ' • ' + (limit.dateKind === 'edition' ? 'выпуск ' : 'запись ') + limit.sourceDate.slice(0,10) : '') :
+        limit.scope === 'speedcam' ? 'SpeedCamOnLine • курс ' + limit.source.courseDeg + '°' : limit.scope === 'map' ? 'OpenStreetMap • участок №' + limit.source.wayId +
         ' • ' + limit.source.sourceTimestamp.slice(0,10) : limit.scope === 'posted' ? 'знак на подходе' :
         limit.scope === 'road' ? source || 'подтверждённый подход' : '—';
     return {

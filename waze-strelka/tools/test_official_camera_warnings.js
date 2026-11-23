@@ -144,7 +144,7 @@ assert.strictEqual(popovaAlert.confidence, 'nearby');
 assert.strictEqual(popovaAlert.roadConfirmed, false);
 assert.strictEqual(popovaAlert.limitKmh, null);
 assert.strictEqual(popovaAlert.limitReference.valueKmh, 60, 'The explicit OSM relation reference is retained in alert details');
-assert.strictEqual(renderer.presentation(popovaAlert).limit, null, 'A relation reference must not occupy the applicable speed-limit sign');
+assert.strictEqual(renderer.presentation(popovaAlert).limit, 60, 'Show the sourced camera limit without enabling a road overspeed warning');
 assert.strictEqual(renderer.presentation(popovaAlert).mode, 'Рядом');
 
 // Select a real imported source position beyond the old database's reach and
