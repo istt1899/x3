@@ -146,38 +146,39 @@
     {
       "id": "marku_kaluga_cameras",
       "kind": "app",
-      "version": "0.11.2",
+      "version": "0.11.3",
       "title": "Яндекс Стрелка",
       "description": "Независимое приложение для BMW ID7. Поездка в режиме Атлас, камеры, ограничения скорости, HUD и приборная панель.",
       "build": "unit",
       "requires": {
         "waze-on-cluster": "0.9.14",
-        "marku-kaluga-cameras": "0.11.2",
-        "mgu-deploy": "0.7.11"
+        "marku-kaluga-cameras": "0.11.3",
+        "mgu-deploy": "0.7.11",
+        "cluster-render": "0.8.5"
       },
       "uninstallable": true,
       "mguHmi": [
         "ID7"
       ],
       "artifact": {
-        "name": "marku_kaluga_cameras@0.11.2.tgz",
-        "size": 721688,
-        "sha256": "9d1cd5697121a5ad0663a54b3e490d2ff80bcfe4fcd645123ed99711731f0bc2",
-        "url": "https://raw.githubusercontent.com/istt1899/x3/f71d8eade493118d9445a7afeb14ef024e61824a/marku_kaluga_cameras%400.11.2.tgz"
+        "name": "marku_kaluga_cameras@0.11.3.tgz",
+        "size": 722808,
+        "sha256": "c672f696dacc49eb8fe830449da1b2aae1c7e8d8a492d16681a07f2a4136cd0d",
+        "url": "https://raw.githubusercontent.com/istt1899/x3/39114539fb56d926310a4b08dc12307c39489ec4/marku_kaluga_cameras%400.11.3.tgz"
       },
-      "icon": "https://raw.githubusercontent.com/istt1899/x3/f71d8eade493118d9445a7afeb14ef024e61824a/marku_kaluga_cameras%400.11.2.png",
+      "icon": "https://raw.githubusercontent.com/istt1899/x3/39114539fb56d926310a4b08dc12307c39489ec4/marku_kaluga_cameras%400.11.3.png",
       "iconSha256": "f759b8bb2e2ca180eaa65955d527bfcd87a3a269fed86aa9cdbd4fdc8319cad8"
     },
     {
       "id": "marku-kaluga-cameras",
       "kind": "tool",
-      "version": "0.11.2",
+      "version": "0.11.3",
       "title": "Сервис камер Атлас",
       "description": "Офлайн-база камер, предупреждения на приборной панели и проекции BMW ID7",
       "optional": true,
       "uninstallable": true,
       "requires": {
-        "cluster-render": "0.4.0"
+        "cluster-render": "0.8.5"
       },
       "mguHmi": [
         "ID7"
@@ -187,10 +188,10 @@
         5000
       ],
       "artifact": {
-        "name": "marku-kaluga-cameras@0.11.2.tgz",
-        "size": 1655585,
-        "sha256": "6b0219c5ed71777b18589977a4e2d831688a0c4c03e2e43a58a218014b2c1f08",
-        "url": "https://raw.githubusercontent.com/istt1899/x3/f71d8eade493118d9445a7afeb14ef024e61824a/marku-kaluga-cameras%400.11.2.tgz"
+        "name": "marku-kaluga-cameras@0.11.3.tgz",
+        "size": 1655586,
+        "sha256": "936bfd35b24000811fc0ebc2a01380cdf08101d69d8d7b2711c29a635018ec52",
+        "url": "https://raw.githubusercontent.com/istt1899/x3/39114539fb56d926310a4b08dc12307c39489ec4/marku-kaluga-cameras%400.11.3.tgz"
       }
     },
     {
@@ -198,12 +199,12 @@
       "kind": "tool",
       "title": "Cluster renderer",
       "description": "Draws every app's layers on the instrument cluster and the HUD, sharing the display slots and one upload budget",
-      "version": "0.5.9",
+      "version": "0.8.5",
       "artifact": {
-        "name": "cluster-render@0.5.9.tgz",
-        "size": 9365218,
-        "sha256": "7b8665c769dfa6e9a98b1882ddfc9f85d41583e21bfbbe96183ca94ad4273401",
-        "url": "https://github.com/robertnisipeanu/idrive-apps/releases/download/cluster-render%400.5.9/cluster-render%400.5.9.tgz"
+        "name": "cluster-render@0.8.5.tgz",
+        "size": 12491541,
+        "sha256": "fafabeecdd409894529592b0f286b60581c887f05ed28fa83feb1ed9140d1b38",
+        "url": "https://github.com/robertnisipeanu/idrive-apps/releases/download/cluster-render%400.8.5/cluster-render%400.8.5.tgz"
       },
       "requires": {
         "mgu-deploy": "0.4.0"

@@ -47,7 +47,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "413124282db0c6dba7c2df00836574f8482d1f500e82f637b98b71e440c16f65"
+      "sha256": "d64bb04791faa8314d032bf38fb2f999839dd2f7f0fac2eed1dff21b7c3807e3"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -55,14 +55,15 @@
   },
   "catalog_update": {
     "date": "2026-11-23",
-    "reason": "Adapt the central display layout and touch targets to the available MGU viewport.",
-    "previous_sha256": "56c74129744553a0c18a51cc4e1d378729e8b821f84502b75c866f53423a52f1",
-    "package_commit": "f71d8eade493118d9445a7afeb14ef024e61824a",
+    "reason": "Persist both navigation display choices and update the shared cluster renderer for wake recovery.",
+    "previous_sha256": "413124282db0c6dba7c2df00836574f8482d1f500e82f637b98b71e440c16f65",
+    "package_commit": "39114539fb56d926310a4b08dc12307c39489ec4",
     "updated_components": {
-      "marku-kaluga-cameras": "0.11.2",
-      "marku_kaluga_cameras": "0.11.2"
+      "cluster-render": "0.8.5",
+      "marku-kaluga-cameras": "0.11.3",
+      "marku_kaluga_cameras": "0.11.3"
     },
-    "hardware_scope": "BMW iDrive 7. Physical X3 and X6 M display edge coverage pending."
+    "hardware_scope": "BMW iDrive 7. Physical X3 and X6 M restart and phone reconnect verification pending."
   },
   "vk_playback_update": {
     "date": "2026-11-23",
