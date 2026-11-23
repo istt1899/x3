@@ -1,0 +1,191 @@
+{
+  "id": "marku_ambient_studio",
+  "title": "Студия света",
+  "description": "Цвет и яркость подсветки салона, избранные сочетания и покадровый предпросмотр фар на экране iDrive.",
+  "version": "1.0.0",
+  "vendor": "custom",
+  "loggingId": "OASR",
+  "iconGlyph": "ambient",
+  "mguHmi": [
+    "ID7",
+    "ID8"
+  ],
+  "requires": {
+    "idrive7-renderd": "2.1.18",
+    "mgu-inputgate": "1.1.0",
+    "mgu-deploy": "0.7.11"
+  },
+  "autostart": false,
+  "signals": {
+    "de.bmw.infotainment.misc.ComfortFunctionIuK": {
+      "ambientLightInteriorColour": "w",
+      "statusAmbientLightInteriorColour": "rs"
+    },
+    "de.bmw.infotainment.drivingexcitement.FES": {
+      "_optional": "the driving mode: colours by mode",
+      "statusFESVehicleDynamicSwitchHMI": "rs"
+    },
+    "com.harman.infotainment.systemfunctions.tasu.tasu.InternalTasu": {
+      "_instances": "SystemFunctionsInternalTasuInst1",
+      "_methods": [
+        "sendTasuRequest"
+      ],
+      "_broadcasts": [
+        "sendTasuResponse"
+      ]
+    },
+    "de.bmw.infotainment.vehicle.Vehicle": {
+      "_optional": "day or night: dimmer at night",
+      "statusDayNightChangeOver": "rs"
+    },
+    "de.bmw.infrastructure.VehicleCondition": {
+      "_optional": "the car locked and left: the car's own light",
+      "VehicleCondition": "s",
+      "vehicleConditionNoCrc": "s"
+    },
+    "de.bmw.body.Light": {
+      "_optional": "the turn signals: that side's lights breathe green",
+      "StatusFunctionsIndicators": "s"
+    },
+    "de.bmw.body.DoorsWindowsRoofMirrors": {
+      "_optional": "an open door: its lights red",
+      "CentralLockingSystemAndPanelStatus": "s"
+    },
+    "de.bmw.infotainment.vehicle.Vehicle2": {
+      "_optional": "the car's speed: driven (for a car that does not say it is locked and left), and the light show only standing still",
+      "statusCarSpeed2": "rs",
+      "statusLightStatus": "rs"
+    }
+  },
+  "screens": [
+    {
+      "name": "MAIN",
+      "kind": "canvas",
+      "title": "Студия света",
+      "buttons": [
+        [
+          "BTN_SETTINGS",
+          "Settings"
+        ]
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "carKind",
+      "label": "Car type",
+      "type": "choice",
+      "default": "ice",
+      "hidden": true,
+      "options": [
+        [
+          "ice",
+          "Petrol or diesel"
+        ],
+        [
+          "hybrid",
+          "Plug-in hybrid"
+        ]
+      ]
+    },
+    {
+      "key": "follow",
+      "label": "Look by driving mode",
+      "type": "bool",
+      "default": true,
+      "hidden": true
+    },
+    {
+      "key": "welcome",
+      "label": "Welcome sweep at start",
+      "type": "bool",
+      "default": false,
+      "hidden": true
+    },
+    {
+      "key": "sportPulse",
+      "label": "Sport pulse",
+      "type": "bool",
+      "default": false,
+      "hidden": true
+    },
+    {
+      "key": "decorWith",
+      "label": "Decor lights (dash, under the door trim) with",
+      "type": "choice",
+      "default": "upper",
+      "options": [
+        [
+          "upper",
+          "Upper lights"
+        ],
+        [
+          "lower",
+          "Lower lights (like BMW)"
+        ]
+      ]
+    },
+    {
+      "key": "nightDim",
+      "label": "Dimmer at night",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "keep",
+      "label": "My colour back at each start",
+      "type": "bool",
+      "default": true
+    },
+    {
+      "key": "flashAlerts",
+      "label": "Redline shift flash",
+      "type": "bool",
+      "default": true,
+      "hidden": true
+    },
+    {
+      "key": "turnGlow",
+      "label": "Turn signal glow",
+      "type": "bool",
+      "default": false,
+      "hidden": true
+    },
+    {
+      "key": "doorRed",
+      "label": "Open door red",
+      "type": "bool",
+      "default": false,
+      "hidden": true
+    },
+    {
+      "key": "doorCar",
+      "label": "Open door: the car's own warning (G20 / G26)",
+      "type": "bool",
+      "default": false
+    },
+    {
+      "key": "hazardRed",
+      "label": "Hazard red",
+      "type": "bool",
+      "default": false,
+      "hidden": true
+    },
+    {
+      "key": "drive",
+      "label": "Steering wheel",
+      "type": "choice",
+      "default": "lhd",
+      "options": [
+        [
+          "lhd",
+          "Left"
+        ],
+        [
+          "rhd",
+          "Right"
+        ]
+      ]
+    }
+  ]
+}
