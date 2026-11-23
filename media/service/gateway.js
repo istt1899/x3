@@ -5,7 +5,7 @@
 //   id, context?; search(q,ctx)/feed(which,ctx) -> {items,shelves?};
 //   auth/status/signOut(ctx) -> public AuthState; thumb(id,ctx) -> RGBA or null;
 //   preparePlayback(id,ctx) -> {id,cacheDir,fetcher,thumbCmd?,metadata?}.
-//   refreshPlayback(id,ctx) refreshes expiring direct-provider jobs before quality changes.
+//   refreshPlayback(id,ctx,guard?) refreshes expiring direct-provider jobs before retries or quality changes.
 // A provider may return undefined and use ctx.emit; attach(emit) is for provider-wide
 // auth polling events. The context never changes when another provider starts playback.
 // URL/token/cookie resolution belongs to adapters, not the untrusted socket protocol.
@@ -227,7 +227,10 @@ class Gateway {
             if (!this.owner || this.owner.session !== session) return;
             const epoch = this.owner.epoch;
             if (cmd === 'quality') return this._quality(session, message, provider, ctx);
-            if (cmd === 'stop') this.owner.qualityTicket = (this.owner.qualityTicket || 0) + 1;
+            if (cmd === 'stop') {
+                this.owner.stopping = true;
+                this.owner.qualityTicket = (this.owner.qualityTicket || 0) + 1;
+            }
             return this._enqueue(async () => {
                 if (!this.owner || this.owner.epoch !== epoch || session.closed) return;
                 if (cmd === 'stop') {
@@ -393,7 +396,7 @@ class Gateway {
         return Promise.resolve().then(() => {
             if (session.providerId !== 'youtube') {
                 if (typeof provider.refreshPlayback !== 'function') throw new Error('quality refresh unavailable');
-                return provider.refreshPlayback(owner.id, ctx);
+                return this._resolvePlayback(provider, 'refreshPlayback', owner.id, ctx, current, owner.cacheDir);
             }
         }).then(() => this._enqueue(() => {
             if (!current()) return;
@@ -402,6 +405,18 @@ class Gateway {
             Promise.resolve().then(() => current() && this.player.command('quality', message))
                 .catch((e) => { if (current()) this._send(session, { ev: 'error', msg: cleanError(e) }); });
         })).catch((e) => { if (current()) this._send(session, { ev: 'error', msg: cleanError(e) }); });
+    }
+    async _resolvePlayback(provider, method, id, ctx, isCurrent, cacheDir) {
+        let timer, active = true;
+        const guard = { isCurrent: () => active && isCurrent(), cacheDir };
+        try {
+            return await Promise.race([provider[method](id, ctx, guard), new Promise((resolve, reject) => {
+                timer = setTimeout(() => reject(new Error('Видеосервис не выдал ссылку на ролик вовремя. Повторите запуск.')), this.prepareTimeoutMs);
+            })]);
+        } finally {
+            active = false;
+            clearTimeout(timer);
+        }
     }
     async _play(session, message, provider, ctx) {
         const id = String(message.id || '');
@@ -420,21 +435,18 @@ class Gateway {
             this._send(session, { ev: 'error', cmd: 'play', id, msg: cleanError(error) });
         };
         this._send(session, { ev: 'state', state: 'preparing', id, phase: 'resolve', pct: 0, buffering: false });
-        let prepared, timer;
+        let prepared;
         try {
-            prepared = await Promise.race([provider.preparePlayback(id, ctx), new Promise((resolve, reject) => {
-                timer = setTimeout(() => reject(new Error('Видеосервис не выдал ссылку на ролик за 45 секунд. Повторите запуск.')), this.prepareTimeoutMs);
-            })]);
+            prepared = await this._resolvePlayback(provider, 'preparePlayback', id, ctx, current);
             if (!current()) return;
             if (!prepared || prepared.id !== id || typeof prepared.cacheDir !== 'string' || !inside(ctx.cacheDir, prepared.cacheDir)) throw new Error('invalid playback context');
             if (!Array.isArray(prepared.fetcher) || !prepared.fetcher.length || prepared.fetcher.some((a) => typeof a !== 'string' || a.indexOf('\0') >= 0)) throw new Error('invalid fetch helper');
             if (ctx.proxyPolicy === 'direct' && prepared.fetcher.some((a) => /^--proxy(?:=|-file(?:=|$)|$)/.test(a))) throw new Error('direct provider cannot use a proxy');
         } catch (error) { fail(error); return; }
-        finally { clearTimeout(timer); }
-        const context = Object.freeze({ providerId: session.providerId, id, cacheDir: prepared.cacheDir,
+        const context = { providerId: session.providerId, id, cacheDir: prepared.cacheDir,
             leaseFile: ctx.leaseFile,
             fetcher: Object.freeze(prepared.fetcher.slice()), thumbCmd: prepared.thumbCmd && Object.freeze(prepared.thumbCmd.slice()),
-            metadata: prepared.metadata ? video(prepared.metadata) : null, proxyPolicy: ctx.proxyPolicy });
+            metadata: prepared.metadata ? video(prepared.metadata) : null, proxyPolicy: ctx.proxyPolicy };
         return this._enqueue(async () => {
             if (this.closed || session.closed || ticket !== this.ticket || !currentAuth()) return;
             const old = this.owner;
@@ -444,11 +456,19 @@ class Gateway {
             if (this.closed || session.closed || ticket !== this.ticket || !currentAuth()) return;
             const epoch = ++this.epoch;
             this.pendingPlay = null;
-            this.owner = { session, providerId: session.providerId, id, epoch, qualityTicket: 0 };
+            const owner = this.owner = { session, providerId: session.providerId, id, epoch,
+                cacheDir: prepared.cacheDir, qualityTicket: 0 };
             const emit = (event) => {
                 if (this.owner && this.owner.epoch === epoch && !session.closed && currentAuth()) this._send(session, event);
             };
-            this.player.configure(context, emit);
+            if (session.providerId === 'vk' && typeof provider.refreshPlayback === 'function') {
+                context.refreshSource = async (stillPlaying) => {
+                    const isCurrent = () => !this.closed && !session.closed && this.owner === owner && !owner.stopping && currentAuth() && stillPlaying();
+                    if (!isCurrent()) throw new Error('Запуск отменён.');
+                    await this._resolvePlayback(provider, 'refreshPlayback', id, ctx, isCurrent, owner.cacheDir);
+                };
+            }
+            this.player.configure(Object.freeze(context), emit);
             if (session.displayTarget) await this.player.command('display', { target: session.displayTarget });
             await this.player.command('video', { on: session.videoOn });
             if (this.closed || session.closed || !this.owner || this.owner.epoch !== epoch || ticket !== this.ticket || !currentAuth()) return;
@@ -577,6 +597,7 @@ class DaemonPlayer {
         d.opts.thumbCmd = context.thumbCmd ? context.thumbCmd.slice()
             : context.providerId === 'youtube' ? this.baseOptions.thumbCmd.slice() : null;
         d.opts.providerId = context.providerId;
+        d.opts.refreshSource = context.refreshSource;
         d.opts.proxyPolicy = context.proxyPolicy;
         d.opts.leaseFile = context.leaseFile || this.baseOptions.leaseFile;
         d.opts.genericMediaIds = context.providerId !== 'youtube';

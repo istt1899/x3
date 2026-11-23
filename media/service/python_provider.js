@@ -272,14 +272,15 @@ class PythonProvider {
         this.queue = run.catch(function () {});
         return run;
     }
-    _worker(op, args, ctx, generation, override, save) {
+    _worker(op, args, ctx, generation, override, save, guard) {
+        const cancelled = () => this.closed || generation !== this.generation || (guard && !guard.isCurrent());
         return this._enqueue(async () => {
-            if (this.closed || generation !== this.generation) throw failure(CANCELLED, 'Запрос отменён.');
+            if (cancelled()) throw failure(CANCELLED, 'Запрос отменён.');
             const dirs = this._dirs(ctx);
             const privateState = override === undefined ? this._state(dirs.account) : override;
             const request = { provider: this.id, op: op, args: args || {}, private: privateState, config: this._config(ctx, dirs) };
             const bytes = await this._child([this.python, this.workerPath], request, { generation: generation });
-            if (this.closed || generation !== this.generation) throw failure(CANCELLED, 'Запрос отменён.');
+            if (cancelled()) throw failure(CANCELLED, 'Запрос отменён.');
             let result;
             try { result = JSON.parse(bytes.toString('utf8')); }
             catch (e) { throw failure('worker_json', 'Сервис вернул некорректный ответ.'); }
@@ -532,12 +533,17 @@ class PythonProvider {
                 '--ffmpeg', this.ffmpeg, '--pyz', this.pyz, '--ca-file', this.caBundle,
                 '--lease', ctx.leaseFile || this.leaseFile], thumbCmd: null };
     }
-    preparePlayback(id, ctx) { return this._preparePlayback(id, ctx, false); }
-    refreshPlayback(id, ctx) { return this._preparePlayback(id, ctx, true); }
-    async _preparePlayback(id, ctx, refresh) {
+    preparePlayback(id, ctx, guard) { return this._preparePlayback(id, ctx, false, guard); }
+    refreshPlayback(id, ctx, guard) { return this._preparePlayback(id, ctx, true, guard); }
+    async _preparePlayback(id, ctx, refresh, guard) {
         this._context(ctx);
+        const validateScope = (scope) => {
+            if (guard && (!guard.isCurrent() || (guard.cacheDir && guard.cacheDir !== scope.cacheDir)))
+                throw failure(CANCELLED, 'Запрос отменён.');
+        };
         const baseContext = ctx;
         ctx = this._accountContext(ctx);
+        validateScope(ctx);
         id = String(id || '');
         if (!IDS[this.id].test(id)) throw failure('unknown_video', 'Выберите видео из списка этого сервиса.');
         const cached = this._cachedKnown(id, ctx);
@@ -553,7 +559,7 @@ class PythonProvider {
         // is complete. Resolve/atomically save first; leave that cache intact on error.
         if (!refresh && cached && cached.complete) return this._prepared(id, ctx, this._card(cached.card));
         const generation = this.generation;
-        const answer = await this._worker('resolve', { id: id, height: 720 }, ctx, generation);
+        const answer = await this._worker('resolve', { id: id, height: 720 }, ctx, generation, undefined, undefined, guard);
         if (this.closed || generation !== this.generation) throw failure(CANCELLED, 'Запрос отменён.');
         const job = answer.result;
         if (!job || job.provider !== this.id || job.id !== id || typeof job.url !== 'string' || !/^https:\/\//.test(job.url))
@@ -561,6 +567,7 @@ class PythonProvider {
         // A preflight refresh may have created/recovered the account scope. Never
         // save API-signed media URLs into the guest cache selected before it ran.
         ctx = this._accountContext(baseContext, answer.private);
+        validateScope(ctx);
         const dirs = this._dirs(ctx);
         this._atomic(path.join(dirs.jobs, id + '.json'), job, dirs.uid);
         const metadata = this._card(job) || this._card(this.cards.get(id));

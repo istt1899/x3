@@ -77,6 +77,46 @@ function player() {
     assert.strictEqual(proto.nextHead.n, 1, 'a stale fetcher cannot offer an audio prefix');
     child.stdout.destroy(); child.stderr.destroy();
 
+    const retry = player();
+    const sources = [];
+    let source = 'expired';
+    const refreshes = [];
+    Object.assign(retry.opts, { cacheDir: root, providerId: 'vk', genericMediaIds: true, startVideoMs: 6000,
+        fetchRetryMs: [1, 1], refreshSource: async (isCurrent) => {
+            assert.strictEqual(isCurrent(), true);
+            refreshes.push(source);
+            source = 'fresh';
+        } });
+    retry.ready = Promise.resolve();
+    retry.positions = () => ({});
+    retry.stop = async () => {};
+    retry.sendExtras = () => {};
+    retry.loadSegments = async () => {};
+    retry.prune = () => {};
+    retry.spawnYtdec = () => refreshes.push('decoder started');
+    retry.startAudio = async (file) => refreshes.push(path.basename(file));
+    retry.setState = (state) => { retry.state = state; };
+    retry.ytc = () => root; retry.freshInfo = () => false; retry.chownFetch = () => {};
+    retry.rmTree = (dir) => fs.rmSync(dir, { recursive: true, force: true });
+    retry.spawnJob = () => {
+        const fetcher = new Events();
+        fetcher.stdout = new PassThrough(); fetcher.stderr = new PassThrough();
+        sources.push(source);
+        setImmediate(() => {
+            const expired = source === 'expired';
+            const progress = expired ? [{ ev: 'error', code: 'http_403', msg: 'HTTP 403' }] :
+                [{ ev: 'audio_head', ms: 8000, n: 0 }, { ev: 'video', ms: 6000 }];
+            fetcher.stdout.end(progress.map((event) => JSON.stringify(event) + '\n').join(''));
+            fetcher.stderr.end();
+            if (expired) setImmediate(() => fetcher.emit('close', 1, null));
+        });
+        return fetcher;
+    };
+    await retry.play('-456_789', '1280x720', false, 0, 720);
+    assert.strictEqual(retry.state, 'playing', JSON.stringify(events));
+    assert.deepStrictEqual(sources, ['expired', 'fresh']);
+    assert.deepStrictEqual(refreshes, ['expired', 'audio.head.m4a', 'decoder started']);
+
     for (let n = 0; n <= 3; n++) add(n);
     fs.writeFileSync(path.join(root, 'audio.m4a'), 'complete audio');
     const d = player();

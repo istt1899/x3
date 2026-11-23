@@ -16,6 +16,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'providers'))
 sys.path.insert(0, str(HERE.parent / 'core/native/jap-ridetube-d'))
 import ytfetch
+from mediafetch import compatible_format, select_format
 
 
 def public_https(url):
@@ -69,19 +70,14 @@ def playback_job(provider, card, height, ca_file):
     result = {key: card.get(key) for key in ('id', 'title', 'channel', 'duration_s', 'thumbnail')}
     result.update(provider=provider, created_at=time.time(), ca_file=ca_file)
     if provider == 'vk':
-        formats = [f for f in card.get('formats', []) if f.get('url') and
-                   f.get('ext') == 'mp4' and f.get('acodec') != 'none' and
-                   f.get('vcodec') != 'none' and (f.get('height') or 0) <= 1080]
+        formats = [f for f in card.get('formats', []) if compatible_format(f) and (f.get('height') or 0) <= 1080]
         for candidate in formats:
             public_https(candidate['url'])
-        compatible = [f for f in formats if (f.get('height') or 0) <= height]
-        if not compatible:
-            raise ValueError('no compatible MP4 format at this quality')
-        chosen = max(compatible, key=lambda f: (f.get('height') or 0, f.get('tbr') or 0))
-        # Keep every checked source in this private job. The media fetcher can then
-        # honor a later 360/480/720 quality selection without reusing the initial source.
-        result.update(url=chosen['url'], format=chosen, formats=formats,
-                      http_headers=chosen.get('http_headers') or card.get('http_headers') or {})
+        if not formats:
+            raise ValueError('Для этого видео нет совместимого потока H.264/AAC.')
+        # Keep the checked variants in the private job for later quality changes.
+        result.update(formats=formats, http_headers=card.get('http_headers') or {})
+        return select_format(result, height)
     else:
         stream = card.get('playback') or {}
         result.update(url=public_https(stream.get('url') or ''),

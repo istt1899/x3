@@ -29,7 +29,7 @@ const CACHE_INTERNAL = ['ytdlp', 'ytc', 'jobs', 'runtime-tools', 'thumbs', 'ytfe
 const VIDEO_DIR_MODE = 0o711;
 // thumb.rgba length -> [w, h]: 160x90 in caches from older proxies, 320x180 since 0.1.6
 const THUMB_SIZES = { 57600: [160, 90], 230400: [320, 180] };
-const VERSION = '0.4.6';   // component.json's (test_ytd.js checks): sent with a log report
+const VERSION = '0.4.7';   // component.json's (test_ytd.js checks): sent with a log report
 // the day this build was released (UTC), bumped with VERSION at each release (tools/release.py refuses one in the
 // future). An older clock warns the driver because valid TLS certificates can appear not yet valid.
 const BUILT = '2026-11-19';
@@ -125,6 +125,7 @@ const isMembers = (t) => /BADGE_STYLE_TYPE_MEMBERS|"Members (only|first)"/i.test
 // shortcut: the values are YouTube's live enums from its other clients, no TVHTML5 live capture in test/; check on the first one
 const LIVE_VALUES = ['LIVE', 'UPCOMING', 'THUMBNAIL_OVERLAY_BADGE_STYLE_LIVE', 'BADGE_STYLE_TYPE_LIVE_NOW'];
 const isLive = (marks, duration) => duration === null && marks.some((x) => LIVE_VALUES.indexOf(x) >= 0);
+const REFRESH_SOURCE_ERRORS = ['http_403', 'http_404', 'http_410', 'job_expired'];
 const PERMANENT_RE = /unavailable|private|removed|terminated|copyright|members|age|confirm your age|not available in your country|can't be played|can't play|head unit clock/i;
 function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 function withTimeout(p, ms, what) {
@@ -2157,6 +2158,14 @@ Daemon.prototype.play = async function (id, rect, fill, at, quality, skip, resto
                 this.emit({ ev: 'retry', id: id, n: k + 1, msg: e.message });
                 await sleep(waits[k]);
                 if (gen !== this.gen) return undefined;
+                if (this.opts.refreshSource && REFRESH_SOURCE_ERRORS.indexOf(e.code) >= 0) {
+                    try {
+                        await this.opts.refreshSource(() => gen === this.gen);
+                    } catch (error) {
+                        if (gen !== this.gen) return undefined;
+                        return this.failPlayback('fetch: ' + error.message);
+                    }
+                }
             }
         }
         if (gen !== this.gen) return undefined;
@@ -2429,7 +2438,7 @@ Daemon.prototype.fetchVideo = function (id, dir, how) {
         this.fetcher = child;
         this.preparing = id;
         this.fetchedMs = 0;
-        let audio = again && this.fullReady, head = null, done = false, started = again, err = null, ytdecAgain = again;
+        let audio = again && this.fullReady, head = null, done = false, started = again, err = null, errorCode = null, ytdecAgain = again;
         const pct = (p) => {
             p = Math.min(99, Math.max(this.pct, Math.round(p)));
             if (p !== this.pct && this.state === 'preparing') { this.pct = p; this.sendState(); }
@@ -2442,7 +2451,7 @@ Daemon.prototype.fetchVideo = function (id, dir, how) {
                 this.fetcher = null;
                 this.preparing = null;
                 if (done && why === 'exit 0') this.fetchedMs = Infinity;
-                else if (started && this.resumeFetch(id, dir, err || why)) { /* fetched again after a wait */ }
+                else if (started && this.resumeFetch(id, dir, err || why, errorCode)) { /* fetched again after a wait */ }
                 else if (started && !this.fullReady) { // playing the head: the rest of the audio never comes
                     this.failPlayback('fetch: ' + (err || why)).catch((e) => this.log(e));
                     return;
@@ -2452,7 +2461,12 @@ Daemon.prototype.fetchVideo = function (id, dir, how) {
                 }
                 this.checkBuffering();
             }
-            if (!started) { started = true; reject(new Error(err || why)); }
+            if (!started) {
+                started = true;
+                const error = new Error(err || why);
+                error.code = errorCode;
+                reject(error);
+            }
         };
         readline.createInterface({ input: child.stdout }).on('line', (l) => this.guard(() => {
             if (child !== this.fetcher) return;
@@ -2508,7 +2522,7 @@ Daemon.prototype.fetchVideo = function (id, dir, how) {
                 }
                 if (audio || head !== null) pct(70 + 29 * Math.min(1, this.fetchedMs / this.opts.startVideoMs));
             } else if (m.ev === 'done') done = true;
-            else if (m.ev === 'error') err = String(m.msg);
+            else if (m.ev === 'error') { err = String(m.msg); errorCode = m.code; }
             check();
             this.checkBuffering();
         }));
@@ -2521,13 +2535,18 @@ Daemon.prototype.fetchVideo = function (id, dir, how) {
 // video at most, then as before. The sound plays on meanwhile (the player holds audio.m4a; the new one replaces it whole,
 // on the head its audio_ready switches as usual), ytdec again once the new index starts. False: not this time.
 // shortcut: it fetches from 0 again (ytfetch.py has no start position), audio included; WP8's streaming fetcher brings `pos`
-Daemon.prototype.resumeFetch = function (id, dir, why) {
+Daemon.prototype.resumeFetch = function (id, dir, why, errorCode) {
     const c = this.cur, n = (c && c.fetchAgain) || 0;
     if (!c || n >= 2 || PERMANENT_RE.test(why) || /storage almost full/.test(why)) return false;
     c.fetchAgain = n + 1;
     const gen = this.gen, wait = (this.opts.fetchRetryMs || [])[n] || 0;
     this.log('fetch ' + id + ': ' + why + ' - fetched again in ' + wait + ' ms (' + c.fetchAgain + ' of 2)');
-    sleep(wait).then(() => (gen === this.gen ? this.fetchVideo(id, dir, 'again') : undefined)).catch((e) => { // (could not spawn): as before
+    sleep(wait).then(async () => {
+        if (gen !== this.gen) return undefined;
+        if (this.opts.refreshSource && REFRESH_SOURCE_ERRORS.indexOf(errorCode) >= 0)
+            await this.opts.refreshSource(() => gen === this.gen);
+        if (gen === this.gen) return this.fetchVideo(id, dir, 'again');
+    }).catch((e) => {
         if (gen !== this.gen) return undefined;
         if (!this.fullReady) return this.failPlayback('fetch: ' + e.message);
         return this.emit({ ev: 'error', msg: 'video incomplete: ' + e.message });

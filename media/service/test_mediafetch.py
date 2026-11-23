@@ -71,7 +71,19 @@ class YoutubeDL:
             log = io.StringIO()
             with mock.patch.object(mediafetch, '_OUT', log), self.assertRaisesRegex(ValueError, 'HTTP 403') as result:
                 mediafetch.normalize(args, job)
+            self.assertEqual(result.exception.code, 'http_403')
             self.assertNotIn('fixture-secret', str(result.exception) + log.getvalue())
+
+    def test_expired_job_keeps_its_code_in_the_downloader_process(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args, job = self.fixture_stream(root, "raise AssertionError('expired source was fetched')")
+            job['created_at'] -= 1801
+            (root / (args.id + '.json')).write_text(json.dumps(job), encoding='utf-8')
+            result = subprocess.run(mediafetch.stream_command(args), capture_output=True, timeout=10)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(result.stdout, b'')
+            self.assertEqual(json.loads(result.stderr), {'stream_error': 'job_expired'})
 
     def test_stalled_transfer_kills_its_process_after_data_started(self):
         child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
@@ -134,6 +146,18 @@ class YoutubeDL:
         self.assertEqual(selected['format']['height'], 360)
         self.assertEqual(selected['http_headers']['User-Agent'], 'original-agent-360')
         self.assertEqual(mediafetch.select_format(job, 720)['format']['height'], 720)
+
+    def test_vk_quality_prefers_compatible_hls_and_keeps_api_mp4(self):
+        base = {'height': 720, 'ext': 'mp4', 'vcodec': 'avc1.64001f', 'acodec': 'mp4a.40.2'}
+        mp4 = dict(base, url='https://cdn.example/mp4', tbr=2500)
+        hls = dict(base, url='https://cdn.example/hls', protocol='m3u8_native', tbr=2000)
+        av1 = dict(base, url='https://cdn.example/av1', vcodec='av01', tbr=3000)
+        opus = dict(base, url='https://cdn.example/opus', acodec='opus', tbr=4000)
+        unknown = {'height': 360, 'ext': 'mp4', 'url': 'https://cdn.example/api'}
+        self.assertEqual(mediafetch.select_format({'formats': [mp4, hls, av1, opus, unknown]}, 720)['format'], hls)
+        self.assertEqual(mediafetch.select_format({'formats': [mp4, unknown]}, 360)['format'], unknown)
+        with self.assertRaisesRegex(ValueError, 'H.264/AAC'):
+            mediafetch.select_format({'formats': [av1, opus]}, 720)
 
     def test_hls_fragments_do_not_require_writable_service_working_directory(self):
         class Downloader:

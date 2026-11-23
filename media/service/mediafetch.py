@@ -37,11 +37,19 @@ STREAM_ERRORS = {
     'http_401': 'Сервер видео требует повторного входа (HTTP 401).',
     'http_403': 'Сервер видео отклонил ссылку (HTTP 403). Выберите ролик заново.',
     'http_404': 'Файл видео не найден на сервере (HTTP 404).',
+    'http_410': 'Срок действия ссылки на видео истёк (HTTP 410).',
+    'job_expired': 'Срок действия ссылки на видео истёк.',
     'dns': 'Не удалось найти сервер видео через DNS подключения MGU Store.',
     'tls': 'Не удалось проверить защищённое соединение с сервером видео.',
     'timeout': 'Сервер видео не передаёт данные. Повторите запуск.',
     'downloader': 'Не удалось загрузить поток с сервера видео.',
 }
+
+
+class StreamFailure(ValueError):
+    def __init__(self, code, fallback=None):
+        super().__init__(STREAM_ERRORS.get(code, fallback))
+        self.code = code
 
 
 def event(**fields):
@@ -59,7 +67,9 @@ def stream_error_code(error):
             continue
         seen.add(id(item))
         code = getattr(item, 'code', None) or getattr(item, 'status', None)
-        if code in (401, 403, 404):
+        if isinstance(item, StreamFailure) and code in STREAM_ERRORS:
+            return code
+        if code in (401, 403, 404, 410):
             return 'http_%s' % code
         if isinstance(item, socket.gaierror):
             return 'dns'
@@ -73,7 +83,7 @@ def stream_error_code(error):
                                         getattr(item, 'reason', None), info[1] if isinstance(info, tuple) and len(info) > 1 else None)
                      if isinstance(value, BaseException))
         message = str(item).lower()
-        for status in (401, 403, 404):
+        for status in (401, 403, 404, 410):
             if 'http error %s' % status in message or 'http error %s' % status in message.replace(':', ''):
                 return 'http_%s' % status
         if 'certificate_verify_failed' in message:
@@ -157,7 +167,7 @@ def load_job(a):
     if job.get('provider') != a.provider or job.get('id') != a.id:
         raise ValueError('playback job belongs to another provider/video')
     if time.time() - float(job.get('created_at', 0)) > 1800:
-        raise ValueError('playback link expired; select the video again')
+        raise StreamFailure('job_expired')
     from urllib.parse import urlsplit
     url = urlsplit(job.get('url', ''))
     if url.scheme != 'https' or not url.hostname or url.username or url.password:
@@ -190,15 +200,31 @@ def params(a, job, hook=None):
     return p
 
 
+def compatible_format(item):
+    video = str(item.get('vcodec') or 'unknown').lower()
+    audio = str(item.get('acodec') or 'unknown').lower()
+    # The authenticated VK API omits codec fields on its MP4 variants.
+    return (item.get('url') and item.get('ext') == 'mp4'
+            and (video == 'unknown' or video.startswith(('avc1', 'avc3', 'h264')))
+            and (audio == 'unknown' or audio.startswith(('aac', 'mp4a.40')) or audio == 'mp4a'))
+
+
 def select_format(job, height):
-    """A quality change reuses private resolved choices, never a stale fixed 720p URL."""
-    choices = [item for item in job.get('formats', []) if item.get('url') and item.get('ext') == 'mp4'
-               and item.get('vcodec') != 'none' and item.get('acodec') != 'none']
+    """Select a muxed H.264/AAC variant at the requested quality."""
+    choices = [item for item in job.get('formats', []) if compatible_format(item)]
     if not choices:
+        if job.get('formats') or (job.get('format') and not compatible_format(job['format'])):
+            raise ValueError('Для этого видео нет совместимого потока H.264/AAC.')
         return job
-    below = [item for item in choices if (item.get('height') or 0) <= height]
-    selected = max(below, key=lambda item: (item.get('height') or 0, item.get('tbr') or 0)) if below else min(
-        choices, key=lambda item: item.get('height') or 100000)
+
+    def rank(item):
+        pixels = item.get('height') or 0
+        # HLS can start from the first segment; a progressive MP4 may have its index at EOF.
+        hls = str(item.get('protocol') or '').startswith('m3u8')
+        confirmed = sum(str(item.get(codec) or 'unknown').lower() != 'unknown' for codec in ('vcodec', 'acodec'))
+        return (pixels <= height, pixels if pixels <= height else -pixels, confirmed, hls, item.get('tbr') or 0)
+
+    selected = max(choices, key=rank)
     result = dict(job, format=selected, url=selected['url'],
                   http_headers=selected.get('http_headers') or job.get('http_headers') or {})
     return result
@@ -376,13 +402,13 @@ def _normalize(a, job, source, watch):
         download = None  # local fixture path in tests
     prefix = source.read(4096)
     if not prefix:
-        terminate_children()
         if progress_thread:
             progress_thread.join(timeout=1)
+        terminate_children()
         if download:
             download.stdout.close()
             download.stderr.close()
-        raise ValueError(STREAM_ERRORS.get(state['stream_error'], 'Загрузчик не получил данные видео. Повторите запуск.'))
+        raise StreamFailure(state['stream_error'], 'Загрузчик не получил данные видео. Повторите запуск.')
     watch.received(len(prefix))
     def chunks():
         for data in media_chunks(source):
@@ -475,14 +501,22 @@ def _normalize(a, job, source, watch):
         if feeder:
             feeder.join()
         if remux.wait() != 0 or (download and download.wait() != 0):
-            raise ValueError(STREAM_ERRORS.get(state['stream_error'],
-                'Не удалось обработать видео. Нужен совместимый поток H.264/AAC.'))
+            raise ValueError('Не удалось обработать видео. Нужен совместимый поток H.264/AAC.')
+        stopped.set()
+        monitor.join()
         ready = core.flatten_m4a(str(audio_src), str(directory / 'audio.m4a'))
         if not ready:
             raise ValueError('complete audio is unavailable')
         event(ev='audio_ready', ms=ready[1])
         event(ev='video', pct=100, ms=ms, frames=frames, bytes=size)
         event(ev='done')
+    except Exception:
+        if progress_thread:
+            # Collect the downloader's classified error even if demux failed first.
+            progress_thread.join(timeout=1)
+        if state['stream_error']:
+            raise StreamFailure(state['stream_error']) from None
+        raise
     finally:
         stopped.set()
         monitor.join(timeout=3)
@@ -559,5 +593,6 @@ if __name__ == '__main__':
             # stdout is connected to FFmpeg: never inject JSON into the media stream.
             print(json.dumps({'stream_error': stream_error_code(error)}), file=sys.stderr, flush=True)
         else:
-            event(ev='error', msg=str(error) if isinstance(error, ValueError) else 'media processing failed')
+            fields = {'code': error.code} if isinstance(error, StreamFailure) and error.code else {}
+            event(ev='error', msg=str(error) if isinstance(error, ValueError) else 'media processing failed', **fields)
         raise SystemExit(1)

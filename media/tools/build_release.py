@@ -15,9 +15,9 @@ import tarfile
 ROOT = Path(__file__).resolve().parents[2]
 MEDIA = ROOT / 'media'
 OUT = MEDIA / 'dist/release'
-VERSION = '0.4.6'
+VERSION = '0.4.7'
 YOUTUBE_VERSION = '0.4.1'
-RELEASE_TAG = 'media-preview-0.4.6'
+RELEASE_TAG = 'media-preview-0.4.7'
 BASE_SHA = '984429e16be494d8e17e53f2606c7aaf38ea5ea049e86046f4aafe8cebf7bb75'
 
 
@@ -114,6 +114,7 @@ def main():
     parser.add_argument('--ffmpeg', type=Path, required=True)
     parser.add_argument('--source-bundle', type=Path, required=True)
     parser.add_argument('--release-tag', default=RELEASE_TAG)
+    parser.add_argument('--service-only', action='store_true', help='Reuse the published app packages and build only the shared service.')
     args = parser.parse_args()
     if not re.fullmatch(r'[A-Za-z0-9_.-]{1,80}', args.release_tag):
         raise ValueError('release tag must be a simple immutable tag name')
@@ -130,39 +131,47 @@ def main():
     # Preserve every pre-existing component; fail instead of silently replacing coding.
     components = {component['id']: component for component in catalog['components']}
     assert 'marku_x3_coding' in components
-    youtube = components['jap_ridetube']
-    youtube = copy.deepcopy(youtube)
-    youtube_file = OUT / f'jap_ridetube@{YOUTUBE_VERSION}.tgz'
-    shutil.copyfile(MEDIA / 'core/dist' / youtube_file.name, youtube_file)
-    youtube['version'] = YOUTUBE_VERSION
-    youtube['artifact'] = artifact(youtube_file)
-    youtube['requires']['jap-ridetube-d'] = VERSION
-    youtube['requires']['mgu-deploy'] = '0.7.11'
-    components['jap_ridetube'] = youtube
-    for app in ['marku_vk_video', 'marku_rutube']:
-        spec = json.loads((MEDIA / 'core/apps' / app / 'app.json').read_text(encoding='utf-8'))
-        source = MEDIA / 'core/dist' / f"{app}@{spec['version']}.tgz"
-        target = OUT / source.name
-        shutil.copyfile(source, target)
-        with tarfile.open(target) as archive:
-            assert not any('node_modules/oap-sdk' in n for n in archive.getnames())
-        components[app] = {'id': app, 'kind': 'app', 'title': spec['title'], 'version': spec['version'],
-                           'description': spec['description'], 'artifact': artifact(target),
-                           'requires': {'jap-ridetube-d': VERSION, 'mgu-deploy': '0.7.11',
-                                        'mgu-render': '0.6.11', 'mgu-inputgate': '1.0.0'},
-                           'mguHmi': ['ID7'], 'uninstallable': True}
-        icon = OUT / (app + '@' + spec['version'] + '.png')
-        shutil.copyfile(MEDIA / 'core/apps' / app / 'icon.png', icon)
-        components[app]['icon'] = artifact(icon)['url']
-        components[app]['iconSha256'] = sha(icon.read_bytes())
-    requires = json.loads((MEDIA / 'core/native/jap-ridetube-d/component.json').read_text(encoding='utf-8'))['requires']
-    components['jap-ridetube-d'] = {'id': 'jap-ridetube-d', 'kind': 'tool', 'title': 'MGU Video service',
-                                  'version': VERSION, 'description': 'Тестовый общий проигрыватель: YouTube через прежний прокси, VK Видео и RUTUBE напрямую. Раздельные аккаунты.',
-                                  'requires': dict(requires, **{'mgu-deploy': '0.7.11', 'cluster-render': '0.4.0'}),
-                                  'artifact': artifact(tool), 'uninstallable': True, 'mguHmi': ['ID7']}
-    runtime = json.loads((MEDIA / 'core/tools/runtime-providers.json').read_text(encoding='utf-8'))
-    for provider in runtime:
-        components.setdefault(provider['id'], provider)
+    if not args.service_only:
+        youtube = components['jap_ridetube']
+        youtube = copy.deepcopy(youtube)
+        youtube_file = OUT / f'jap_ridetube@{YOUTUBE_VERSION}.tgz'
+        shutil.copyfile(MEDIA / 'core/dist' / youtube_file.name, youtube_file)
+        youtube['version'] = YOUTUBE_VERSION
+        youtube['artifact'] = artifact(youtube_file)
+        youtube['requires']['jap-ridetube-d'] = VERSION
+        youtube['requires']['mgu-deploy'] = '0.7.11'
+        components['jap_ridetube'] = youtube
+        for app in ['marku_vk_video', 'marku_rutube']:
+            spec = json.loads((MEDIA / 'core/apps' / app / 'app.json').read_text(encoding='utf-8'))
+            source = MEDIA / 'core/dist' / f"{app}@{spec['version']}.tgz"
+            target = OUT / source.name
+            shutil.copyfile(source, target)
+            with tarfile.open(target) as archive:
+                assert not any('node_modules/oap-sdk' in n for n in archive.getnames())
+            components[app] = {'id': app, 'kind': 'app', 'title': spec['title'], 'version': spec['version'],
+                               'description': spec['description'], 'artifact': artifact(target),
+                               'requires': {'jap-ridetube-d': VERSION, 'mgu-deploy': '0.7.11',
+                                            'mgu-render': '0.6.11', 'mgu-inputgate': '1.0.0'},
+                               'mguHmi': ['ID7'], 'uninstallable': True}
+            icon = OUT / (app + '@' + spec['version'] + '.png')
+            shutil.copyfile(MEDIA / 'core/apps' / app / 'icon.png', icon)
+            components[app]['icon'] = artifact(icon)['url']
+            components[app]['iconSha256'] = sha(icon.read_bytes())
+    if args.service_only:
+        service_entry = components['jap-ridetube-d']
+        service_entry.update(version=VERSION, artifact=artifact(tool))
+        # Pair both entry points with the service containing the playback fix.
+        for app in ('jap_ridetube', 'marku_vk_video'):
+            components[app]['requires']['jap-ridetube-d'] = VERSION
+    else:
+        requires = json.loads((MEDIA / 'core/native/jap-ridetube-d/component.json').read_text(encoding='utf-8'))['requires']
+        components['jap-ridetube-d'] = {'id': 'jap-ridetube-d', 'kind': 'tool', 'title': 'MGU Video service',
+                                      'version': VERSION, 'description': 'Тестовый общий проигрыватель: YouTube через прежний прокси, VK Видео и RUTUBE напрямую. Раздельные аккаунты.',
+                                      'requires': dict(requires, **{'mgu-deploy': '0.7.11', 'cluster-render': '0.4.0'}),
+                                      'artifact': artifact(tool), 'uninstallable': True, 'mguHmi': ['ID7']}
+        runtime = json.loads((MEDIA / 'core/tools/runtime-providers.json').read_text(encoding='utf-8'))
+        for provider in runtime:
+            components.setdefault(provider['id'], provider)
     result = {'schema': 2, 'components': list(components.values())}
     (OUT / 'catalog.json').write_text(json.dumps(result, indent=2, ensure_ascii=False) + '\n', encoding='utf-8', newline='\n')
     # Explicit candidate destination: no mutation of the stable root catalog here.
