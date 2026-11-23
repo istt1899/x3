@@ -81,6 +81,17 @@ def main():
     require(len(entries) == len(catalog['components']), 'Duplicate component identity')
     require(REQUIRED <= entries.keys(), 'Missing Waze component or dependency')
     source = {item['id']: item for item in json.loads((WAZE / 'catalog.json').read_bytes())['components']}
+    providers = {item['id']: item for item in json.loads((WAZE / 'catalog-providers.json').read_bytes())}
+    renderer = entries['cluster-render']
+    require(renderer == providers['cluster-render'], 'Store renderer differs from the pinned upstream provider')
+    fixed_renderer = (0, 8, 4)
+    offered = tuple(map(int, renderer['version'].split('.')))
+    for component_id in OWN:
+        minimum = entries[component_id].get('requires', {}).get('cluster-render')
+        require(minimum, component_id + ' does not declare its renderer dependency')
+        required = tuple(map(int, minimum.split('.')))
+        require(fixed_renderer <= required <= offered,
+                component_id + ' cannot resolve a renderer with map recovery')
     origin = json.loads((WAZE / 'IMPORT.json').read_bytes())
     for item in origin['packages']:
         data = (WAZE / 'packages' / item['name']).read_bytes()

@@ -1,7 +1,7 @@
 {
   "id": "marku-kaluga-cameras",
   "kind": "tool",
-  "version": "0.11.2",
+  "version": "0.11.3",
   "title": "Сервис камер Атлас",
   "description": "Офлайн-база камер, предупреждения на приборной панели и проекции BMW ID7",
   "optional": true,
@@ -11,7 +11,7 @@
     5000
   ],
   "requires": {
-    "cluster-render": "0.4.0"
+    "cluster-render": "0.8.5"
   },
   "mguHmi": [
     "ID7"

@@ -4,12 +4,12 @@
     "kind": "tool",
     "title": "Cluster renderer",
     "description": "Draws every app's layers on the instrument cluster and the HUD, sharing the display slots and one upload budget",
-    "version": "0.5.9",
+    "version": "0.8.5",
     "artifact": {
-      "name": "cluster-render@0.5.9.tgz",
-      "size": 9365218,
-      "sha256": "7b8665c769dfa6e9a98b1882ddfc9f85d41583e21bfbbe96183ca94ad4273401",
-      "url": "https://github.com/robertnisipeanu/idrive-apps/releases/download/cluster-render%400.5.9/cluster-render%400.5.9.tgz"
+      "name": "cluster-render@0.8.5.tgz",
+      "size": 12491541,
+      "sha256": "fafabeecdd409894529592b0f286b60581c887f05ed28fa83feb1ed9140d1b38",
+      "url": "https://github.com/robertnisipeanu/idrive-apps/releases/download/cluster-render%400.8.5/cluster-render%400.8.5.tgz"
     },
     "requires": {
       "mgu-deploy": "0.4.0"
