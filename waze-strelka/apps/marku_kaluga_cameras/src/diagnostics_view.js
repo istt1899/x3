@@ -23,13 +23,13 @@ const utc = v => Number.isFinite(v) ? new Date(v).toISOString() : '—';
 function values(state, version, frozen) {
     const s = state || {}, f = s.gpsFix || {}, input = s.gpsInput || {}, timing = input.nmeaTiming || {}, kinds = input.sentences || {}, b = s.gpsBridge || {}, nav = s.gpsNavigation || {};
     const g = s.guidance || {}, a = s.alert, c = a || s.nearest || {}, r = s.rendererDetails || {}, o = s.outputs || {};
-    const now = s.observedAtMs, error = clean(s.controlError || s.error), on = x => x ? 'вкл' : 'выкл';
+    const now = s.observedAtMs, error = clean(s.controlError || s.error), on = x => x === true ? 'вкл' : x === false ? 'выкл' : '—';
     const layer = key => r[key] ? clean(r[key].state) + (r[key].target ? ' / '+clean(r[key].target) : '') +
         (r[key].reason || r[key].targetReason ? ' • ' + clean(r[key].reason || r[key].targetReason) : '') : clean(s.renderer);
     const text = {
         stamp: (frozen ? 'Снимок зафиксирован: ' : 'Живые данные: ') + utc(now),
         versions:'Приложение ' + version + ' • сервис ' + clean(s.serviceVersion),
-        service:'Сервис: ' + (state ? 'отвечает' : 'нет связи') + ' • предупреждения ' + on(s.enabled),
+        service:'Сервис: ' + (state && s.serviceReady !== false ? 'отвечает' : 'нет связи') + ' • предупреждения ' + on(s.enabled),
         health:'GPS: ' + (Number.isFinite(f.lat) && Number.isFinite(f.lon) ? 'позиция принята' : 'нет позиции') +
             ' • ' + clean(timing.pairReason),
         nmeaPair:'Сопряжение NMEA: ' + clean(timing.pairReason),

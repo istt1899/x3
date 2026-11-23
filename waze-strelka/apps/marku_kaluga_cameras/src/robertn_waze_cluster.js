@@ -65,8 +65,10 @@ const cameraView = require('./view_model.js');
 const tripView = require('./trip_view.js');
 const cameraDiagnostics = require('./diagnostics_view.js');
 const atlasHome = require('./atlas-home.js');
+const CenterScale = require('./atlas-center-scale.js');
 const atlasDetail = require('./atlas-detail.js');
 const atlasStage = require('./atlas-stage.js');
+const phoneMaps = require('./atlas-phone-maps.js');
 const { BmwGpsBridge } = require('./bmw_gps_bridge.js');
 const { BmwNavigationBridge } = require('./bmw_navigation_bridge.js');
 const { BmwSpeedBridge } = require('./bmw_speed_bridge.js');
@@ -193,7 +195,7 @@ class WazeClusterApp extends OnlineApp {
         this._pages = this._emptyPages();
         this._rhmiStates = {};
         this._appLastWallMs = null; this._appClockRollback = null;
-        this._diagPage = 0; this._diagBlock = 0;
+        this._diagPage = 0; this._diagBlock = 0; this._diagServiceTab = false;
         this._diagnosticSnapshot = null;
         this._cameraFeedback = null; this._cameraCommandTimer = null;
         this._cameraPending = null; this._cameraCommandSequence = 0;
@@ -208,6 +210,7 @@ class WazeClusterApp extends OnlineApp {
         this._regionChoice = null;
         this._regionPage = null;
         this._tripImage = { key: null, context: null, wantedContext: null, file: null, uploadingFile: null, pending: null, rendering: null, sequence: 0 };
+        this._atlasScale = new CenterScale();
         this._atlasPanels = {};
         this._atlasSurface = null;
         this._atlasKeys = {};
@@ -530,7 +533,8 @@ class WazeClusterApp extends OnlineApp {
             this._bind(name, () => this._openCameraPage(tripView.COMMANDS[name])));
         this._bind('cameraDiagFreeze', () => {
             const snapshot = cameraDiagnostics.capture(this._cameraDiagnosticState(), this._packageJson.version, Date.now());
-            const rows = cameraDiagnostics.photoRows(snapshot, !!this._cameras.state && this._cameras.link === 'up',
+            this._atlasPanels.diagnosticPhoto = {sheet:0,edit:null};
+            const rows = cameraDiagnostics.photoRows(snapshot, snapshot.state.serviceReady,
                 this._diagnosticCameraTarget());
             this._diagnosticSnapshot = snapshot;
             this._renderDiagnostics();
@@ -556,7 +560,9 @@ class WazeClusterApp extends OnlineApp {
         this._bind('tripRegionRollback', () => this._regionalCommand('regional-rollback'));
         this._components.cameraDiagSelector.on('action',event=>{
             const row=event&&event.row;
-            if(Number.isInteger(row)&&row>=0&&row<cameraDiagnostics.PAGE_TITLES.length){this._diagPage=row;this._diagBlock=0;}
+            if(Number.isInteger(row)&&row>=0&&row<cameraDiagnostics.PAGE_TITLES.length){
+                this._diagPage=row;this._diagBlock=0;this._diagServiceTab=event.serviceTab===true && row===0;
+            }
             delete this._written['cell:cameraDiagSelector:SelectedItem'];this._renderDiagnostics();
         });
         this._bind('cameraDiagTest', () => {if(this._startCameraTest(false,true))return this._openCameraPage('calibration');});
@@ -728,7 +734,8 @@ class WazeClusterApp extends OnlineApp {
     }
 
     _openDiagnostics() {
-        this._diagPage = 0; this._diagBlock = 0;
+        this._atlasPanels.diagnostics = {sheet:0,edit:null};
+        this._diagPage = 0; this._diagBlock = 0; this._diagServiceTab = false;
         this._diagnosticSnapshot = null;
         this._cameras.send({ cmd: 'status' }); this._renderDiagnostics();
         return this._openCameraPage('diagnostics');
@@ -1145,7 +1152,8 @@ class WazeClusterApp extends OnlineApp {
     }
     _cameraDiagnosticState() {
         const wallMs=this._observeAppClock();
-        return Object.assign({},this._cameras.state||{},{appClock:{wallMs,wallUtc:new Date(wallMs).toISOString(),
+        const serviceReady=this._cameras.link==='up' && !!this._cameras.state;
+        return Object.assign({},serviceReady ? this._cameras.state : null,{serviceReady,appClock:{wallMs,wallUtc:new Date(wallMs).toISOString(),
             clockDiscontinuity:!!this._appClockRollback,lastRollback:this._appClockRollback&&Object.assign({},this._appClockRollback)},
             calibrationInput:{controller:this._holdBridge.status(),repeat:this._moveRepeater.status(),focusedDirection:this._cameraFocusedArrow,
             stopReason:this._cameraHoldStop,touchHoldConfirmed:false,events:this._cameraInputEvents.map(e=>Object.assign({},e))}});
@@ -1468,7 +1476,7 @@ class WazeClusterApp extends OnlineApp {
                     this._atlasEditorStates[page]=state;
                     state.on('visible',e=>this._atlasVisible(page,true,isTrue(e&&e.visible)));
                 }
-                const size=page==='trip'?6:9;
+                const size=page==='trip'?8:9;
                 ['atlasFrame','atlasStatus'].forEach(prefix=>{
                     const name=prefix+stem;
                     this._components[name]=rhmi.getByName(name);
@@ -1570,6 +1578,12 @@ class WazeClusterApp extends OnlineApp {
         if(visible){
             const last=this._atlasHistory[this._atlasHistory.length-1];
             const origin=this._atlasParents[last];
+            const cameraPanel=this._atlasPanels.cameraDetail;
+            if(!edit && !this._atlasRequested && last==='cameraDetail' && page==='trip' && cameraPanel && cameraPanel.cameraOutput){
+                const restore=cameraPanel.cameraFrom==='cameraDetail';
+                this._atlasPanels.cameraDetail={sheet:0,edit:null};
+                if(restore){this._navigateAtlas('cameraDetail',false);return;}
+            }
             if(!edit && !this._atlasRequested && page===ATLAS_PARENT[last] && this._resumeAtlasSection(last))return;
             if(!edit && !this._atlasRequested && origin && page===ATLAS_PARENT[last] && page!==origin){
                 // BMW's Back selects the statically declared parent. A section
@@ -1615,7 +1629,7 @@ class WazeClusterApp extends OnlineApp {
         if(!caller)return false;
         delete this._atlasReturns[page];
         this._atlasPanels[caller.page]=caller.panel;
-        if(caller.page==='calibration'||caller.page==='position')this._cameraCardTarget=caller.target;
+        if(caller.page==='calibration'||caller.page==='position'||caller.panel.cameraOutput)this._cameraCardTarget=caller.target;
         this._atlasStage.focus[caller.page]=caller.focus;
         this._navigateAtlas(caller.page,!!caller.panel.edit);
         return true;
@@ -1627,6 +1641,52 @@ class WazeClusterApp extends OnlineApp {
         if(!name.startsWith('atlasValue:'))this._flushAtlasInput();
         const item=atlasStage.actionTarget(page,stage.view,name);
         if(!item)return;
+        if(name==='atlasCameraOpen'){
+            this._atlasPanels.cameraDetail={sheet:0,edit:null,cameraOutput:'center',cameraFrom:page};
+            stage.focus.cameraDetail='atlasCameraOutput:center';
+            if(page==='cameraDetail'){this._renderAtlas();return;}
+            return this._openCameraPage('cameraDetail');
+        }
+        const cameraPanel=page==='cameraDetail'&&this._atlasPanels.cameraDetail;
+        if(cameraPanel && cameraPanel.cameraOutput){
+            if(name==='atlasCameraClose'||name==='atlasBack'){
+                const previous=cameraPanel.cameraFrom;
+                this._atlasPanels.cameraDetail={sheet:0,edit:null};
+                stage.focus[previous]='atlasCameraOpen';
+                if(previous==='cameraDetail'){this._renderAtlas();return;}
+                return this._openCameraPage('trip');
+            }
+            if(name.startsWith('atlasCameraOutput:')){
+                const target=name.slice('atlasCameraOutput:'.length);
+                if(!['center','hud','map'].includes(target))return;
+                stage.cancelTouch(false);
+                cameraPanel.cameraOutput=target;
+                cameraPanel.cameraAdjust=false;
+                if(target!=='center'){
+                    this._cancelCameraHold('TARGET_CHANGED');
+                    this._cameraCardTarget=target;
+                    this._cameraCardSelectionReason=null;
+                    this._renderCameraCard();
+                }
+                this._renderAtlas();return;
+            }
+            const scale=/^atlasValue:(atlasCenterCameraScale|cameraCardScale):([0-9]+)$/.exec(name);
+            if(scale){
+                const slider=stage.view.buttons.find(b=>b.kind==='slider'&&b.source===scale[1]);
+                const step=Number(scale[2]);
+                if(!slider||!slider.enabled||step>slider.max)return;
+                if(cameraPanel.cameraOutput==='center'&&scale[1]==='atlasCenterCameraScale'){
+                    try{this._atlasScale.set(scale[1],step);}catch(err){logger.warn('Atlas camera size: '+err.message);}
+                }else if(scale[1]==='cameraCardScale'&&this._cameraCardTarget===cameraPanel.cameraOutput){
+                    this._cameraAction('cardLayout','card-layout',{target:this._cameraCardTarget,scalePct:75+5*step});
+                }
+                this._renderAtlas();return;
+            }
+            if(name==='atlasCameraSlider'){
+                cameraPanel.cameraAdjust=!cameraPanel.cameraAdjust;
+                this._renderAtlas();return;
+            }
+        }
         if(name==='atlasExit'){
             return this.rhmiApplication.closeState(PAGE_STATES.trip)
                 .then(()=>{if(stage.focus.trip==='atlasExit')delete stage.focus.trip;})
@@ -1645,8 +1705,36 @@ class WazeClusterApp extends OnlineApp {
             }
             delete stage.focus[destination];
             this._atlasPanels[destination]={sheet:0,edit:null};
-            if(destination==='diagnostics'){this._diagPage=0;this._diagBlock=0;this._diagnosticSnapshot=null;}
+            if(destination==='diagnostics'){this._diagPage=0;this._diagBlock=0;this._diagServiceTab=false;this._diagnosticSnapshot=null;}
             this._openCameraPage(destination);
+            return;
+        }
+        if(page==='main' && (name.startsWith('atlasMap') || name.startsWith('atlasValue:atlasCenterMapScale:'))){
+            const panel=this._atlasPanels.main || {sheet:0,edit:null};
+            let command=name;
+            if(command==='atlasMapCancel'){
+                delete panel.mapConfirm;
+            }else if(command==='atlasMapConfirm'){
+                command=panel.mapConfirm || '';
+                delete panel.mapConfirm;
+                if(!atlasStage.actionTarget(page,stage.view,command))return;
+            }
+            if(command.startsWith('atlasMapOutput:')){
+                if(name!== 'atlasMapConfirm' && !(stage.front && stage.owns())){
+                    panel.mapConfirm=command;
+                }else{
+                    const parts=command.split(':');
+                    this._control.setMapOutput(parts[1],parts[2]==='1');
+                }
+            }else{
+                const step=phoneMaps.stepFor(command,this._atlasScale.get('atlasCenterMapScale'));
+                if(Number.isInteger(step) && step>=0 && step<=12){
+                    try { this._atlasScale.set('atlasCenterMapScale',step); }
+                    catch(error) { logger.warn('Atlas map preview scale: '+error.message); }
+                }
+            }
+            this._atlasPanels.main=panel;
+            this._renderAtlas();
             return;
         }
         if(name==='atlasCompositionOpen:hud'||name==='atlasCompositionOpen:map'){
@@ -1662,6 +1750,12 @@ class WazeClusterApp extends OnlineApp {
             return;
         }
         const panel=this._atlasPanels[page]||{sheet:0,edit:null};
+        if(page==='main' && name==='atlasBack' && !panel.edit && panel.sheet>0){
+            this._atlasPanels.main={sheet:0,edit:null};
+            stage.focus.main='atlasSheet:1';
+            this._renderAtlas();
+            return;
+        }
         if(name==='atlasBack'&&!panel.edit){
             if(this._resumeAtlasSection(page))return;
             const from=this._atlasHistory[this._atlasHistory.length-2]||ATLAS_PARENT[page];
@@ -1696,12 +1790,13 @@ class WazeClusterApp extends OnlineApp {
             return;
         }
         let command = name, event = {};
-        if (/^atlasDiagnostic:[0-9]+$/.test(name)) {
+        if (name==='atlasDiagnostic:service' || /^atlasDiagnostic:[0-9]+$/.test(name)) {
             if (this._shownPage !== 'diagnostics') return;
-            const row = Number(name.slice('atlasDiagnostic:'.length));
+            const serviceTab=name==='atlasDiagnostic:service';
+            const row = serviceTab ? 0 : Number(name.slice('atlasDiagnostic:'.length));
             if (row >= cameraDiagnostics.PAGE_TITLES.length) return;
             command = 'cameraDiagSelector';
-            event = {row};
+            event = {row,serviceTab};
         } else if (name.indexOf('atlasRegion:') === 0) {
             if (this._shownPage !== 'regions') return;
             const code = name.slice('atlasRegion:'.length);
@@ -1722,9 +1817,13 @@ class WazeClusterApp extends OnlineApp {
         const name='atlasFrame'+stem;
         if (!this._components[name]) return;
         const state = this._cameras.link === 'up' ? this._cameras.state : null;
-        const view = home ? atlasHome.model(state, this._packageJson.version) : atlasDetail.model(page, {
+        const view = home ? atlasHome.model(state, this._packageJson.version, this._atlasScale.get('atlasCenterCameraScale')) : atlasDetail.model(page, {
             state, version:this._packageJson.version, written:this._written, serviceReady:!!state, atlasPanel:this._atlasPanels[page],
+            phoneMaps:page==='main' ? phoneMaps.status(this._control,this._atlasScale) : null,
+            mapInteractive:page==='main' && this._atlasStage.front && this._atlasStage.owns(),
+            centralCameraScalePct:this._atlasScale.get('atlasCenterCameraScale'),centralScaleError:this._atlasScale.error,
             region:page === 'regions' ? this._regionView() : null, snapshot:this._diagnosticSnapshot,
+            diagnosticService:this._diagServiceTab,
             target:this._cameraCardTarget, testGuard:this._cameraTestGuard(this._cameraCardTarget), diagnosticState:page === 'diagnostics' ? this._cameraDiagnosticState() : null
         });
         if (!view) return;
@@ -1751,14 +1850,14 @@ class WazeClusterApp extends OnlineApp {
             }
             this._setVisibleComp(name,!!range&&!interactive);
         });
-        const count=home?6:9;
+        const count=home?8:9;
         for(let i=0;i<count;i++){
             const slot='atlasKey'+stem+'_'+i, target=items[i]&&items[i].kind!=='section'?items[i]:null;
             this._atlasKeys[slot]=target;
             if(target){
                 let value=target.value;
                 if(target.kind==='toggle' && typeof target.selected==='boolean')value=target.selected?'Вкл.':'Выкл.';
-                if(target.kind==='choice' && target.selected)value='Выбрано';
+                if((target.kind==='choice' || target.kind==='diagTab') && target.selected)value='Выбрано';
                 this._writeCell(slot,'Text1stCol',target.label,'Text',0);
                 this._writeCell(slot,'Text2ndCol',value && value!==target.label?String(value):'','Text',0);
                 this._setEnabled(slot,target.enabled!==false);

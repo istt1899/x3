@@ -1,4 +1,5 @@
 const home=load('app/atlas-home'), detail=load('app/atlas-detail'), stage=load('app/atlas-stage');
+const phoneMaps=load('app/atlas-phone-maps');
 const trip=load('app/trip_view'), diag=load('app/diagnostics_view'), camera=load('app/view_model');
 const layout=load('output/card-layout'), layers=load('output/camera-layers'), card=load('output/alert-card');
 const composition=load('output/card-composition');
@@ -7,15 +8,16 @@ const el=id=>document.getElementById(id), clone=value=>JSON.parse(JSON.stringify
 const key='bmw-atlas-stand.preferences.v1', emptyPanel=()=>({sheet:0,edit:null});
 const props={cameraVisualFlash:'visualFlash',cameraSoundEnabled:'soundEnabled',cameraSoundAppear:'soundOnCameraAppear'};
 const allTypes=()=>Object.fromEntries(camera.ALERT_TYPES.map(t=>[t.key,true]));
-const defaults=()=>({enabled:true,outputs:{hud:true,cluster:true},cardLayout:layout.defaultLayouts(),cardComposition:composition.normalize(),
+const defaults=()=>({centralCameraScalePct:100,enabled:true,outputs:{hud:true,cluster:true},cardLayout:layout.defaultLayouts(),cardComposition:composition.normalize(),
     alertPreferences:{warningDistanceM:1000,cameraTypes:allTypes()},overspeedPreferences:{...camera.OVERSPEED_RECOMMENDED},
-    phone:{wocProfile:false,wocGuide:false,wocHudKeep:false,wocAaCard:false,wocShowOn:2,wocHudSize:5,wocHudOpacity:0,zoom:0,x:0,y:0},
+    phone:{wocProfile:false,wocGuide:false,wocHudKeep:false,wocAaCard:false,cluster:false,hud:false,centerScale:100,wocHudSize:5,wocHudOpacity:0,zoom:0,x:0,y:0},
     packs:{'RU-KLU':{current:'Учебная 1',previous:null}},opticsStyle:'beam'});
 let saved=defaults(), storageAvailable=true;
 try {
     const persisted=JSON.parse(localStorage.getItem(key)||'null');
     if(persisted&&persisted.schema===1&&persisted.values) {
         const p=persisted.values;
+        if(Number.isInteger(p.centralCameraScalePct)&&p.centralCameraScalePct>=65&&p.centralCameraScalePct<=125&&(p.centralCameraScalePct-65)%5===0)saved.centralCameraScalePct=p.centralCameraScalePct;
         if(camera.alertPreferences({capabilities:{alertPreferences:true},alertPreferences:p.alertPreferences}).available) saved.alertPreferences=p.alertPreferences;
         if(camera.overspeedPreferences({capabilities:{overspeedPreferences:true},overspeedPreferences:p.overspeedPreferences}).available) saved.overspeedPreferences=p.overspeedPreferences;
         if(typeof p.enabled==='boolean')saved.enabled=p.enabled;
@@ -23,7 +25,21 @@ try {
         saved.cardLayout=layout.normalizeLayouts(p.cardLayout);
         saved.cardComposition=composition.normalize(p.cardComposition);
         if(['beam','pulse','trail'].includes(p.opticsStyle))saved.opticsStyle=p.opticsStyle;
-        if(p.phone&&typeof p.phone==='object')Object.assign(saved.phone,p.phone);
+        if(p.phone&&typeof p.phone==='object'){
+            const phone=p.phone, legacy=phone.wocShowOn;
+            for(const name of Object.keys(saved.phone)){
+                if(typeof saved.phone[name]==='boolean' && typeof phone[name]==='boolean')saved.phone[name]=phone[name];
+            }
+            if(Number.isInteger(legacy) && legacy>=0 && legacy<=3){
+                if(typeof phone.cluster!=='boolean')saved.phone.cluster=legacy===0||legacy===2;
+                if(typeof phone.hud!=='boolean')saved.phone.hud=legacy===1||legacy===2;
+            }
+            const ranges={wocHudSize:[0,11],wocHudOpacity:[0,18],zoom:[-10,10],x:[-400,400],y:[-400,400]};
+            for(const [name,[min,max]] of Object.entries(ranges))
+                if(Number.isInteger(phone[name]) && phone[name]>=min && phone[name]<=max)saved.phone[name]=phone[name];
+            if(Number.isInteger(phone.centerScale) && phone.centerScale>=65 && phone.centerScale<=125 && (phone.centerScale-65)%5===0)
+                saved.phone.centerScale=phone.centerScale;
+        }
         if(p.packs&&typeof p.packs==='object')saved.packs=p.packs;
     }
 } catch {storageAvailable=false;}
@@ -31,7 +47,7 @@ function persist() {
     try {localStorage.setItem(key,JSON.stringify({schema:1,values:saved}));} catch {storageAvailable=false;}
 }
 let page='trip', history=[], panel=emptyPanel(), target='hud', selected='', region='RU-KLU', regionPage=null;
-let diagnosticPage=0, diagnosticBlock=0, resultBlock=0, snapshot=null, test=null, timer=null, capture=false, activeOutput=null;
+let diagnosticPage=0, diagnosticService=false, diagnosticBlock=0, resultBlock=0, snapshot=null, test=null, timer=null, capture=false, activeOutput=null;
 let message='', lastState, view, buttons=[], lastBitmap='', logEntries=[], datasetStatus='idle', updateAvailable=true;
 let cropped=false, outside=false;
 const outputCards={hud:null,map:null};
@@ -44,7 +60,7 @@ inputStage.present=()=>{
     const item=inputStage.selected(buttons);
     if(item&&item.kind!=='section')inputStage.contentFocus[page]=focusId(item);
     drawStage();
-    if(lastState&&page==='calibration')renderOutputs(lastState);
+    if(lastState&&(page==='main'||page==='calibration'||page==='cameraDetail'&&panel.cameraOutput))renderOutputs(lastState);
 };
 let rotary=0;
 function syncInput(){
@@ -137,13 +153,13 @@ const compare={cameraWarningDistance:s=>(s.alertPreferences.warningDistanceM-50)
 function written(s,reg) {
     const t=s.cardLayout[target],d=s.actions,ok=d.cardLayout.allowed,ownTest=s.displayTest.active&&s.displayTest.target===target;
     const raw={...trip.model(s,config.version).text,...camera.model(s).text,...reg.text,
-        wocHud:s.phone.wocShowOn===0?'HUD выключен':'HUD учебного профиля',wocMap:s.phone.wocShowOn===1?'Приборы выключены':'Приборы учебного профиля',
+        wocHud:s.phone.hud?'HUD учебного профиля':'HUD выключен',wocMap:s.phone.cluster?'Приборы учебного профиля':'Приборы выключены',
         wocStatus:'Телефон не подключён',wocAaStatus:'Телефон не подключён',wocCaptureStatus:capture?'Идёт локальная запись':'Запись остановлена',
         wocLogsStatus:logEntries.length+' событий в этом сеансе',wocLogsRow1:logEntries.at(-1)||'Нет записей',
         cameraCardStatus:ownTest?'Учебный тест включён':ok?'Учебный профиль':'Для теста выберите сценарий остановки',
         cameraCardStorage:storageAvailable?'Хранилище браузера':'Только этот сеанс',cameraPositionHint:ok?'Показать тест для перемещения':'Настройка доступна на стоянке',
         cameraCommand:message,cameraDatabaseCommand:message,cameraAlertCommand:message,tripRegionResult:message||'Локальный каталог • пример операции',
-        'cell:cameraDiagSelector:SelectedItem':diagnosticPage,'cell:wocShowOn:SelectedItem':s.phone.wocShowOn};
+        'cell:cameraDiagSelector:SelectedItem':diagnosticPage,'enabled:wocHudCentre':s.phone.hud && !!(s.phone.x || s.phone.y)};
     const report=diag.reportPage(null,s,config.version,diagnosticPage,diagnosticBlock,message||null,resultBlock);
     for(const [k,v] of Object.entries(report.rows))raw['cameraDiag_'+k]=v;
     for(const [control,read] of Object.entries(compare))raw['cell:'+control+':0:Value']=read(s);
@@ -182,7 +198,9 @@ function go(next,replacing=false) {
 }
 function back() {
     endInput();
+    if(panel.cameraOutput && panel.cameraFrom==='cameraDetail'){panel=emptyPanel();selected='atlasCameraOpen';return;}
     if(panel.edit){selected='atlasEdit:'+panel.edit;panel={sheet:panel.sheet,edit:null};return;}
+    if(page==='main' && panel.sheet>0){panel=emptyPanel();selected='atlasSheet:1';return;}
     const old=history.pop();
     if(old){page=old.page;panel=old.panel;selected=old.selected;target=old.target;}
     else if(page==='trip')exitAtlas();
@@ -242,11 +260,33 @@ function setProfileStep(profile,source,step){
     }
     return true;
 }
+function renderPhoneOutput(node,out) {
+    const ctx=px(node), enabled=saved.phone[out==='hud'?'hud':'cluster'];
+    ctx.clearRect(0,0,node.width,node.height);
+    if(enabled){
+        const surface={
+            roundRect(x,y,w,h,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill();},
+            line(x,y,xx,yy,width,color){
+                ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(xx,yy);ctx.stroke();
+            }
+        };
+        phoneMaps.diagram(surface,{maps:view.maps,sheet:out==='hud'?2:3,sliderPreview:inputStage.sliderPreview},
+            ()=>{},{line:'#3a5850',bg:'#10221e',tile:'#28443c',focus:'#c6f4a5'},0,0,node.width,node.height);
+    }
+    const status=enabled?'Схема карты телефона':'Карта телефона выключена';
+    el(out+'-state').textContent=status+' · '+node.width+' × '+node.height;
+    node.setAttribute('aria-label',status);
+}
 function renderOutputs(s) {
     for(const out of ['hud','map']) {
         const node=el(out),ctx=px(node),profile={...s.cardLayout[out]},fields=s.cardComposition[out],enabled=s.outputs[out==='hud'?'hud':'cluster'];
+        if(page==='main'){
+            outputCards[out]=null;
+            renderPhoneOutput(node,out);
+            continue;
+        }
         const preview=inputStage.sliderPreview;
-        if(preview&&out===target&&page==='calibration')setProfileStep(profile,preview.source,preview.step);
+        if(preview&&out===target&&(page==='calibration'||page==='cameraDetail'&&panel.cameraOutput===target))setProfileStep(profile,preview.source,preview.step);
         const activeTest=test===out&&s.actions.cardLayout.allowed;
         const visibleAlert=activeTest?{...makeWarning(150,0,false),test:true,calibration:true}:s.alert;
         const info=layers.layoutFor(out,{width:node.width,height:node.height},'simulator',profile);
@@ -277,15 +317,17 @@ function updateHits(oldFocus) {
     for(const b of buttons){
         const id=focusId(b);let button=existing.get(id);
         if(!button){button=document.createElement('button');button.className='hit';button.type='button';button.dataset.focus=id;
-            button.addEventListener('click',event=>{if(event.detail===0)activate(button.dataset.command);});
+            button.addEventListener('click',event=>{
+                if(event.detail===0 && !button.dataset.hold)activate(button.dataset.command);
+            });
             button.addEventListener('focus',()=>{if(selected!==button.dataset.focus){selected=button.dataset.focus;drawStage();}});
         }
         existing.delete(id);
         button.dataset.command=b.command;button.setAttribute('aria-label',b.label||b.command);
-        button.dataset.kind=b.kind||'action';
+        button.dataset.kind=b.kind||'action';button.dataset.hold=b.holdMs||'';
         if(b.kind==='section'&&b.selected)button.setAttribute('aria-current','page');
         else button.removeAttribute('aria-current');
-        if(b.kind==='toggle'||b.kind==='check')button.setAttribute('aria-pressed',String(!!b.selected));
+        if(b.kind==='toggle'||b.kind==='check'||b.kind==='diagTab')button.setAttribute('aria-pressed',String(!!b.selected));
         else button.removeAttribute('aria-pressed');
         if(b.kind==='slider'){
             button.setAttribute('role','slider');
@@ -318,7 +360,7 @@ function drawStage(){
         screenRaster=new Raster(width,height);
         node.width=width;node.height=height;
     }
-    const shown=inputStage.sliderPreview?{...view,sliderPreview:inputStage.sliderPreview}:view;
+    const shown=inputStage.sliderPreview||inputStage.hold?{...view,sliderPreview:inputStage.sliderPreview,holding:inputStage.hold?.command}:view;
     const key=JSON.stringify([width,height,page,shown,sceneFocus]);
     if(key===lastBitmap)return;
     stage.sceneAtSize(screenRaster,page,shown,sceneFocus,width,height);
@@ -328,8 +370,12 @@ function render() {
     const domFocus=el('hits').contains(document.activeElement);
     const justExited=outside&&el('exited').hidden;
     const s=stateNow(),reg=trip.regionsModel(s,region,regionPage),writes=written(s,reg);
-    lastState=s;view=page==='trip'?home.model(s,config.version):detail.model(page,{state:s,written:writes,
-        version:config.version,atlasPanel:panel,region:reg,target,snapshot,serviceReady:true,diagnosticState:s,
+    lastState=s;view=page==='trip'?home.model(s,config.version,saved.centralCameraScalePct):detail.model(page,{state:s,written:writes,
+        phoneMaps:{cluster:s.phone.cluster,hud:s.phone.hud,available:true,hudDisabled:false,width:30+5*s.phone.wocHudSize,
+            offset:[s.phone.x,s.phone.y],error:'',centerScale:s.phone.centerScale,
+            centerError:storageAvailable?'':'Размер хранится только в этом сеансе'},mapInteractive:true,
+        centralCameraScalePct:saved.centralCameraScalePct,centralScaleError:storageAvailable?'':'Размер хранится только в этом сеансе',
+        version:config.version,atlasPanel:panel,region:reg,target,snapshot,serviceReady:true,diagnosticService,diagnosticState:s,
         testGuard:!s.outputs[target==='hud'?'hud':'cluster']?{allowed:false,reason:'Включите вывод на выбранный экран.'}:s.actions.displayTest});
     if(!view)throw Error('Отсутствует экран '+page);
     buttons=stage.targets(page,view);
@@ -354,7 +400,9 @@ function changeValue(control,step) {
     if(!Number.isInteger(step))return;
     const profile=saved.cardLayout[target],o=saved.overspeedPreferences, minmax=(v,a,b)=>Math.min(b,Math.max(a,v));
     if(control.startsWith('cameraCard')&&!lastState.actions.cardLayout.allowed)return;
-    if(control==='cameraWarningDistance')saved.alertPreferences.warningDistanceM=50+50*minmax(step,0,19);
+    if(control==='atlasCenterCameraScale')saved.centralCameraScalePct=65+5*minmax(step,0,12);
+    else if(control==='atlasCenterMapScale')saved.phone.centerScale=65+5*minmax(step,0,12);
+    else if(control==='cameraWarningDistance')saved.alertPreferences.warningDistanceM=50+50*minmax(step,0,19);
     else if(control==='cameraVisualOffset')o.visualOffsetKmh=minmax(step,0,30);
     else if(control==='cameraSoundOffset')o.soundOffsetKmh=minmax(step,0,30);
     else if(control==='cameraSoundDistance')o.soundDistanceM=100+minmax(step,0,12)*50;
@@ -380,11 +428,27 @@ function execute(command){
         selected=panel.edit&&!updated.edit?'atlasEdit:'+panel.edit:'';
         panel=updated;return;
     }
+    if(command==='atlasCameraOpen'){
+        const from=page;
+        if(from!=='cameraDetail')go('cameraDetail');
+        panel={...emptyPanel(),cameraOutput:'center',cameraFrom:from};selected='atlasCameraOutput:center';return;
+    }
+    if(panel.cameraOutput){
+        if(command==='atlasCameraClose'){back();return;}
+        if(command==='atlasCameraSlider'){panel.cameraAdjust=!panel.cameraAdjust;return;}
+        if(command.startsWith('atlasCameraOutput:')){
+            endInput();
+            panel.cameraOutput=command.split(':')[1];panel.cameraAdjust=false;
+            if(panel.cameraOutput!=='center')target=panel.cameraOutput;
+            return;
+        }
+    }
     if(command==='atlasExit'){exitAtlas();return;}
     if(command==='atlasBack'){back();return;}
     if(command.startsWith('atlasNav:')){
         const next=command.slice('atlasNav:'.length);
         if(next==='trip')history=[];
+        if(next==='diagnostics'){diagnosticService=false;diagnosticPage=0;diagnosticBlock=0;}
         go(next,next==='trip');
         return;
     }
@@ -397,11 +461,23 @@ function execute(command){
         persist();return;
     }
     if(command.startsWith('atlasValue:')){const [,name,step]=command.split(':');changeValue(name,Number(step));return;}
-    if(command.startsWith('atlasChoice:')){const [,name,idx]=command.split(':');saved.phone[name]=Number(idx);persist();return;}
-    if(command.startsWith('atlasDiagnostic:')){diagnosticPage=Number(command.split(':')[1]);diagnosticBlock=0;return;}
+    if(page==='main' && command.startsWith('atlasMapOutput:')){
+        const [,display,on]=command.split(':');
+        saved.phone[display]=on==='1';persist();return;
+    }
+    if(page==='main' && (command==='atlasMapSmaller'||command==='atlasMapBigger')){
+        changeValue('atlasCenterMapScale',phoneMaps.stepFor(command,saved.phone.centerScale));return;
+    }
+    if(command.startsWith('atlasDiagnostic:')){
+        diagnosticService=command==='atlasDiagnostic:service';
+        diagnosticPage=diagnosticService?0:Number(command.split(':')[1]);diagnosticBlock=0;return;
+    }
     if(command.startsWith('atlasRegion:')){region=command.slice(12);regionPage=null;datasetStatus='idle';return;}
     if(command.startsWith('cameraType_')){const key=command.slice('cameraType_'.length);saved.alertPreferences.cameraTypes[key]=!saved.alertPreferences.cameraTypes[key];persist();return;}
-    if(nav[command]){go(nav[command]);return;}
+    if(nav[command]){
+        if(nav[command]==='diagnostics'){diagnosticService=false;diagnosticPage=0;diagnosticBlock=0;}
+        go(nav[command]);return;
+    }
     const s=lastState,o=saved.overspeedPreferences,p=saved.cardLayout[target];
     if(Object.hasOwn(props,command)){o[props[command]]=!o[props[command]];persist();return;}
     if(['wocProfile','wocGuide','wocHudKeep','wocAaCard'].includes(command)){
@@ -410,8 +486,8 @@ function execute(command){
         saved.phone.zoom=Math.min(10,Math.max(-10,saved.phone.zoom+(command.endsWith('In')?1:-1)));say('Масштаб учебной карты: '+saved.phone.zoom);persist();return;}
     if(['wocHudLeft','wocHudRight','wocHudUp','wocHudDown','wocHudCentre'].includes(command)){
         if(command.endsWith('Centre'))saved.phone.x=saved.phone.y=0;
-        else if(command.endsWith('Left')||command.endsWith('Right'))saved.phone.x+=command.endsWith('Right')?1:-1;
-        else saved.phone.y+=command.endsWith('Down')?1:-1;
+        else if(command.endsWith('Left')||command.endsWith('Right'))saved.phone.x=Math.max(-400,Math.min(400,saved.phone.x+(command.endsWith('Right')?10:-10)));
+        else saved.phone.y=Math.max(-400,Math.min(400,saved.phone.y+(command.endsWith('Down')?10:-10)));
         say('Положение учебной карты: '+saved.phone.x+' / '+saved.phone.y);persist();return;}
     switch(command) {
     case 'cameraHudSetup':configure('hud');break;
@@ -438,7 +514,7 @@ function execute(command){
         const axis=command.endsWith('Right')||command.endsWith('Left')?'x':'y';
         const delta=command.endsWith('Down')||command.endsWith('Right')?5:-5;p[axis]=Math.min(1000,Math.max(0,p[axis]+delta));break;
     }
-    case 'cameraDiagFreeze':snapshot=diag.capture(s,config.version,Date.now());go('diagnosticPhoto');break;
+    case 'cameraDiagFreeze':snapshot=diag.capture(s,config.version,Date.now());snapshot.state.serviceReady=true;go('diagnosticPhoto');break;
     case 'cameraDiagMore':{const data=diag.reportPage(null,s,config.version,diagnosticPage,diagnosticBlock);
         diagnosticBlock=(diagnosticBlock+1)%data.blocks;if(data.blocks===1)say('Все строки этой страницы уже показаны.');break;}
     case 'cameraDiagExport':download('atlas-simulator-diagnostics.json',{environment:'browser-simulation',snapshot:diag.capture(s,config.version,Date.now())});
@@ -480,7 +556,7 @@ function pointEvent(event,phase){
 const hits=el('hits');
 hits.addEventListener('pointerdown',event=>{
     if(!event.isPrimary||event.button!==0)return;
-    if(event.target.closest('[data-kind="slider"]'))hits.setPointerCapture(event.pointerId);
+    if(event.target.closest('[data-kind="slider"], [data-hold="700"]'))hits.setPointerCapture(event.pointerId);
     pointEvent(event,1);
 });
 hits.addEventListener('pointermove',event=>{if(event.isPrimary&&event.buttons===1)pointEvent(event,2);});
@@ -497,8 +573,18 @@ function keyboard(event){
     if(['ArrowLeft','ArrowUp','ArrowRight','ArrowDown'].includes(event.key)){
         event.preventDefault();rotate(['ArrowUp','ArrowLeft'].includes(event.key)?-1:1);return;
     }
-    if(event.key==='Enter'&&(event.target===document.body||el('hits').contains(event.target)||event.target===el('screen'))){event.preventDefault();confirm();}
+    if(['Enter',' '].includes(event.key) && (event.target===document.body||el('hits').contains(event.target)||event.target===el('screen'))){
+        event.preventDefault();if(event.repeat)return;
+        syncInput();
+        if(inputStage.selected(buttons)?.holdMs){ccu(0);ccu(1);}
+        else confirm();
+    }
 }
+window.addEventListener('keyup',event=>{
+    if(['Enter',' '].includes(event.key) && inputStage.lastCcu?.b===1)ccu(0);
+});
+window.addEventListener('blur',()=>inputStage.cancelTouch());
+document.addEventListener('visibilitychange',()=>{if(document.hidden)inputStage.cancelTouch();});
 function toggleZoom(){
     const expanded=el('headunit').classList.toggle('zoomed');el('zoom').setAttribute('aria-pressed',String(expanded));
     el('zoom').textContent=expanded?'Свернуть':'Увеличить';el('scrollscreen').scrollLeft=0;
@@ -528,7 +614,7 @@ for(const n of document.querySelectorAll('[data-style]'))n.onclick=()=>setOptics
 setOptics(saved.opticsStyle);el('optics').onchange=()=>setOptics(el('optics').value);
 let lastAnimation=0;
 function animate(now) {
-    if(!document.hidden&&!reducedMotion.matches&&lastState&&(lastState.alert||test)&&['approach','stop'].includes(el('phase').value)&&now-lastAnimation>=83){
+    if(page!=='main'&&!document.hidden&&!reducedMotion.matches&&lastState&&(lastState.alert||test)&&['approach','stop'].includes(el('phase').value)&&now-lastAnimation>=83){
         lastAnimation=animationTime=now;renderOutputs(lastState);
     }
     requestAnimationFrame(animate);
@@ -536,7 +622,17 @@ function animate(now) {
 requestAnimationFrame(animate);
 reducedMotion.addEventListener('change',()=>{if(lastState)renderOutputs(lastState);});
 el('distance').addEventListener('input',()=>{stopPlay();render();});
-el('prev').onclick=()=>rotate(-1);el('next').onclick=()=>rotate(1);el('ok').onclick=confirm;
+el('prev').onclick=()=>rotate(-1);el('next').onclick=()=>rotate(1);
+const ok=el('ok');
+ok.addEventListener('pointerdown',event=>{
+    syncInput();
+    if(!outside && event.isPrimary && event.button===0 && inputStage.selected(buttons)?.holdMs){
+        ok.setPointerCapture(event.pointerId);ccu(0);ccu(1);
+    }
+});
+ok.addEventListener('pointerup',()=>{if(inputStage.lastCcu?.b===1)ccu(0);});
+ok.addEventListener('pointercancel',()=>inputStage.cancelTouch());
+ok.onclick=()=>{if(outside||!inputStage.selected(buttons)?.holdMs)confirm();};
 el('vehicle-menu').onclick=()=>{if(page!=='atlasMenu')go('atlasMenu');render();};
 el('back').onclick=()=>{back();render();};el('zoom').onclick=toggleZoom;
 el('reopen').onclick=reopenAtlas;

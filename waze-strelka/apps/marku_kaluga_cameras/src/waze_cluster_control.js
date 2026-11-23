@@ -286,6 +286,7 @@ class WazeClusterControl extends EventEmitter {
         this._wakeTimer = null;
         this._forget();
         this.captureState = { state: 'unavailable' };
+        this.mapSaveError = '';
         this.outputRevision = 0;    /* explicit display choices in this app session */
         this.renderStatus = null;   /* the render tool's last status while connected */
 
@@ -305,7 +306,7 @@ class WazeClusterControl extends EventEmitter {
         /* a new connection's status decides: an asked change it never answered is dropped */
         const reset = () => {
             this.renderStatus = null;
-            this._askedShownOn = null;
+            this._clearAskedOutput();
             this._clearAskedHud();
             this.emit('change');
         };
@@ -326,6 +327,7 @@ class WazeClusterControl extends EventEmitter {
         clearTimeout(this._askedPosTimer);
         this._askedPos = null;
         this._clearAskedHud();
+        this._clearAskedOutput();
         this.render.close();
         this.patch.close();
         this.renderStatus = null;
@@ -387,13 +389,26 @@ class WazeClusterControl extends EventEmitter {
         if (!this._askedShownOn && !(rs && (rs[display] === 0 || rs[display] === 1))) {
             return null;
         }
-        const on = this.shownOn();
-        return on === 'both' || on === display;
+        if (!this._askedShownOn) return rs[display] === 1;
+        return this._askedShownOn === 'both' || this._askedShownOn === display;
     }
 
     /* A choice goes to the render and is saved by patchd: both connected. */
     canChooseShownOn() {
         return this.render.connected() && this.connectedPatch() && this.clusterOn() !== null && this.hudOn() !== null;
+    }
+
+    _clearAskedOutput() {
+        clearTimeout(this._askedOutputTimer);
+        this._askedShownOn = null;
+    }
+
+    setMapOutput(display, on) {
+        if (!['cluster','hud'].includes(display) || typeof on !== 'boolean' || !this.canChooseShownOn() ||
+            this._shows(display) === on || (display === 'hud' && on && this.hudDisabled())) return;
+        const cluster = display === 'cluster' ? on : this.clusterOn();
+        const hud = display === 'hud' ? on : this.hudOn();
+        this.showOn(cluster && hud ? 'both' : cluster ? 'cluster' : hud ? 'hud' : 'off');
     }
 
     /* Shows the map on the cluster, the HUD, both or neither ('off': BMW's
@@ -405,6 +420,7 @@ class WazeClusterControl extends EventEmitter {
             return;
         }
         this.outputRevision++;
+        this.mapSaveError = '';
         const want = { cluster: choice === 'cluster' || choice === 'both', hud: choice === 'hud' || choice === 'both' };
         const destinations = choice === 'hud' ? ['hud', 'cluster'] : ['cluster', 'hud'];
         const changes = destinations.filter((display) => this._shows(display) !== want[display]);
@@ -414,7 +430,12 @@ class WazeClusterControl extends EventEmitter {
             this.patch.send({ cmd: display, on: want[display] ? 1 : 0 });
         }
         if (changes.length) {
+            this._clearAskedOutput();
             this._askedShownOn = choice;
+            this._askedOutputTimer = setTimeout(() => {
+                this._clearAskedOutput();
+                this.emit('change');
+            }, 3000);
             for (const display of changes) {
                 this.render.send({ cmd: display, on: want[display] ? '1' : '0' });
             }
@@ -495,6 +516,7 @@ class WazeClusterControl extends EventEmitter {
         if (!Number.isInteger(step) || step < 0 || step > HUD_SIZE_STEPS || !this.canChangeHudSize() || step === this.hudSizeStep()) {
             return;
         }
+        this.mapSaveError = '';
         const pct = HUD_MIN_PCT + step * HUD_STEP_PCT;
         this._askedHud = pct;
         clearTimeout(this._askedHudTimer);
@@ -518,7 +540,7 @@ class WazeClusterControl extends EventEmitter {
             return this._askedPos;
         }
         const s = this.renderStatus;
-        return s && typeof s.hud_x === 'number' ? [s.hud_x, s.hud_y] : null;
+        return s && Number.isFinite(s.hud_x) && Number.isFinite(s.hud_y) ? [s.hud_x, s.hud_y] : null;
     }
     /* Moves it a step (left / right / up / down): the render moves it at once, patchd saves it. */
     moveHud(dir) {
@@ -540,6 +562,7 @@ class WazeClusterControl extends EventEmitter {
         }
     }
     _setHudPos(x, y) {
+        this.mapSaveError = '';
         this._askedPos = [x, y];
         clearTimeout(this._askedPosTimer);
         this._askedPosTimer = setTimeout(() => {
@@ -1043,7 +1066,7 @@ class WazeClusterControl extends EventEmitter {
         if (msg.ev === 'status') {
             this.renderStatus = msg;
             if (this._askedShownOn && this._askedShownOn === shownOnOf(msg)) {
-                this._askedShownOn = null;
+                this._clearAskedOutput();
             }
             if (this._askedHud != null && msg.hud_width_pct === this._askedHud) {
                 this._clearAskedHud();
@@ -1070,7 +1093,9 @@ class WazeClusterControl extends EventEmitter {
             this.emit('change');
         } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown)-reply$/.test(msg.ev)) {
             if (!msg.ok) {
+                this.mapSaveError = 'Сервис не сохранил изменение для следующего запуска';
                 this._log.info(`patchd did not save the setting: ${msg.reason || 'refused'}`);
+                this.emit('change');
             }
         } else if (msg.ev === 'reboot-reply') {
             /* A refused or failed request clears the asked flag; the status
@@ -1082,6 +1107,10 @@ class WazeClusterControl extends EventEmitter {
             this.emit('change');
         } else if (msg.ev === 'refused') {
             this._log.info(`patchd refused ${msg.cmd}: ${msg.reason}`);
+            if (['cluster','hud','hud-size','hud-pos','hud-keep-shown'].includes(msg.cmd)) {
+                this.mapSaveError = 'Сервис отклонил сохранение для следующего запуска';
+                this.emit('change');
+            }
             if (msg.cmd === 'aa-card') {
                 this._cardAsked = null;
                 this.emit('change');

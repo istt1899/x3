@@ -93,6 +93,7 @@ class Stage {
         this.log=log;this.invoke=invoke;this.invalidate=invalidate;this.driver=driver||RenderClient;
         this.onFocus=onFocus||(()=>{});
         this.gpu=null;this.page=null;this.view=null;this.focus={};this.contentFocus={};this.key=null;this.pressed=null;
+        this.hold=null;
         this.sliderPreview=null;this.drag=null;this.nudge=null;this.nudgeTimer=null;this.lastCcu=null;this.placement=null;this.blocked=false;this.dirty=false;this.front=false;this.confirmedFront=false;
     }
     set(page,view,signature) {
@@ -170,7 +171,9 @@ class Stage {
         this.dirty=false;
         const items=targets(this.page,this.view), selected=this.selected(items);
         const frame=new Recorder(screen.w,screen.h);
-        const shown=this.sliderPreview?Object.assign({},this.view,{sliderPreview:this.sliderPreview}):this.view;
+        const shown=this.sliderPreview || this.hold ? Object.assign({},this.view,{
+            sliderPreview:this.sliderPreview, holding:this.hold && this.hold.command
+        }) : this.view;
         sceneAtSize(frame,this.page,shown,selected&&(selected.focusKey||selected.command),screen.w,screen.h);
         gpu.show(true);gpu.frame(frame);
         gpu.claim([{x:0,y:0,w:screen.w,h:screen.h}]);
@@ -196,6 +199,7 @@ class Stage {
                 if(withinTrack) this.drag={page:this.page,source:target.source};
             }
             this.pressed=target&&target.command;
+            if(target&&target.holdMs)this.startHold(target,'touch');
         }
         if(this.drag){
             const origin=this.drag, local=(this.view.buttons||[]).find(b=>b.kind==='slider'&&b.source===origin.source&&b.enabled!==false);
@@ -213,12 +217,38 @@ class Stage {
             this.present();
             return;
         }
-        if(phase===2 && (!target||this.pressed!==target.command))this.pressed=null;
+        if(phase===2 && (!target||this.pressed!==target.command)){
+            this.pressed=null;
+            this.cancelHold();
+        }
+        if(phase===3 || (phase!==1 && phase!==2))this.cancelHold();
         if(phase!==3)return;
         const same=target&&target.command===this.pressed;this.pressed=null;
-        if(same)this.activate(target);
+        if(same && !target.holdMs)this.activate(target);
+    }
+    startHold(target,source){
+        this.cancelHold(false);
+        this.focus[this.page]=target.focusKey||target.command;
+        const hold={command:target.command,source,page:this.page};
+        this.hold=hold;
+        hold.timer=setTimeout(()=>{
+            if(this.hold!==hold)return;
+            this.hold=null;
+            const current=this.page===hold.page && this.view && actionTarget(this.page,this.view,hold.command);
+            if(current && this.owns() && this.front && this.gpu.visible &&
+                this.focus[this.page]===(current.focusKey||current.command))this.activate(current);
+            this.present();
+        },target.holdMs);
+        this.present();
+    }
+    cancelHold(redraw){
+        if(!this.hold)return;
+        clearTimeout(this.hold.timer);
+        this.hold=null;
+        if(redraw!==false)this.present();
     }
     cancelTouch(redraw){
+        this.cancelHold(false);
         const previous=this.sliderPreview;
         this.drag=null;this.pressed=null;this.sliderPreview=null;
         if(previous&&redraw!==false)this.present();
@@ -255,7 +285,7 @@ class Stage {
     controller(v) {
         if(!this.owns()||!this.front||!this.gpu.grabbing)return;
         const k=Number(v.frontRotaryEncoderOperation), b=Number(v.frontRotaryEncoderPushButton), d=Number(v.frontRotaryEncoderDeflection);
-        if(!Number.isInteger(k)||k<0||k>65535||b===15&&d===15){this.lastCcu=null;return;}
+        if(!Number.isInteger(k)||k<0||k>65535||b===15&&d===15){this.cancelHold();this.lastCcu=null;return;}
         const last=this.lastCcu;this.lastCcu={k,b,d};if(!last)return;
         const items=targets(this.page,this.view).filter(t=>t.enabled!==false);if(!items.length)return;
         const cur=this.selected(items),i=items.indexOf(cur);
@@ -263,6 +293,8 @@ class Stage {
         if(Math.abs(delta)>64)delta=0;
         const horizontal=tiltAxis(d,4,10), vertical=tiltAxis(d,7,1);
         const pressedHorizontal=horizontal&&horizontal!==tiltAxis(last.d,4,10);
+        if(this.hold && this.hold.source==='controller' &&
+            ((b!==1&&b!==2)||delta||d!==last.d||this.hold.command!==cur.command)) this.cancelHold();
         if(cur.kind==='slider' && ((pressedHorizontal&&!this.view.edit)||(delta&&this.view.edit))){
             this.nudgeSlider(cur,delta||horizontal);
             if((b===1||b===2)&&last.b!==1&&last.b!==2)this.activate(cur);
@@ -278,7 +310,11 @@ class Stage {
         }
         if(!delta && vertical!==tiltAxis(last.d,7,1))delta=vertical;
         if(delta){this.finishNudge(true);const item=items[Math.max(0,Math.min(items.length-1,i+delta))];this.focus[this.page]=item.focusKey||item.command;this.present();}
-        if((b===1||b===2)&&last.b!==1&&last.b!==2)this.activate(this.selected(items));
+        if((b===1||b===2)&&last.b!==1&&last.b!==2){
+            const target=this.selected(items);
+            if(target.holdMs)this.startHold(target,'controller');
+            else this.activate(target);
+        }
     }
     nativeFocus(command) {
         if(!this.page)return;
@@ -286,7 +322,7 @@ class Stage {
         if(command.indexOf('atlasNav:')!==0)this.contentFocus[this.page]=command;
         if(this.owns())this.present();
     }
-    forgetForeground() { this.confirmedFront=false;this.front=false; }
+    forgetForeground() { this.cancelHold(false);this.confirmedFront=false;this.front=false; }
     release() {
         const gpu=this.gpu;if(gpu){if(gpu.ready)gpu.claim([]);gpu.grab(false);gpu.show(false);}
         this.lastCcu=null;this.finishNudge(false);this.cancelTouch(false);this.placement=null;this.dirty=false;this.front=false;

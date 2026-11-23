@@ -17,7 +17,34 @@ function stage() {
 function overlaps(a,b) {
     return Math.min(a.x+a.w,b.x+b.w)>Math.max(a.x,b.x) && Math.min(a.y+a.h,b.y+b.h)>Math.max(a.y,b.y);
 }
+function checkSwitchPresentation() {
+    function render(view, focus) {
+        const art=stage(), colors=[];
+        art.cv.roundRect=(x,y,w,h,r,color)=>colors.push(color);
+        detail.drawDetail(art.cv,view.page,view,focus);
+        return {colors,words:art.words};
+    }
+    for(const enabled of [true,false,null]){
+        const view=detail.model('alerts',{state:enabled===null?null:{enabled}});
+        const toggle=view.buttons.find(b=>b.command==='cameraEnable');
+        assert.strictEqual(toggle.selected,enabled);
+        for(const focus of ['cameraEnable','atlasBack']){
+            const result=render(view,focus);
+            assert.strictEqual(result.colors.includes('#91cbae'),enabled===true);
+            assert.strictEqual(result.colors.includes('#d79c98'),enabled===false);
+            assert(result.words.includes(enabled===null?'—':enabled?'Вкл.':'Выкл.'));
+        }
+    }
+    const view=detail.model('overspeed',{atlasPanel:{sheet:0,edit:'cameraSoundRepeat'},
+        written:{'cell:cameraSoundRepeat:0:Value':1}});
+    const choice=view.buttons.find(b=>b.selected===true);
+    assert.strictEqual(choice.kind,'choice');
+    const result=render(view,choice.command);
+    assert(result.words.includes('Выбрано'));
+    assert(!result.colors.includes('#91cbae')&&!result.colors.includes('#d79c98'));
+}
 async function main() {
+    checkSwitchPresentation();
     const h=harness.create(), app=h.app;
     try {
         await app._setupRhmi();
@@ -71,7 +98,8 @@ async function main() {
             assert(Object.values(surface.components).some(c=>c.name==='atlasFrame'+baseId),page);
             const written={'cell:wocShowOn:SelectedItem':2};
             Object.keys(controls.sliders).forEach(id=>{written['cell:'+id+':0:Value']=1;});
-            const data=Object.assign({},input,{written});
+            const mapState={cluster:true,hud:true,available:true,width:35,offset:[0,0],centerScale:100};
+            const data=Object.assign({},input,{written,phoneMaps:mapState});
             const initial=detail.model(page,data);
             let panel={sheet:0,edit:null};
             for(let sheet=0;sheet<initial.sheets;sheet++){
@@ -86,7 +114,7 @@ async function main() {
                         assert.deepStrictEqual(opened,{sheet,edit:b.source});
                         const edit=detail.model(page,Object.assign({},data,{atlasPanel:opened}));
                         checkFrame(edit);
-                        const expected=b.source==='wocShowOn'?'atlasChoice:':'atlasValue:';
+                        const expected='atlasValue:';
                         assert(edit.buttons.some(x=>x.enabled&&x.command.startsWith(expected+b.source+':')),'No editable value for '+b.source);
                         edit.buttons.filter(x=>x.command.startsWith(expected)).forEach(x=>{
                             const step=Number(x.command.split(':')[2]);
@@ -94,6 +122,7 @@ async function main() {
                         });
                         assert.deepStrictEqual(detail.reducePanel(opened,'atlasEditClose',edit),panel);
                     }
+                    if(controls.scaleSliders[b.source])return; // app-owned persistent preview scale
                     const isSlider=!!controls.sliders[b.source];
                     assert(h.byName[b.source]&&h.byName[b.source].listenerCount(isSlider?'changed':'action')>0,b.source+' listener');
                 });
@@ -120,7 +149,8 @@ async function main() {
                 }
                 const profile={x:step*5,y:step*5,scalePct:75+step*5,brightnessPct:10+step*5,opacityPct:100-step*5};
                 const state={cardLayout:{hud:profile},actions:base.actions};
-                const rendered=detail.model(page,{state,written:{['cell:'+name+':0:Value']:step},atlasPanel:{sheet,edit:name}});
+                const phoneMaps={cluster:true,hud:true,available:true,width:30+5*step,offset:[0,0],centerScale:100};
+                const rendered=detail.model(page,{state,phoneMaps,written:{['cell:'+name+':0:Value']:step},atlasPanel:{sheet,edit:name}});
                 checkFrame(rendered);
                 assert(rendered.buttons.some(b=>b.enabled&&b.command.startsWith('atlasValue:'+name+':')));
             }
@@ -133,7 +163,29 @@ async function main() {
         app._atlasAction('atlasRegion:RU-AAA');
         assert.strictEqual(app._regionView().selected.region,'RU-MOS','An unavailable row cannot change the selection');
         await h.enter(h.ui.containers[104].name);
+        const dashboard=()=>app._atlasStage.view;
+        const selectedTab=()=>dashboard().buttons.filter(b=>b.kind==='diagTab' && b.selected).map(b=>b.label);
+        assert.deepStrictEqual(dashboard().buttons.filter(b=>b.kind==='diagTab').map(b=>b.label),
+            ['Сводка','GPS','Сервис','Камера','Вывод','База']);
+        assert.deepStrictEqual(dashboard().diagnosticCards.map(r=>r[0]),['GPS','Сервис камер','Камера','Вывод','База']);
+        assert(dashboard().buttons.some(b=>b.command==='cameraDiagFreeze' && b.enabled));
+        app._atlasAction('atlasDiagnostic:service');
+        assert.deepStrictEqual(selectedTab(),['Сервис']);
+        assert(dashboard().diagnosticCards.some(r=>r[0]==='Версия сервиса' && r[1]===base.serviceVersion));
+        app._atlasAction('atlasDiagnostic:2');
+        assert.deepStrictEqual(selectedTab(),['Камера']);
+        assert(dashboard().diagnosticCards.some(r=>r[0]==='Дистанция' && r[1]==='180 м'));
+        app._atlasAction('atlasDiagnostic:3');
+        assert.deepStrictEqual(selectedTab(),['Вывод']);
+        assert(dashboard().diagnosticCards.some(r=>r[0]==='Проекция HUD' && r[1]==='Вкл.'));
+        app._atlasAction('atlasDiagnostic:5');
+        assert.deepStrictEqual(selectedTab(),['База']);
+        assert(dashboard().diagnosticCards.some(r=>r[0]==='Записи базы' && r[1]==='—'));
         app._atlasAction('atlasDiagnostic:1');
+        assert.deepStrictEqual(selectedTab(),['GPS']);
+        const disconnected=detail.model('diagnostics',{state:null,written:{}});
+        assert(disconnected.diagnosticCards.some(r=>r[0]==='Сервис камер' && r[1]==='Нет связи'));
+        assert(disconnected.diagnosticCards.some(r=>r[0]==='Вывод' && r[1]==='HUD — · приборы —'));
         const liveReport=()=>detail.model('diagnostics',{state:base,written:app._written}).report;
         assert.strictEqual(liveReport().selected,1);assert(liveReport().title.indexOf('GPS')===0);
         const before=liveReport().lines.slice();
@@ -168,7 +220,11 @@ async function main() {
         assert(!actions.some(b=>b.command==='tripRegionRollback'));
         const snapshot=diagnostic.capture(base,'0.11.0',1530000000000);
         const shotInput=Object.assign({},input,{snapshot,written:{}}),photo=detail.model('diagnosticPhoto',shotInput).photo;
+        const captured=detail.model('diagnosticPhoto',shotInput).diagnosticCards;
+        assert(captured.some(r=>r[0]==='Камера' && r[1].includes('180 м')));
+        assert(captured.some(r=>r[0]==='Вывод' && r[1].includes('HUD Вкл.')));
         delete base.alert;base.outputs.hud=false;
+        assert.deepStrictEqual(detail.model('diagnosticPhoto',shotInput).diagnosticCards,captured);
         assert.strictEqual(photo.length,8);assert(photo[7].includes('В спину'));assert.deepStrictEqual(detail.model('diagnosticPhoto',shotInput).photo,photo);
         console.log('PASS Atlas details: every ordinary RHMI action across 15 graphic pages, editor endpoints, both canvas layouts, four limit scopes, frozen diagnostics and verified camera side');
     } finally { h.close(); }

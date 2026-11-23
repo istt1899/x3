@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "id": "marku_kaluga_cameras",
-  "version": "0.11.3",
-  "tree": "marku_kaluga_cameras@0.11.3",
+  "version": "0.12.0",
+  "tree": "marku_kaluga_cameras@0.12.0",
   "modules": [
     "src/robertn_waze_cluster.js",
     "src/i18n.js",
@@ -23,8 +23,12 @@
     "src/bmw_hold_bridge.js",
     "src/camera_move_repeater.js",
     "src/atlas-home.js",
+    "src/atlas-camera-scene.js",
+    "src/atlas-center-scale.js",
     "src/atlas-controls.js",
+    "src/atlas-phone-maps.js",
     "src/atlas-detail.js",
+    "src/atlas-diagnostics.js",
     "src/atlas-card-composition.js",
     "src/atlas-stage.js"
   ],

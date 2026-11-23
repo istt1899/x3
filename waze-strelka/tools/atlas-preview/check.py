@@ -144,15 +144,48 @@ def check(file, screenshot_dir):
         for cmd,expected in [("tripCamera","cameraDetail"),("tripMaps","main"),("tripDatabase","regions"),
                              ("tripDiagnostics","diagnostics"),("tripSettings","cameras"),("tripAbout","about")]:
             action_state(cmd,expected);back();assert where()=="trip"
+        assert commands()[:8]==["tripCamera","tripMaps","tripDatabase","tripDiagnostics","tripSettings","tripAbout","atlasCameraOpen","atlasExit"]
+        native("atlasCameraOpen",touch=True);assert where()=="cameraDetail"
+        camera_slider=page.locator('[data-command="atlasCameraSlider"]')
+        assert camera_slider.get_attribute("aria-valuetext")=="100 %"
+        native("atlasValue:atlasCenterCameraScale:8",touch=True)
+        assert camera_slider.get_attribute("aria-valuetext")=="105 %"
+        native("atlasCameraOutput:hud")
+        before_hud=int(camera_slider.get_attribute("aria-valuenow"))
+        native("atlasValue:cameraCardScale:"+str(before_hud+1))
+        assert int(camera_slider.get_attribute("aria-valuenow"))==before_hud+1
+        native("atlasCameraOutput:map")
+        assert int(camera_slider.get_attribute("aria-valuenow"))==before_hud
+        save("09-camera-editor")
+        native("atlasCameraClose");assert where()=="trip"
+        native("tripCamera");native("atlasCameraOpen")
+        assert camera_slider.get_attribute("aria-valuetext")=="105 %"
+        back();assert where()=="cameraDetail" and "atlasCameraOpen" in commands()
+        assert "tripCameraDiagnostics" in commands()
+        home()
         val("vehicle-menu").click();assert where()=="atlasMenu"
         native("atlasMenuMaps");assert where()=="main";home()
         native("tripCamera")
         native("tripCameraDiagnostics")
-        find("cameraDiagFreeze")
+        tabs = [("0","Сводка"),("1","GPS"),("service","Сервис"),("2","Камера"),("3","Вывод"),("5","База")]
+        def diagnostic_tab(key):
+            return val("hits").locator(f'button[data-command="atlasDiagnostic:{key}"]')
+        assert diagnostic_tab("0").get_attribute("aria-pressed") == "true"
+        for key, label in tabs:
+            assert diagnostic_tab(key).get_attribute("aria-label") == label
+            native("atlasDiagnostic:"+key, touch=True)
+            assert diagnostic_tab(key).get_attribute("aria-pressed") == "true"
+            assert val("hits").locator('button[data-command^="atlasDiagnostic:"][aria-pressed="true"]').count() == 1
+            assert val("screen").get_attribute("data-sheet") == "0"
+        native("atlasDiagnostic:0")
+        save("06-diagnostics")
+        native("cameraDiagFreeze",touch=True)
         assert where()=="diagnosticPhoto"
-        frozen=val("central").evaluate("n=>n.toDataURL()")
+        frozen=pixels("central")
         val("lens").select_option("rear")
-        assert frozen==val("central").evaluate("n=>n.toDataURL()")
+        val("phase").select_option("idle")
+        assert frozen==pixels("central")
+        val("phase").select_option("stop")
         home();native("tripSettings")
         native("cameraAlertsLink")
         find("atlasEdit:cameraWarningDistance")
@@ -179,8 +212,52 @@ def check(file, screenshot_dir):
             find("cameraCardSave")
             assert where()=="cameras" and "Стояночный тест" not in val(out+"-state").inner_text()
             back();home()
-        native("tripMaps");find("atlasEdit:wocShowOn");native("atlasChoice:wocShowOn:1")
-        native("atlasEditClose");find("wocLogs");assert where()=="logs"
+        native("tripMaps")
+        def phone_prefs():
+            return page.evaluate("JSON.parse(localStorage.getItem('bmw-atlas-stand.preferences.v1')).values.phone")
+        def map_switch(output, desired):
+            return page.locator(f'[data-command="atlasMapOutput:{output}:{int(desired)}"]')
+        def hold_switch(output, desired, keyboard=False):
+            button=map_switch(output,desired)
+            assert button.is_enabled()
+            if keyboard:
+                button.focus()
+                page.keyboard.down("Enter")
+                try:
+                    map_switch(output,not desired).wait_for(state="attached")
+                finally:
+                    page.keyboard.up("Enter")
+            else:
+                button.scroll_into_view_if_needed()
+                rect=button.bounding_box()
+                page.mouse.move(rect["x"]+rect["width"]/2,rect["y"]+rect["height"]/2)
+                page.mouse.down()
+                try:
+                    map_switch(output,not desired).wait_for(state="attached")
+                finally:
+                    page.mouse.up()
+            assert phone_prefs()[output] is desired
+            assert ("Схема карты телефона" if desired else "выключена") in val(("map" if output=="cluster" else "hud")+"-state").inner_text()
+        native("atlasMapOutput:cluster:1",touch=True)
+        assert map_switch("cluster",True).is_enabled() and not phone_prefs()["cluster"]
+        hold_switch("cluster",True)
+        hold_switch("hud",True,keyboard=True)
+        hold_switch("cluster",False)
+        assert not phone_prefs()["cluster"] and phone_prefs()["hud"]
+        native("atlasSheet:1");native("atlasMapBigger")
+        assert phone_prefs()["centerScale"]==105
+        native("atlasSheet:2");native("wocHudRight")
+        assert phone_prefs()["x"]==10
+        save("10-phone-maps")
+        previous_phase=val("phase").input_value()
+        page.reload(wait_until="domcontentloaded")
+        page.wait_for_selector("html[data-ready=true]",state="attached",timeout=90000)
+        val("phase").select_option(previous_phase)
+        native("tripMaps")
+        assert map_switch("cluster",True).is_enabled() and map_switch("hud",False).is_enabled()
+        assert phone_prefs()["centerScale"]==105 and phone_prefs()["x"]==10
+        hold_switch("hud",False,keyboard=True)
+        find("wocLogs");assert where()=="logs"
         native("wocCapture")
         with page.expect_download() as log:
             native("wocLogsSave")

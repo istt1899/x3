@@ -329,7 +329,93 @@ async function slidersAndSections(){
         assert.deepStrictEqual([changesToFields[0].target,changesToFields[0].key,changesToFields[0].value],['map','speed',false]);
     }finally{app._atlasStage.close();h.close();}
 }
+async function phoneMapControls() {
+    const h=create(), app=h.app, stage=app._atlasStage, control=app._control;
+    const Scale=require('../src/atlas-center-scale.js');
+    const fs=require('fs'), path=require('path');
+    const dir=fs.mkdtempSync(path.join(require('os').tmpdir(),'atlas-map-preview-'));
+    const snapshot={ev:'status',cluster:0,hud:0,hud_state:'idle',hud_width_pct:50,hud_x:0,hud_y:0};
+    const saved={},writes=[];
+    app._atlasScale=new Scale(dir);
+    control.patch.link=control.render.link='up';
+    control.patch.send=msg=>{saved[msg.cmd]=msg.on;};
+    control.render.send=msg=>{
+        writes.push(msg);
+        if(msg.on!==undefined)snapshot[msg.cmd]=Number(msg.on);
+        // This socket is asynchronous on the unit, too.
+        setImmediate(()=>{control._onRender(Object.assign({},snapshot));app._renderAtlas();});
+    };
+    control._onRender(snapshot);
+    stage.driver=Display;
+    const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+    const key=cmd=>targets('main',stage.view).find(b=>b.command===cmd && b.enabled);
+    try {
+        await app._setupRhmi();
+        await h.enter('ST_OnlineApps_WazeCluster');
+        const screen=stage.gpu;
+        // Native buttons only report Click. Selection alone never writes the renderer.
+        press(h,'atlasMapOutput:cluster:1');
+        assert.strictEqual(writes.length,0);
+        press(h,'atlasMapCancel');
+        assert.strictEqual(writes.length,0);
+        press(h,'atlasMapOutput:cluster:1');press(h,'atlasMapConfirm');await tick();
+        assert.deepStrictEqual([saved.cluster,saved.hud],[1,0]);
+        assert.deepStrictEqual(writes,[{cmd:'cluster',on:'1'}]);
+        assert.strictEqual(key('atlasMapOutput:cluster:0').selected,true);
+
+        screen.front(true);
+        let hud=key('atlasMapOutput:hud:1');
+        assert.strictEqual(hud.holdMs,700);
+        screen.tap(hud);
+        assert.strictEqual(writes.length,1);
+        screen.point(1,hud.x+9,hud.y+9);
+        screen.point(2,hud.x-30,hud.y+9);
+        assert.strictEqual(stage.hold,null,'dragging off a switch cancels a hold');
+        screen.point(3,hud.x+9,hud.y+9);
+        screen.point(1,hud.x+9,hud.y+9);await wait(725);
+        screen.point(3,hud.x+9,hud.y+9);await tick();
+        assert.deepStrictEqual([saved.cluster,saved.hud],[1,1]);
+        assert.strictEqual(writes.length,2,'release after a successful hold never toggles twice');
+
+        stage.focus.main='atlasSwitch:cluster';
+        screen.knob(0,0);screen.knob(0,1);screen.knob(0,0);
+        assert.strictEqual(stage.hold,null,'short controller press cancelled');
+        screen.knob(0,1);screen.knob(0,2);await wait(725);screen.knob(0,0);await tick();
+        assert.deepStrictEqual([saved.cluster,saved.hud],[0,1]);
+        hud=key('atlasMapOutput:hud:0');
+        screen.point(1,hud.x+9,hud.y+9);
+        screen.front(false);
+        assert.strictEqual(stage.hold,null,'background transition cancels armed toggle');
+        press(h,'atlasMapOutput:hud:0');press(h,'atlasMapConfirm');await tick();
+        assert.deepStrictEqual([saved.cluster,saved.hud],[0,0]);
+        assert.deepStrictEqual(writes.map(m=>m.cmd),['cluster','hud','cluster','hud']);
+
+        press(h,'atlasSheet:1');press(h,'atlasMapBigger');
+        assert.strictEqual(new Scale(dir).get('atlasCenterMapScale'),105,'preview scale survives app recreation');
+        assert.strictEqual(writes.length,4,'editing central preview preserves display outputs');
+        press(h,'atlasEdit:atlasCenterMapScale');await tick();
+        app._atlasAction('atlasValue:atlasCenterMapScale:3');
+        assert.strictEqual(new Scale(dir).get('atlasCenterMapScale'),80);
+        press(h,'atlasEditClose');await tick();press(h,'atlasSheet:2');
+        assert(!key('wocHudRight'),'disabled HUD cannot be moved');
+        press(h,'atlasSheet:3');
+        assert(!stage.view.buttons.some(b=>b.source==='wocHudSize'||b.command==='wocHudRight'),
+            'the fixed instrument slot has no HUD placement actions');
+        press(h,'atlasBack');assert.strictEqual(stage.view.sheet,0);
+        control._onRender({ev:'status',hud:1});
+        app._renderAtlas();
+        assert.strictEqual(stage.view.maps.cluster,null);
+        assert.strictEqual(stage.view.maps.hud,true);
+        assert(!key('atlasMapOutput:cluster:0') && !key('atlasMapOutput:hud:0'));
+    } finally {
+        stage.close();control._clearAskedOutput();h.close();
+        const file=path.join(dir,'atlasCenterMapScale.json');
+        if(fs.existsSync(file))fs.unlinkSync(file);
+        fs.rmdirSync(dir);
+    }
+}
 async function run() {
+    await phoneMapControls();
     await graphics();
     await slidersAndSections();
     await native('hide-first');

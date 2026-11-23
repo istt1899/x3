@@ -2,6 +2,7 @@
 'use strict';
 
 // These are RHMI slider steps. Service-side units can differ from the widget value.
+const phoneMaps = require('./atlas-phone-maps.js');
 const sliders = {
     cameraWarningDistance: [19, 50, 50, 'м'],
     cameraVisualOffset: [30, 0, 1, 'км/ч'],
@@ -16,6 +17,8 @@ const sliders = {
     wocHudSize: [11, 30, 5, '%'],
     wocHudOpacity: [18, 0, 5, '%']
 };
+const scaleSliders = {atlasCenterCameraScale:[12,65,5,'%'], atlasCenterMapScale:[12,65,5,'%']};
+const sliderSpec = name => sliders[name] || scaleSliders[name];
 const cardFields = {
     cameraCardX: 'x', cameraCardY: 'y', cameraCardScale: 'scalePct',
     cameraCardBrightness: 'brightnessPct', cameraCardTransparency: 'opacityPct'
@@ -38,14 +41,14 @@ function sliderNudge(button, delta) {
     const step = Math.max(0, Math.min(button.max, button.step + delta));
     return step === button.step ? null : 'atlasValue:' + button.source + ':' + step;
 }
-const outputs = ['Приборная панель', 'Проекция HUD', 'Приборы и HUD', 'Выключить вывод'];
 function formatStep(name, step) {
-    if (!Number.isInteger(step) || !sliders[name]) return '—';
+    if (!Number.isInteger(step) || !sliderSpec(name)) return '—';
     if (name === 'cameraSoundRepeat') return ['Один раз', '3 с', '5 с', '10 с'][step];
-    const spec = sliders[name];
+    const spec = sliderSpec(name);
     return String(spec[1] + step * spec[2]).replace('.', ',') + ' ' + spec[3];
 }
 const labels = {
+    atlasCameraOpen:'Настроить уведомление',
     atlasMenuCamera:'Камера', atlasMenuMaps:'Карты телефона', tripDatabase:'Базы и регионы', tripDiagnostics:'Диагностика',
     tripSettings:'Настройки', tripAbout:'О приложении', tripCameraDiagnostics:'Диагностика камеры',
     wocShowOn:'Куда вывести карту', wocGuide:'Скрывать подсказки BMW', wocProfile:'Настройки водителя',
@@ -71,18 +74,12 @@ const labels = {
     tripRegionRefresh:'Обновить список', tripRegionDownload:'Загрузить пакет', tripRegionRollback:'Откатить пакет',
     tripLegacyDatabase:'База автомобиля', tripAboutLogs:'Журнал приложения'
 };
-const checks = ['wocGuide','wocProfile','wocHudKeep','wocAaCard','cameraCardOutput','cameraVisualFlash','cameraSoundEnabled','cameraSoundAppear'];
+const checks = ['cameraEnable','wocGuide','wocProfile','wocHudKeep','wocAaCard','cameraCardOutput','cameraVisualFlash','cameraSoundEnabled','cameraSoundAppear'];
 const groups = {
     atlasMenu:[['Разделы',['atlasMenuCamera','atlasMenuMaps','tripDatabase','tripDiagnostics','tripSettings','tripAbout']]],
-    main:[
-        ['Вывод навигации',['wocShowOn','wocProfile','wocGuide','wocHudKeep','wocAaCard']],
-        ['Вид карты',['wocHudSize','wocHudOpacity','wocAaZoomOut','wocAaZoomIn']],
-        ['Положение карты на HUD',['wocHudLeft','wocHudRight','wocHudUp','wocHudDown','wocHudCentre']],
-        ['Другие разделы',['wocCameras','wocLogs']]
-    ],
     logs:[['Запись и сохранение',['wocCapture','wocLogsSave']]],
     cameras:[['Настройки предупреждений',['cameraAlertsLink','cameraTypesLink','cameraHudSetup','cameraMapSetup','cameraDatabaseLink','cameraDiagnostics']]],
-    cameraDetail:[['Данные камеры',['tripCameraDiagnostics']]],
+    cameraDetail:[['Данные камеры',['atlasCameraOpen','tripCameraDiagnostics']]],
     about:[['Приложение',['tripAboutLogs']]],
     alerts:[['Настройки предупреждений',['cameraEnable','cameraWarningDistance','cameraOverspeedLink','cameraDistanceRecommended','cameraAlertsResultMore']]],
     database:[['Управление базой',['cameraUpdate','cameraCoverageDetails','cameraRollback','cameraDatabaseResultMore']]],
@@ -98,18 +95,17 @@ const groups = {
         ['Сигналы',['cameraVisualFlash','cameraVisualOffset','cameraSoundEnabled','cameraSoundOffset','cameraSoundDistance','cameraSoundRepeat']],
         ['Проверка звука',['cameraSoundAppear','cameraDiagAudio','cameraOverspeedRecommended','cameraOverspeedResultMore']]
     ],
-    diagnosticPhoto:[['Зафиксированные данные',[]]]
+    diagnosticPhoto:[['Снимок для фото',[]],['Данные снимка',[]]]
 };
 function action(name,written,extra) {
     const source=extra&&extra.source||name;
     const obj=Object.assign({command:name,source,label:labels[name]||name,enabled:written['enabled:'+source]!==false},extra||{});
     if (written['visible:'+source]===false) return null;
-    if (sliders[name] || name==='wocShowOn') {
+    if (sliderSpec(name)) {
         obj.command='atlasEdit:'+name;
         obj.kind='editor';
-        obj.step=written[name==='wocShowOn'?'cell:'+name+':SelectedItem':'cell:'+name+':0:Value'];
-        obj.value=name==='wocShowOn'?outputs[obj.step]||'—':formatStep(name,obj.step);
-        if(name==='wocShowOn'&&written['cell:'+name+':'+obj.step+':ItemText']==='—')obj.value='—';
+        obj.step=written['cell:'+name+':0:Value'];
+        obj.value=formatStep(name,obj.step);
         const desc=written['cell:'+name+':0:TextDescription'];
         if (name==='wocHudSize' && typeof desc==='string' && desc.indexOf(':')>=0)
             obj.value=desc.slice(desc.indexOf(':')+1).trim();
@@ -126,6 +122,7 @@ function sheetGroups(page,v,written) {
     function regular(ids) {
         return ids.map(id => {
             const item = action(id,written);
+            if(item&&id==='cameraEnable')item.selected=v.alertsEnabled;
             if (!item || !v.calibration) return item;
             const c = v.calibration;
             if (cardFields[id]) {
@@ -149,6 +146,7 @@ function sheetGroups(page,v,written) {
             return item;
         });
     }
+    if (page === 'main') return phoneMaps.groups(v,regular);
     if (page === 'about') {
         return [group('Справка и настройки', [
             {command:'atlasCompositionOpen:hud',label:'Состав уведомления HUD',enabled:true},
@@ -170,8 +168,10 @@ function sheetGroups(page,v,written) {
             group('Выбор региона · '+v.regionPage,entries)];
     }
     if(page==='diagnostics'){
-        const tabs=v.report.tabs.map((t,i)=>action(t.command,written,{label:t.label,kind:'choice',selected:i===v.report.selected,source:'cameraDiagSelector'}));
-        return [group('Раздел отчёта',tabs),group('Действия с отчётом',regular(['cameraDiagFreeze','cameraDiagMore','cameraDiagTest','cameraDiagCalibration','cameraDiagExport','cameraDiagResultMore'])),
+        const tabs=v.report.tabs.map(t=>action(t.command,written,{label:t.label,kind:'diagTab',selected:t.selected,source:'cameraDiagSelector'}));
+        const size=action('atlasDiagnostic:4',written,{label:'Размеры экранов',source:'cameraDiagSelector'});
+        return [group('Сводка',tabs.concat([action('cameraDiagFreeze',written,{kind:'diagPhoto'})])),
+            group('Подробный отчёт',regular(['cameraDiagMore','cameraDiagTest','cameraDiagCalibration','cameraDiagExport','cameraDiagResultMore']).concat(size)),
             group('Приёмник GPS',regular(['cameraGpsReset']))];
     }
     return (groups[page]||[]).map(pair=>group(pair[0],regular(pair[1])));
@@ -208,10 +208,8 @@ function apply(v,context) {
     v.sheet=index;v.sheets=all.length;v.group=sheet[0];v.edit=null;
     if(editor){
         const name=editor.source,step=editor.step;
-        v.edit={name,label:editor.label,value:editor.value,step,max:sliders[name]?sliders[name][0]:outputs.length-1};
-        const choices=name==='wocShowOn'?outputs.map((label,row)=>({
-            command:'atlasChoice:'+name+':'+row,label,kind:'choice',selected:step===row,enabled:true
-        })):numericChoices(name,step);
+        v.edit={name,label:editor.label,value:editor.value,step,max:sliderSpec(name)[0]};
+        const choices=numericChoices(name,step);
         v.buttons=mapTargets(choices);
         if (editor.kind === 'slider') {
             const rail = Object.assign({},editor,{command:'atlasSlider:'+name});
@@ -222,10 +220,16 @@ function apply(v,context) {
     }
     v.buttons=v.page==='calibration'&&index===0 ? calibrationTargets(items) :
         mapTargets(items).map(b => b.kind==='slider' ? sliderGeometry(b,b.x,b.y,b.w,b.h,false) : b);
+    if(v.page==='diagnostics' && index===0){
+        v.buttons=items.map((item,i)=>Object.assign({},item,item.kind==='diagTab' ?
+            {x:24+i*260,y:90,w:250,h:58} : {x:546,y:450,w:508,h:58}));
+    }
     if (v.calibration && v.page==='calibration' && index===2) v.compositionSheet=true;
     v.buttons.push(nav('atlasBack','Назад',24,190));
-    if(index>0)v.buttons.push(nav('atlasSheet:'+(index-1),'Назад по разделу',762,394));
-    if(index+1<all.length)v.buttons.push(nav('atlasSheet:'+(index+1),all[index+1][0],1170,394));
+    if(index>0)v.buttons.push(nav('atlasSheet:'+(index-1),
+        v.page==='main'?all[index-1][0]:'Назад по разделу',762,394));
+    if(index+1<all.length)v.buttons.push(nav('atlasSheet:'+(index+1),
+        v.page==='main' && index===0?'Настроить вид карты':all[index+1][0],1170,394));
     if(v.page==='regions'&&index===1){
         const next=action('tripRegionPage',context.written||{});
         if(next)v.buttons.push(Object.assign(nav(next.command,next.label,1170,394),next));
@@ -233,7 +237,7 @@ function apply(v,context) {
     return v;
 }
 function numericChoices(name,step) {
-    const spec=sliders[name], max=spec[0];
+    const spec=sliderSpec(name), max=spec[0];
     if(!Number.isInteger(step)||step<0||step>max)return [];
     if(name==='cameraSoundRepeat'){
         return [0,1,2,3].map(i=>({command:'atlasValue:'+name+':'+i,label:formatStep(name,i),kind:'choice',selected:step===i,enabled:true}));
@@ -256,4 +260,4 @@ function reducePanel(panel,command,view) {
     if(command.indexOf('atlasEdit:')===0)return {sheet:view.sheet,edit:command.slice(10)};
     return null;
 }
-module.exports={apply,reducePanel,sliders,formatStep,sliderCommand,sliderNudge};
+module.exports={apply,reducePanel,sliders,scaleSliders,formatStep,sliderCommand,sliderNudge};
