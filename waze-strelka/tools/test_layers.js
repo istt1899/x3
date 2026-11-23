@@ -2,6 +2,7 @@
 const net=require('net'),assert=require('assert'),os=require('os'),path=require('path');
 const displayModule=require('../native/marku-kaluga-cameras/files/camera-layers');
 const card=require('../native/marku-kaluga-cameras/files/alert-card');
+const composition=require('../native/marku-kaluga-cameras/files/card-composition');
 const socketName=process.platform==='win32'?'\\\\.\\pipe\\kaluga-layer-test-'+process.pid:path.join(os.tmpdir(),'kaluga-layer-test-'+process.pid+'.sock');
 const frame=(o)=>{
     const payload=Buffer.from(JSON.stringify(o),'utf8'), message=Buffer.alloc(5+payload.length);
@@ -188,6 +189,59 @@ function styleMatches(actual,original,brightnessPct,opacityPct){
         assert.strictEqual(wireMessages.filter(m=>m.op==='layer').length,createdBefore,'preview, style and real warnings all reuse layer refs');
         assert(!wireMessages.slice(editsStart).some(m=>m.op==='set'&&m.visible===0),'live edits never hide/show an existing layer and cause flicker');
 
+        const uncertain = { id:'unknown-evidence', type:'speed', controls:['speed','lane','redlight','belt'],
+            speedKmh:51, displayDistanceM:150, roadConfirmed:true };
+        const noContent = {};
+        composition.KEYS.forEach(key => { noContent[key] = false; });
+        assert.strictEqual(card.presentation(uncertain).limit,null);
+        assert.strictEqual(card.presentation(uncertain).direction,'unknown');
+        // Sample interior regions of all six visible groups, away from dividers.
+        const areas = { limit:[13,10,65,94], distance:[82,37,181,64], types:[81,71,180,94],
+            direction:[197,20,250,60], speed:[251,30,309,73], status:[82,8,188,27] };
+        function tile(image, [x0,y0,x1,y1]) {
+            const rows = [];
+            for (let y=y0;y<y1;y++) rows.push(image.slice((y*card.width+x0)*4,(y*card.width+x1)*4));
+            return Buffer.concat(rows);
+        }
+        for (const target of ['hud','map']) {
+            const original=card.card(uncertain,target);
+            assert(card.card(uncertain,target,composition.normalize()[target]).equals(original));
+            assert(card.card(uncertain,target,noContent).equals(Buffer.alloc(original.length)));
+            for (const key of composition.KEYS) {
+                const filtered=card.card(uncertain,target,{[key]:false});
+                assert(!tile(filtered,areas[key]).equals(tile(original,areas[key])),target+' removes '+key);
+                const untouched = key === 'limit' ? 'speed' : 'limit';
+                assert(tile(filtered,areas[untouched]).equals(tile(original,areas[untouched])),target+' keeps '+untouched);
+            }
+            const test = card.card(Object.assign({},uncertain,{test:true}),target,noContent);
+            const calibration = card.card(preview,target,noContent);
+            assert(!tile(test,[250,0,311,23]).equals(tile(calibration,[250,0,311,23])),'special markers remain distinct');
+            assert(!test.equals(Buffer.alloc(original.length)) && !calibration.equals(Buffer.alloc(original.length)));
+        }
+
+        const editable = composition.normalize({hud:{limit:false},map:{direction:false}});
+        display.update(uncertain,outputs,saved);
+        await until('full warning with unknown evidence',()=>wirePixels.get(hudRef).equals(displayModule.styledPixels(uncertain,'hud',saved.hud))&&
+            wirePixels.get(mapRef).equals(displayModule.styledPixels(uncertain,'map',saved.map)));
+        const compositionEditStart = wireMessages.length;
+        display.update(uncertain,outputs,saved,editable);
+        await until('independent composition for the same active alert', () =>
+            wirePixels.get(hudRef).equals(displayModule.styledPixels(uncertain,'hud',saved.hud,editable.hud)) &&
+            wirePixels.get(mapRef).equals(displayModule.styledPixels(uncertain,'map',saved.map,editable.map)));
+        assert(!wireMessages.slice(compositionEditStart).some(m=>m.op==='layer'||m.op==='set'&&m.visible===0));
+        display.update(uncertain,outputs,saved,{hud:noContent,map:editable.map});
+        await until('empty HUD composition hides only this warning layer',()=>wireLayers.get(hudRef).visible===0);
+        assert.strictEqual(wireLayers.get(mapRef).visible,1);
+        display.update(preview,outputs,saved,{hud:noContent,map:editable.map});
+        await until('calibration marker stays visible with empty HUD composition',()=>wireLayers.get(hudRef).visible===1 &&
+            wirePixels.get(hudRef).equals(displayModule.styledPixels(preview,'hud',saved.hud,noContent)));
+        display.update(liveAlert,outputs,saved);
+        await until('full warning after restoring composition',()=>wireLayers.get(hudRef).visible===1 &&
+            wirePixels.get(hudRef).equals(displayModule.styledPixels(liveAlert,'hud',saved.hud)) &&
+            wirePixels.get(mapRef).equals(displayModule.styledPixels(liveAlert,'map',saved.map)));
+        assert.strictEqual(wireMessages.filter(m=>m.op==='layer').length,createdBefore,'composition edits reuse the layer refs');
+        assert.strictEqual(opens,opensBefore,'composition edits never reconnect');
+
         // Exercise the actual reconnect/replay path, not just layoutFor(). A
         // profile edited while disconnected must replace cached geometry before
         // the renderer is told to display anything on its smaller new canvas.
@@ -258,6 +312,6 @@ function styleMatches(actual,original,brightnessPct,opacityPct){
         peers.forEach(sock=>sock.write(frame({ev:'hello',backend:'id8',targets:announcedTargets})));
         for(let wait=0;wait<100&&display.diagnostics().versionReported;wait++)await sleep(10);
         assert.strictEqual(display.diagnostics().version,null,'a new versionless hello clears stale reported version');
-        console.log('PASS runtime canvases, actual wire geometry/pixels, independent live calibration, reused layers, preview/real profile parity, dirty rectangles and refusal');
+        console.log('PASS runtime canvases, actual wire geometry/pixels, independent live calibration and composition, reused layers, preview/real profile parity, dirty rectangles and refusal');
     }finally{display.close();server.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

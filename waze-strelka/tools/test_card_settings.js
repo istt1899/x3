@@ -2,6 +2,8 @@
 // Host-only service/IPC regression; all writes are confined to this test's temp directory.
 var assert = require('assert'), fs = require('fs'), os = require('os'), path = require('path'), net = require('net'), cp = require('child_process'), EventEmitter = require('events');
 var base = path.resolve(__dirname, '../native/marku-kaluga-cameras/files');
+var composition = require(path.join(base, 'card-composition'));
+var compositionUi = require('../apps/marku_kaluga_cameras/src/atlas-card-composition');
 var cards = require(path.join(base, 'card-layout')), service = require(path.join(base, 'marku-kaluga-cameras'));
 var renderer = require(path.join(base, 'camera-layers')), policy = require(path.join(base, 'action-policy'));
 var tempBase = fs.realpathSync(os.tmpdir()), root = fs.mkdtempSync(path.join(tempBase, 'strelka-card-settings-'));
@@ -22,8 +24,8 @@ function fakeGps(clock) {
 }
 async function start(dir, gps, options) {
   var latest = { alert: null, outputs: null, layouts: null }, details = { connection: 'ready' }, closed = 0, actual = null;
-  var display = { update: function (alert, outputs, layouts) {
-    latest = { alert: clone(alert), outputs: clone(outputs), layouts: clone(layouts) };
+  var display = { update: function (alert, outputs, layouts, contents) {
+    latest = { alert: clone(alert), outputs: clone(outputs), layouts: clone(layouts), contents: clone(contents) };
     if (alert) ['map','hud'].forEach(function (target) {
       if (!(target === 'map' ? outputs.cluster : outputs.hud)) return;
       details[target] = { state: 'shown', target: 'shown', rendering: 'verified', layout: renderer.layoutFor(target, target === 'map' ? { width: 1088, height: 480 } : { width: 800, height: 400 }, 'test', layouts[target]) };
@@ -67,6 +69,15 @@ async function processStart(dir) {
   return { client: client, close: async function () { client.sock.destroy(); child.stdin.write('stop\n'); await until(function () { return child.exitCode !== null; }); assert.strictEqual(child.exitCode, 0, stderr); } };
 }
 async function main() {
+  var defaultContents = composition.normalize();
+  assert.deepStrictEqual(compositionUi.OPTIONS.map(function (row) { return row.key; }), composition.KEYS);
+  assert(compositionUi.OPTIONS.every(function (row) { return row.label && row.description.length > row.label.length; }));
+  assert.deepStrictEqual(composition.normalize({ hud: { distance: false, limit: 'false', ignored: true } }),
+    { hud: Object.assign({}, defaultContents.hud, { distance: false }), map: defaultContents.map });
+  assert.deepStrictEqual(compositionUi.rows('hud', { cardComposition: { hud: { distance: false } } }).map(function (row) {
+    return [row.command, row.enabled];
+  }), composition.KEYS.map(function (key) { return ['atlasComposition:' + key, key !== 'distance']; }));
+  assert.deepStrictEqual(compositionUi.rows('cluster', {}), []);
   var defaults = cards.defaultLayouts(), independent = cards.defaultLayouts(); independent.map.x = 0; assert.strictEqual(defaults.map.x, 500);
   assert.strictEqual(cards.normalizeLayouts({ map: { x: 250, y: 1001, scalePct: 101, brightnessPct: 10 } }).map.y, 880);
   assert.strictEqual(cards.normalizeLayouts({ map: { scalePct: 101 } }).map.scalePct, 100);
@@ -81,7 +92,9 @@ async function main() {
   var dir = directory('legacy'), legacy = { enabled: false, outputs: { cluster: true, hud: true }, hudOpacityPct: 55 };
   fs.writeFileSync(path.join(dir, 'settings.json'), JSON.stringify(legacy));
   var run = await start(dir, gps), app = run.app;
-  assert.deepStrictEqual(app.state().cardLayout, defaults); assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'))), legacy, 'Reading old settings must not rewrite the file');
+  assert.deepStrictEqual(app.state().cardLayout, defaults);
+  assert.deepStrictEqual(app.state().cardComposition, defaultContents); assert(app.state().capabilities.cardComposition);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'))), legacy, 'Reading old settings must not rewrite the file');
   app.command({ cmd: 'display-test', target: 'hud', requestId: 'pinned-hud' });
   assert(app.state().displayTest.active && app.state().displayTest.pinned); assert.strictEqual(app.state().displayTest.untilMs, 0);
   assert.deepStrictEqual(run.latest().outputs, { cluster: false, hud: true }); assert.strictEqual(app.state().commandResult.phase, 'shown');
@@ -90,6 +103,13 @@ async function main() {
   time += 6500; run.refresh(); assert(app.state().displayTest.active, 'Pinned test survives the former five-second timeout');
   app.command({ cmd: 'card-layout', target: 'hud', x: 0, y: 1000, scalePct: 125, brightnessPct: 10, opacityPct: 10 });
   assert.deepStrictEqual(app.state().cardLayout.map, defaults.map); assert.strictEqual(run.latest().layouts.hud.brightnessPct, 10);
+  app.command({ cmd: 'card-composition', target: 'hud', key: 'limit', value: false });
+  app.command({ cmd: 'card-composition', target: 'map', key: 'direction', value: false });
+  var savedContents = composition.normalize({ hud: { limit: false }, map: { direction: false } });
+  assert.deepStrictEqual(app.state().cardComposition, savedContents);
+  assert.deepStrictEqual(run.latest().contents, savedContents, 'The pinned preview uses the same saved composition');
+  assert.throws(function () { app.command({ cmd: 'card-composition', target: 'map', key: 'unknown', value: true }); }, /состава карточки/);
+  assert.throws(function () { app.command({ cmd: 'card-composition', target: 'hud', key: 'distance', value: 'false' }); }, /состава карточки/);
   var before = app.state().rendererDetails.hud.layout.card.x;
   app.command({ cmd: 'card-move', target: 'hud', direction: 'right' });
   assert(Math.abs(app.state().rendererDetails.hud.layout.card.x - before - 10) <= 1, 'A move is ten actual pixels within normalized rounding');
@@ -114,6 +134,8 @@ async function main() {
   app.command({ cmd: 'display-test', target: 'hud' }); gps.fix.speedKmh = 5; gps.fix.accuracyM = 5;
   run.actual({ id: 'real-camera', roadConfirmed: true, limitKmh: 60, distanceM: 150 }); run.refresh();
   assert(!app.state().displayTest.active && !app.state().displayTest.pinned); assert.strictEqual(run.latest().alert.id, 'real-camera', 'A moving real warning is never replaced by a pinned test');
+  assert.deepStrictEqual(run.latest().contents, savedContents, 'Both saved profiles reach the renderer on a real alert');
+  assert.throws(function () { app.command({ cmd: 'card-composition', target: 'hud', key: 'status', value: false }); }, /остановитесь/);
   assert.throws(function () { app.command({ cmd: 'card-layout', target: 'hud', x: 0 }); }, /остановитесь/);
   app.command({ cmd: 'display-test-stop' }); // Stop remains available while moving.
   gps.fix.speedKmh = 0; run.refresh(); app.command({ cmd: 'calibration-test', target: 'map' });
@@ -125,12 +147,18 @@ async function main() {
   app.command({ cmd: 'outputs', cluster: false, hud: false }); app.command({ cmd: 'card-layout-reset', target: 'hud' });
   assert.deepStrictEqual(app.state().cardLayout.hud, defaults.hud); assert.strictEqual(app.state().cardLayout.map.scalePct, 150);
   app.command({ cmd: 'outputs', cluster: true, hud: true }); app.command({ cmd: 'display-test' }); app.close(); assert(!app.state().displayTest.active); assert.strictEqual(run.closed(), 1);
-  await immediate(); var restarted = await start(dir, gps); assert.deepStrictEqual(restarted.app.state().cardLayout, JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'))).cardLayout); assert(!restarted.app.state().displayTest.active); restarted.app.close();
-  console.log('PASS per-target migration/validation/autosave, pinned selected-target preview, exact pixel moves without clamp creep, motion/stale/off/close withdrawal');
+  await immediate(); var restarted = await start(dir, gps); assert.deepStrictEqual(restarted.app.state().cardLayout, JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'))).cardLayout); assert(!restarted.app.state().displayTest.active);
+  assert.deepStrictEqual(restarted.app.state().cardComposition, savedContents, 'Restart preserves independent HUD and cluster compositions');
+  restarted.app.close();
+  console.log('PASS independent composition and layout, migration/validation/autosave, pinned preview, pixel moves and motion/stale/off/close withdrawal');
 
   var failureDir = directory('write-failure'); fs.mkdirSync(path.join(failureDir, 'settings.json'));
   var failure = await start(failureDir, gps); failure.app.command({ cmd: 'card-layout', target: 'hud', opacityPct: 40 });
   assert.strictEqual(failure.app.state().storage.settingsSaved, false); assert(/временно/.test(failure.app.state().commandResult.message));
+  failure.app.command({ cmd: 'card-composition', target: 'map', key: 'types', value: false });
+  assert.strictEqual(failure.app.state().cardComposition.map.types, false);
+  assert.strictEqual(failure.app.state().storage.settingsSaved, false);
+  assert(/временно/.test(failure.app.state().commandResult.message));
   failure.app.command({ cmd: 'display-test-stop' }); assert(/временно/.test(failure.app.state().commandResult.message)); failure.app.close();
   var freshDir = directory('stop-defaults'), fresh = await start(freshDir, gps); assert(!fs.existsSync(path.join(freshDir, 'settings.json')));
   fresh.app.command({ cmd: 'display-test-stop' }); assert(fresh.app.state().storage.settingsSaved); assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(freshDir, 'settings.json'))).cardLayout, defaults); fresh.app.close();
@@ -139,11 +167,16 @@ async function main() {
   Date.now = originalNow;
   var processDir = directory('process-restart'), child = await processStart(processDir);
   await child.client.command({ cmd: 'card-layout', target: 'map', x: 850, scalePct: 120, brightnessPct: 35, opacityPct: 25 });
+  var childState = await child.client.command({ cmd: 'card-composition', target: 'map', key: 'speed', value: false });
+  assert.strictEqual(childState.commandResult.phase, 'finished');
+  assert.strictEqual(childState.cardComposition.map.speed, false);
+  assert.strictEqual(childState.cardComposition.hud.speed, true);
   await child.client.command({ cmd: 'outputs', cluster: true, hud: true });
-  var childState = await child.client.command({ cmd: 'display-test', target: 'map' }); assert(childState.displayTest.active && childState.displayTest.pinned);
+  childState = await child.client.command({ cmd: 'display-test', target: 'map' }); assert(childState.displayTest.active && childState.displayTest.pinned);
   await child.client.command({ cmd: 'display-test-stop' }); await child.close();
   child = await processStart(processDir);
   childState = child.client.replies[0].state; assert.strictEqual(childState.cardLayout.map.x, 850); assert.strictEqual(childState.cardLayout.map.opacityPct, 25); assert(!childState.displayTest.active);
+  assert.deepStrictEqual(childState.cardComposition, composition.normalize({ map: { speed: false } }));
   await child.close();
   console.log('PASS real process/socket commands and restart preserve profiles while preview remains session-only');
 }
