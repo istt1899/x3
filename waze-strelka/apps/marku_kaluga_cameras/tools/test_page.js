@@ -308,8 +308,8 @@ async function main() {
     const nativeRows = cid => xmlIds(cid).filter(([id])=>!/^atlasDetailGraphic\d+$/.test(UI.containers[cid].components[id].name));
     const detail = require('../src/atlas-detail.js');
     Object.keys(detail.names).forEach(page=>{
-        const cid=String(detail.pageIds[page]), descriptor=UI.containers[cid].components;
-        const found=xmlIds(cid).filter(([id])=>descriptor[id].name===detail.names[page]);
+        const cid=String(100+detail.pageIds[page]), descriptor=UI.containers[cid].components;
+        const found=xmlIds(cid).filter(([id])=>descriptor[id].name==='atlasFrame'+detail.pageIds[page]);
         assert.strictEqual(found.length,1,page+' preview');
         const [id,type,widget]=found[0];
         assert.strictEqual(type,'label');assert.strictEqual(widget,'LT_Label_1Graphic_Scalable');
@@ -363,7 +363,7 @@ async function main() {
     console.log('ok   the main page: General, HUD, CarPlay and Android Auto under unfocusable header rows, Show on the first stop; no log rows; ' +
         'CarPlay Wi-Fi and its line CarPlay\'s last, the restart\'s rows the page\'s last, all four hidden');
     const logsPage = UI.containers['2'];
-    assert.strictEqual(logsPage.name, 'ST_OnlineApps_WazeClusterLogs');
+    assert.strictEqual(logsPage.name, 'ST_OnlineApps_WazeClusterLogs_Bindings');
     assert.deepStrictEqual(logsPage.properties.ParentState, { value: 1, type: 'UInt' }, 'the Logs page is a child of the main page');
     assert(/<container id="2" type="state" widget="LT_State_Wide">\s*<property id="9" value="1"\/>/.test(XML));
     assert.deepStrictEqual(xmlIds('2').map(([id, type]) => `${id} ${type}`).sort(),
@@ -666,10 +666,13 @@ async function main() {
 
         await until('patched: CarPlay\'s Remove patch button enabled, CarPlay\'s Patch button greyed', () => byName.wocDisable.enabled === true &&
             byName.wocEnable.enabled === false);
-        // Real RHMI raw actions carry only a component id, independent of page.
+        // The public screen drops raw IDs belonging to unexposed binding controls.
         assert.strictEqual(OnlineApp.instance._actionById[32].name, 'wocEnable');
         assert.strictEqual(OnlineApp.instance._actionById[35].name, 'wocGuide');
         rhmi.emit('userEvent', { eventType: 'ACTION', sourceId: byName.wocDisable.getId() });
+        assert.strictEqual(patch.count('revert'),0,'a backing ID cannot activate an action on the public screen');
+        // Exercise the original domain handler in isolation.
+        byName.wocDisable.emit('action');
         await until('reverted', () => patch.count('revert') === 1 && !patch.busy && patch.state === 'original');
         await until('original: CarPlay\'s Patch button enabled, CarPlay\'s Remove patch button greyed', () => byName.wocEnable.enabled === true &&
             byName.wocDisable.enabled === false);

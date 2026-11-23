@@ -3,7 +3,7 @@
   "containers": {
     "1": {
       "type": "state",
-      "name": "ST_OnlineApps_WazeCluster",
+      "name": "ST_OnlineApps_WazeCluster_Bindings",
       "components": {
         "10": {
           "type": "title",
@@ -886,7 +886,7 @@
     },
     "2": {
       "type": "state",
-      "name": "ST_OnlineApps_WazeClusterLogs",
+      "name": "ST_OnlineApps_WazeClusterLogs_Bindings",
       "properties": {
         "ParentState": {
           "value": 1,
@@ -1170,7 +1170,7 @@
     },
     "3": {
       "type": "state",
-      "name": "ST_OnlineApps_WazeStrelkaCameras",
+      "name": "ST_OnlineApps_WazeStrelkaCameras_Bindings",
       "properties": {
         "ParentState": {
           "value": 1,
@@ -1371,7 +1371,7 @@
     },
     "4": {
       "type": "state",
-      "name": "ST_OnlineApps_WazeStrelkaDiagnostics",
+      "name": "ST_OnlineApps_WazeStrelkaDiagnostics_Bindings",
       "properties": {
         "ParentState": {
           "value": 3,
@@ -1986,7 +1986,7 @@
     },
     "5": {
       "type": "state",
-      "name": "ST_OnlineApps_CameraAlerts",
+      "name": "ST_OnlineApps_CameraAlerts_Bindings",
       "properties": {
         "ParentState": {
           "value": 3,
@@ -2277,7 +2277,7 @@
     },
     "6": {
       "type": "state",
-      "name": "ST_OnlineApps_CameraTypes",
+      "name": "ST_OnlineApps_CameraTypes_Bindings",
       "properties": {
         "ParentState": {
           "value": 3,
@@ -2720,7 +2720,7 @@
     },
     "7": {
       "type": "state",
-      "name": "ST_OnlineApps_CameraCalibration",
+      "name": "ST_OnlineApps_CameraCalibration_Bindings",
       "properties": {
         "ParentState": {
           "value": 3,
@@ -3855,7 +3855,7 @@
     },
     "8": {
       "type": "state",
-      "name": "ST_OnlineApps_CameraPosition",
+      "name": "ST_OnlineApps_CameraPosition_Bindings",
       "properties": {
         "ParentState": {
           "value": 7,
@@ -4214,7 +4214,7 @@
     },
     "9": {
       "type": "state",
-      "name": "ST_OnlineApps_CameraDatabase",
+      "name": "ST_OnlineApps_CameraDatabase_Bindings",
       "properties": {
         "ParentState": {
           "value": 3,
@@ -4459,7 +4459,7 @@
     },
     "11": {
       "type": "state",
-      "name": "ST_OnlineApps_CameraOverspeed",
+      "name": "ST_OnlineApps_CameraOverspeed_Bindings",
       "properties": {
         "ParentState": {
           "value": 5,
@@ -4966,7 +4966,7 @@
     },
     "12": {
       "type": "state",
-      "name": "ST_OnlineApps_CameraDiagnosticPhoto",
+      "name": "ST_OnlineApps_CameraDiagnosticPhoto_Bindings",
       "properties": {
         "ParentState": {
           "value": 4,
@@ -5167,7 +5167,7 @@
     },
     "13": {
       "type": "state",
-      "name": "ST_OnlineApps_StrelkaTrip",
+      "name": "ST_OnlineApps_StrelkaTrip_Bindings",
       "components": {
         "701": {
           "type": "title",
@@ -5340,7 +5340,7 @@
     },
     "14": {
       "type": "state",
-      "name": "ST_OnlineApps_StrelkaCamera",
+      "name": "ST_OnlineApps_StrelkaCamera_Bindings",
       "components": {
         "721": {
           "type": "title",
@@ -5541,7 +5541,7 @@
     },
     "15": {
       "type": "state",
-      "name": "ST_OnlineApps_StrelkaAbout",
+      "name": "ST_OnlineApps_StrelkaAbout_Bindings",
       "components": {
         "741": {
           "type": "title",
@@ -5676,7 +5676,7 @@
     },
     "16": {
       "type": "state",
-      "name": "ST_OnlineApps_StrelkaRegions",
+      "name": "ST_OnlineApps_StrelkaRegions_Bindings",
       "properties": {
         "ParentState": {
           "value": 13,
@@ -6027,7 +6027,7 @@
     },
     "17": {
       "type": "state",
-      "name": "ST_OnlineApps_AtlasMenu",
+      "name": "ST_OnlineApps_AtlasMenu_Bindings",
       "properties": {
         "ParentState": {
           "value": 13,
@@ -6184,6 +6184,6390 @@
               }
             }
           ]
+        }
+      }
+    },
+    "101": {
+      "type": "state",
+      "name": "ST_OnlineApps_WazeCluster",
+      "components": {
+        "7021": {
+          "name": "atlasTitle1",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7023": {
+          "name": "atlasFrame1",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7024": {
+          "name": "atlasStatus1",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Карты телефона",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7025": {
+          "name": "atlasKey1_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7026": {
+          "name": "atlasKey1_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7027": {
+          "name": "atlasKey1_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7028": {
+          "name": "atlasKey1_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7029": {
+          "name": "atlasKey1_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7030": {
+          "name": "atlasKey1_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7031": {
+          "name": "atlasKey1_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7032": {
+          "name": "atlasKey1_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7033": {
+          "name": "atlasKey1_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 113,
+          "type": "UInt"
+        }
+      }
+    },
+    "201": {
+      "type": "state",
+      "name": "ST_OnlineApps_WazeCluster_AtlasEditor",
+      "components": {
+        "9021": {
+          "name": "atlasTitleEdit1",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Карты телефона",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9023": {
+          "name": "atlasFrameEdit1",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9024": {
+          "name": "atlasStatusEdit1",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Карты телефона",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9025": {
+          "name": "atlasKeyEdit1_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9026": {
+          "name": "atlasKeyEdit1_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9027": {
+          "name": "atlasKeyEdit1_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9028": {
+          "name": "atlasKeyEdit1_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9029": {
+          "name": "atlasKeyEdit1_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9030": {
+          "name": "atlasKeyEdit1_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9031": {
+          "name": "atlasKeyEdit1_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9032": {
+          "name": "atlasKeyEdit1_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9033": {
+          "name": "atlasKeyEdit1_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 101,
+          "type": "UInt"
+        }
+      }
+    },
+    "102": {
+      "type": "state",
+      "name": "ST_OnlineApps_WazeClusterLogs",
+      "components": {
+        "7041": {
+          "name": "atlasTitle2",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Журнал",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7043": {
+          "name": "atlasFrame2",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7044": {
+          "name": "atlasStatus2",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Журнал",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7045": {
+          "name": "atlasKey2_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7046": {
+          "name": "atlasKey2_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7047": {
+          "name": "atlasKey2_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7048": {
+          "name": "atlasKey2_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7049": {
+          "name": "atlasKey2_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7050": {
+          "name": "atlasKey2_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7051": {
+          "name": "atlasKey2_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7052": {
+          "name": "atlasKey2_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7053": {
+          "name": "atlasKey2_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 101,
+          "type": "UInt"
+        }
+      }
+    },
+    "103": {
+      "type": "state",
+      "name": "ST_OnlineApps_WazeStrelkaCameras",
+      "components": {
+        "7061": {
+          "name": "atlasTitle3",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Настройки",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7063": {
+          "name": "atlasFrame3",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7064": {
+          "name": "atlasStatus3",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Настройки",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7065": {
+          "name": "atlasKey3_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7066": {
+          "name": "atlasKey3_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7067": {
+          "name": "atlasKey3_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7068": {
+          "name": "atlasKey3_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7069": {
+          "name": "atlasKey3_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7070": {
+          "name": "atlasKey3_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7071": {
+          "name": "atlasKey3_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7072": {
+          "name": "atlasKey3_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7073": {
+          "name": "atlasKey3_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 113,
+          "type": "UInt"
+        }
+      }
+    },
+    "104": {
+      "type": "state",
+      "name": "ST_OnlineApps_WazeStrelkaDiagnostics",
+      "components": {
+        "7081": {
+          "name": "atlasTitle4",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Диагностика",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7083": {
+          "name": "atlasFrame4",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7084": {
+          "name": "atlasStatus4",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Диагностика",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7085": {
+          "name": "atlasKey4_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7086": {
+          "name": "atlasKey4_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7087": {
+          "name": "atlasKey4_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7088": {
+          "name": "atlasKey4_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7089": {
+          "name": "atlasKey4_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7090": {
+          "name": "atlasKey4_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7091": {
+          "name": "atlasKey4_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7092": {
+          "name": "atlasKey4_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7093": {
+          "name": "atlasKey4_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 113,
+          "type": "UInt"
+        }
+      }
+    },
+    "105": {
+      "type": "state",
+      "name": "ST_OnlineApps_CameraAlerts",
+      "components": {
+        "7101": {
+          "name": "atlasTitle5",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Оповещения",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7103": {
+          "name": "atlasFrame5",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7104": {
+          "name": "atlasStatus5",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Оповещения",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7105": {
+          "name": "atlasKey5_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7106": {
+          "name": "atlasKey5_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7107": {
+          "name": "atlasKey5_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7108": {
+          "name": "atlasKey5_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7109": {
+          "name": "atlasKey5_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7110": {
+          "name": "atlasKey5_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7111": {
+          "name": "atlasKey5_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7112": {
+          "name": "atlasKey5_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7113": {
+          "name": "atlasKey5_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 103,
+          "type": "UInt"
+        }
+      }
+    },
+    "205": {
+      "type": "state",
+      "name": "ST_OnlineApps_CameraAlerts_AtlasEditor",
+      "components": {
+        "9101": {
+          "name": "atlasTitleEdit5",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Оповещения",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9103": {
+          "name": "atlasFrameEdit5",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9104": {
+          "name": "atlasStatusEdit5",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Оповещения",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9105": {
+          "name": "atlasKeyEdit5_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9106": {
+          "name": "atlasKeyEdit5_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9107": {
+          "name": "atlasKeyEdit5_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9108": {
+          "name": "atlasKeyEdit5_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9109": {
+          "name": "atlasKeyEdit5_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9110": {
+          "name": "atlasKeyEdit5_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9111": {
+          "name": "atlasKeyEdit5_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9112": {
+          "name": "atlasKeyEdit5_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9113": {
+          "name": "atlasKeyEdit5_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 105,
+          "type": "UInt"
+        }
+      }
+    },
+    "106": {
+      "type": "state",
+      "name": "ST_OnlineApps_CameraTypes",
+      "components": {
+        "7121": {
+          "name": "atlasTitle6",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Типы контроля",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7123": {
+          "name": "atlasFrame6",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7124": {
+          "name": "atlasStatus6",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Типы контроля",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7125": {
+          "name": "atlasKey6_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7126": {
+          "name": "atlasKey6_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7127": {
+          "name": "atlasKey6_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7128": {
+          "name": "atlasKey6_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7129": {
+          "name": "atlasKey6_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7130": {
+          "name": "atlasKey6_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7131": {
+          "name": "atlasKey6_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7132": {
+          "name": "atlasKey6_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7133": {
+          "name": "atlasKey6_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 103,
+          "type": "UInt"
+        }
+      }
+    },
+    "107": {
+      "type": "state",
+      "name": "ST_OnlineApps_CameraCalibration",
+      "components": {
+        "7141": {
+          "name": "atlasTitle7",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Калибровка экрана",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7143": {
+          "name": "atlasFrame7",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7144": {
+          "name": "atlasStatus7",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Калибровка экрана",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7145": {
+          "name": "atlasKey7_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7146": {
+          "name": "atlasKey7_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7147": {
+          "name": "atlasKey7_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7148": {
+          "name": "atlasKey7_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7149": {
+          "name": "atlasKey7_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7150": {
+          "name": "atlasKey7_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7151": {
+          "name": "atlasKey7_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7152": {
+          "name": "atlasKey7_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7153": {
+          "name": "atlasKey7_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 103,
+          "type": "UInt"
+        }
+      }
+    },
+    "207": {
+      "type": "state",
+      "name": "ST_OnlineApps_CameraCalibration_AtlasEditor",
+      "components": {
+        "9141": {
+          "name": "atlasTitleEdit7",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Калибровка экрана",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9143": {
+          "name": "atlasFrameEdit7",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9144": {
+          "name": "atlasStatusEdit7",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Калибровка экрана",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9145": {
+          "name": "atlasKeyEdit7_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9146": {
+          "name": "atlasKeyEdit7_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9147": {
+          "name": "atlasKeyEdit7_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9148": {
+          "name": "atlasKeyEdit7_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9149": {
+          "name": "atlasKeyEdit7_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9150": {
+          "name": "atlasKeyEdit7_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9151": {
+          "name": "atlasKeyEdit7_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9152": {
+          "name": "atlasKeyEdit7_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9153": {
+          "name": "atlasKeyEdit7_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 107,
+          "type": "UInt"
+        }
+      }
+    },
+    "108": {
+      "type": "state",
+      "name": "ST_OnlineApps_CameraPosition",
+      "components": {
+        "7161": {
+          "name": "atlasTitle8",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Положение карточки",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7163": {
+          "name": "atlasFrame8",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7164": {
+          "name": "atlasStatus8",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Положение карточки",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7165": {
+          "name": "atlasKey8_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7166": {
+          "name": "atlasKey8_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7167": {
+          "name": "atlasKey8_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7168": {
+          "name": "atlasKey8_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7169": {
+          "name": "atlasKey8_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7170": {
+          "name": "atlasKey8_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7171": {
+          "name": "atlasKey8_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7172": {
+          "name": "atlasKey8_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7173": {
+          "name": "atlasKey8_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 107,
+          "type": "UInt"
+        }
+      }
+    },
+    "208": {
+      "type": "state",
+      "name": "ST_OnlineApps_CameraPosition_AtlasEditor",
+      "components": {
+        "9161": {
+          "name": "atlasTitleEdit8",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Положение карточки",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9163": {
+          "name": "atlasFrameEdit8",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9164": {
+          "name": "atlasStatusEdit8",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Положение карточки",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9165": {
+          "name": "atlasKeyEdit8_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9166": {
+          "name": "atlasKeyEdit8_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9167": {
+          "name": "atlasKeyEdit8_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9168": {
+          "name": "atlasKeyEdit8_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9169": {
+          "name": "atlasKeyEdit8_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9170": {
+          "name": "atlasKeyEdit8_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9171": {
+          "name": "atlasKeyEdit8_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9172": {
+          "name": "atlasKeyEdit8_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9173": {
+          "name": "atlasKeyEdit8_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 108,
+          "type": "UInt"
+        }
+      }
+    },
+    "109": {
+      "type": "state",
+      "name": "ST_OnlineApps_CameraDatabase",
+      "components": {
+        "7181": {
+          "name": "atlasTitle9",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "База автомобиля",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7183": {
+          "name": "atlasFrame9",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7184": {
+          "name": "atlasStatus9",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · База автомобиля",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7185": {
+          "name": "atlasKey9_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7186": {
+          "name": "atlasKey9_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7187": {
+          "name": "atlasKey9_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7188": {
+          "name": "atlasKey9_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7189": {
+          "name": "atlasKey9_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7190": {
+          "name": "atlasKey9_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7191": {
+          "name": "atlasKey9_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7192": {
+          "name": "atlasKey9_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7193": {
+          "name": "atlasKey9_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 103,
+          "type": "UInt"
+        }
+      }
+    },
+    "111": {
+      "type": "state",
+      "name": "ST_OnlineApps_CameraOverspeed",
+      "components": {
+        "7221": {
+          "name": "atlasTitle11",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Мигание и звук",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7223": {
+          "name": "atlasFrame11",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7224": {
+          "name": "atlasStatus11",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Мигание и звук",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7225": {
+          "name": "atlasKey11_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7226": {
+          "name": "atlasKey11_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7227": {
+          "name": "atlasKey11_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7228": {
+          "name": "atlasKey11_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7229": {
+          "name": "atlasKey11_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7230": {
+          "name": "atlasKey11_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7231": {
+          "name": "atlasKey11_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7232": {
+          "name": "atlasKey11_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7233": {
+          "name": "atlasKey11_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 105,
+          "type": "UInt"
+        }
+      }
+    },
+    "211": {
+      "type": "state",
+      "name": "ST_OnlineApps_CameraOverspeed_AtlasEditor",
+      "components": {
+        "9221": {
+          "name": "atlasTitleEdit11",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Мигание и звук",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9223": {
+          "name": "atlasFrameEdit11",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9224": {
+          "name": "atlasStatusEdit11",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Мигание и звук",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9225": {
+          "name": "atlasKeyEdit11_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9226": {
+          "name": "atlasKeyEdit11_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9227": {
+          "name": "atlasKeyEdit11_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9228": {
+          "name": "atlasKeyEdit11_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9229": {
+          "name": "atlasKeyEdit11_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9230": {
+          "name": "atlasKeyEdit11_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9231": {
+          "name": "atlasKeyEdit11_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9232": {
+          "name": "atlasKeyEdit11_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "9233": {
+          "name": "atlasKeyEdit11_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 111,
+          "type": "UInt"
+        }
+      }
+    },
+    "112": {
+      "type": "state",
+      "name": "ST_OnlineApps_CameraDiagnosticPhoto",
+      "components": {
+        "7241": {
+          "name": "atlasTitle12",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Снимок диагностики",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7243": {
+          "name": "atlasFrame12",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7244": {
+          "name": "atlasStatus12",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Снимок диагностики",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7245": {
+          "name": "atlasKey12_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7246": {
+          "name": "atlasKey12_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7247": {
+          "name": "atlasKey12_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7248": {
+          "name": "atlasKey12_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7249": {
+          "name": "atlasKey12_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7250": {
+          "name": "atlasKey12_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7251": {
+          "name": "atlasKey12_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7252": {
+          "name": "atlasKey12_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7253": {
+          "name": "atlasKey12_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 104,
+          "type": "UInt"
+        }
+      }
+    },
+    "113": {
+      "type": "state",
+      "name": "ST_OnlineApps_StrelkaTrip",
+      "components": {
+        "7261": {
+          "name": "atlasTitle13",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Яндекс Стрелка · Атлас",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7263": {
+          "name": "atlasFrame13",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7264": {
+          "name": "atlasStatus13",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Яндекс Стрелка · Атлас",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7265": {
+          "name": "atlasKey13_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "Камера",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7266": {
+          "name": "atlasKey13_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "Карты телефона",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7267": {
+          "name": "atlasKey13_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7268": {
+          "name": "atlasKey13_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "Диагностика",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7269": {
+          "name": "atlasKey13_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "Настройки",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7270": {
+          "name": "atlasKey13_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "Справка",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "114": {
+      "type": "state",
+      "name": "ST_OnlineApps_StrelkaCamera",
+      "components": {
+        "7281": {
+          "name": "atlasTitle14",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Карточка камеры",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7283": {
+          "name": "atlasFrame14",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7284": {
+          "name": "atlasStatus14",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Карточка камеры",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7285": {
+          "name": "atlasKey14_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7286": {
+          "name": "atlasKey14_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7287": {
+          "name": "atlasKey14_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7288": {
+          "name": "atlasKey14_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7289": {
+          "name": "atlasKey14_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7290": {
+          "name": "atlasKey14_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7291": {
+          "name": "atlasKey14_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7292": {
+          "name": "atlasKey14_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7293": {
+          "name": "atlasKey14_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 113,
+          "type": "UInt"
+        }
+      }
+    },
+    "115": {
+      "type": "state",
+      "name": "ST_OnlineApps_StrelkaAbout",
+      "components": {
+        "7301": {
+          "name": "atlasTitle15",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "О приложении",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7303": {
+          "name": "atlasFrame15",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7304": {
+          "name": "atlasStatus15",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · О приложении",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7305": {
+          "name": "atlasKey15_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7306": {
+          "name": "atlasKey15_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7307": {
+          "name": "atlasKey15_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7308": {
+          "name": "atlasKey15_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7309": {
+          "name": "atlasKey15_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7310": {
+          "name": "atlasKey15_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7311": {
+          "name": "atlasKey15_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7312": {
+          "name": "atlasKey15_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7313": {
+          "name": "atlasKey15_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 113,
+          "type": "UInt"
+        }
+      }
+    },
+    "116": {
+      "type": "state",
+      "name": "ST_OnlineApps_StrelkaRegions",
+      "components": {
+        "7321": {
+          "name": "atlasTitle16",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Базы и регионы",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7323": {
+          "name": "atlasFrame16",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7324": {
+          "name": "atlasStatus16",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Базы и регионы",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7325": {
+          "name": "atlasKey16_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7326": {
+          "name": "atlasKey16_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7327": {
+          "name": "atlasKey16_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7328": {
+          "name": "atlasKey16_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7329": {
+          "name": "atlasKey16_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7330": {
+          "name": "atlasKey16_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7331": {
+          "name": "atlasKey16_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7332": {
+          "name": "atlasKey16_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7333": {
+          "name": "atlasKey16_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 113,
+          "type": "UInt"
+        }
+      }
+    },
+    "117": {
+      "type": "state",
+      "name": "ST_OnlineApps_AtlasMenu",
+      "components": {
+        "7341": {
+          "name": "atlasTitle17",
+          "type": "title",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Разделы Атласа",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7343": {
+          "name": "atlasFrame17",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Graphic": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7344": {
+          "name": "atlasStatus17",
+          "type": "label",
+          "properties": {
+            "Visible": {
+              "value": 1,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 0,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text": {
+                "value": "Атлас · Разделы Атласа",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7345": {
+          "name": "atlasKey17_0",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7346": {
+          "name": "atlasKey17_1",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7347": {
+          "name": "atlasKey17_2",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7348": {
+          "name": "atlasKey17_3",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7349": {
+          "name": "atlasKey17_4",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7350": {
+          "name": "atlasKey17_5",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7351": {
+          "name": "atlasKey17_6",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7352": {
+          "name": "atlasKey17_7",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        },
+        "7353": {
+          "name": "atlasKey17_8",
+          "type": "button",
+          "properties": {
+            "Visible": {
+              "value": 0,
+              "type": "UInt"
+            },
+            "Focusable": {
+              "value": 3,
+              "type": "UInt"
+            }
+          },
+          "rows": [
+            {
+              "Text1stCol": {
+                "value": "",
+                "type": "Text"
+              },
+              "Text2ndCol": {
+                "value": "",
+                "type": "Text"
+              }
+            }
+          ]
+        }
+      },
+      "properties": {
+        "ParentState": {
+          "value": 113,
+          "type": "UInt"
         }
       }
     }

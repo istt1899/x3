@@ -122,6 +122,12 @@ const PAGE_STATES = Object.freeze({trip:'ST_OnlineApps_StrelkaTrip',atlasMenu:'S
     diagnosticPhoto:'ST_OnlineApps_CameraDiagnosticPhoto',
     alerts:'ST_OnlineApps_CameraAlerts',types:'ST_OnlineApps_CameraTypes',calibration:'ST_OnlineApps_CameraCalibration',
     position:'ST_OnlineApps_CameraPosition',database:'ST_OnlineApps_CameraDatabase',overspeed:'ST_OnlineApps_CameraOverspeed'});
+const ATLAS_IDS = {main:1,logs:2,cameras:3,diagnostics:4,alerts:5,types:6,calibration:7,position:8,
+    database:9,overspeed:11,diagnosticPhoto:12,trip:13,cameraDetail:14,about:15,regions:16,atlasMenu:17};
+const ATLAS_EDITORS = ['main','alerts','calibration','position','overspeed'];
+const ATLAS_PARENT = {main:'trip',logs:'main',cameras:'trip',diagnostics:'trip',alerts:'cameras',types:'cameras',
+    calibration:'cameras',position:'calibration',database:'cameras',overspeed:'alerts',diagnosticPhoto:'diagnostics',
+    cameraDetail:'trip',about:'trip',regions:'trip',atlasMenu:'trip'};
 const DIAG_NAMES = cameraDiagnostics.PAGE_KEYS.map(k => 'cameraDiag_' + k).concat(['cameraDiagSelector','cameraDiagFreeze','cameraDiagTest',
     'cameraDiagCalibration','cameraDiagAudio','cameraDiagExport','cameraDiagMore','cameraDiagResultMore'], cameraDiagnostics.PHOTO_NAMES);
 const CAMERA_NAMES = ['cameraStatus','cameraDatabase','cameraDate','cameraCoverage','cameraEnable','cameraUpdate','cameraRollback',
@@ -135,7 +141,7 @@ const PREFERENCE_NAMES = ['cameraPreferencesHead','cameraWarningDistance','camer
 const SOUND_REPEAT_VALUES = [0, 3, 5, 10];
 const OVERSPEED_CHECKS = {cameraVisualFlash:'visualFlash',cameraSoundEnabled:'soundEnabled',cameraSoundAppear:'soundOnCameraAppear'};
 const OVERSPEED_SLIDERS = {cameraVisualOffset:{key:'visualOffsetKmh',label:'Порог мигания',max:30},cameraSoundOffset:{key:'soundOffsetKmh',label:'Порог звука',max:30},
-    cameraSoundDistance:{key:'soundDistanceM',label:'Дистанция контроля',max:12,format:v=>v+' м'},
+    cameraSoundDistance:{key:'soundDistanceM',label:'Дистанция контроля',max:12,format:v=>v+' м',fromSlider:step=>100+50*step,toSlider:value=>(value-100)/50},
     cameraSoundRepeat:{key:'soundRepeatSec',label:'Повтор сигнала',max:3,format:v=>v===0?'однократно':'каждые '+v+' с',fromSlider:v=>SOUND_REPEAT_VALUES[v],toSlider:v=>Math.max(0,SOUND_REPEAT_VALUES.indexOf(v))}};
 const OVERSPEED_NAMES = ['cameraOverspeedHead','cameraOverspeedRecommended','cameraOverspeedStatus','cameraOverspeedHint',
     'cameraAudioStatus','cameraGpsReset','cameraGpsResetHint'].concat(Object.keys(OVERSPEED_CHECKS),Object.keys(OVERSPEED_SLIDERS));
@@ -197,6 +203,17 @@ class WazeClusterApp extends OnlineApp {
         this._regionChoice = null;
         this._regionPage = null;
         this._tripImage = { key: null, context: null, wantedContext: null, file: null, uploadingFile: null, pending: null, rendering: null, sequence: 0 };
+        this._atlasPanels = {};
+        this._atlasSurface = null;
+        this._atlasKeys = {};
+        this._atlasReady = {};
+        this._atlasEditorStates = {};
+        this._atlasHistory = ['trip'];
+        this._atlasParents = {};
+        this._atlasRequested = null;
+        // OAP runs <app>/source/javascript/app.js and registers graphics
+        // from <app>/rhmiData/resources, shared with its RHMI resource bundle.
+        this._atlasResources = path.resolve(__dirname, '..', '..', 'rhmiData', 'resources');
         this._atlasStage = new atlasStage.Stage(logger, name => this._atlasAction(name), () => this._renderAtlas());
         this._sawForeground = false;
         this._shutdownPromise = null;
@@ -313,7 +330,7 @@ class WazeClusterApp extends OnlineApp {
             AA_ENABLE_NAME, AA_DISABLE_NAME, AA_ZOOM_NAME, AA_ZOOM_OUT_NAME, AA_ZOOM_IN_NAME, AA_CARD_NAME, RESTART_NAME, GUIDE_NAME,
             HEAD_GENERAL_NAME, HEAD_HUD_NAME, SHOW_ON_NAME, PROFILE_NAME, HUD_NAME, HUD_KEEP_NAME, HUD_SIZE_NAME, HUD_OPACITY_NAME, HUD_POS_NAME]
             .concat(Object.values(HUD_MOVE_NAMES), [HUD_CENTRE_NAME, CAPTURE_NAME, CAPTURE_STATUS,
-                LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL, CAMERA_LINK], LOGS_ROW_NAMES, CAMERA_NAMES, DIAG_NAMES, CARD_NAMES, PREFERENCE_NAMES, OVERSPEED_NAMES, tripView.NAMES, Object.values(atlasDetail.names), ['atlasMenuOpen','atlasMenuCamera','atlasMenuMaps']);
+                LOGS_NAME, LOGS_SAVE, LOGS_STATUS, LOGS_QR, LOGS_URL, CAMERA_LINK], LOGS_ROW_NAMES, CAMERA_NAMES, DIAG_NAMES, CARD_NAMES, PREFERENCE_NAMES, OVERSPEED_NAMES, tripView.NAMES, Object.values(atlasDetail.names).filter(name=>rhmi.getByName(name)), ['atlasMenuOpen','atlasMenuCamera','atlasMenuMaps']);
         names.forEach((name) => { this._components[name] = rhmi.getByName(name); });
         const missing = names.filter((name) => !this._components[name]);
         if (missing.length) {
@@ -368,6 +385,7 @@ class WazeClusterApp extends OnlineApp {
             }
         });
         this._components[HUD_OPACITY_NAME].on('changed', (step) => {
+            if(step===this._written['cell:'+HUD_OPACITY_NAME+':0:Value'])return;
             const state = this._cameras.state;
             if (state && state.capabilities && state.capabilities.hudOpacity && Number.isInteger(step) && step >= 0 && step <= 18 &&
                 100 - step * 5 !== state.hudOpacityPct) {
@@ -379,11 +397,9 @@ class WazeClusterApp extends OnlineApp {
         Object.keys(HUD_MOVE_NAMES).forEach((dir) => this._bind(HUD_MOVE_NAMES[dir], () => this._control.moveHud(dir)));
         this._bind(HUD_CENTRE_NAME, () => this._control.centreHud());
         this._bind(CAPTURE_NAME, () => this._control.capture());
-        this._bind(LOGS_NAME, () => Promise.resolve(rhmi.openState(LOGS_STATE))
-            .catch((err) => logger.warn(`openState ${LOGS_STATE} failed: ${err && err.message}`)));
+        this._bind(LOGS_NAME, () => this._openCameraPage('logs'));
         this._bind(LOGS_SAVE, () => this._logs.save());
-        this._bind(CAMERA_LINK, () => Promise.resolve(rhmi.openState(CAMERA_STATE))
-            .catch((err) => logger.warn('camera page: ' + err.message)));
+        this._bind(CAMERA_LINK, () => this._openCameraPage('cameras'));
         this._bind('cameraEnable', () => this._cameraCommand({ cmd: this._cameras.state && this._cameras.state.enabled ? 'disable' : 'enable' }));
         this._bind('cameraAlertsLink',()=>this._openCameraPage('alerts'));
         this._bind('cameraTypesLink',()=>this._openCameraPage('types'));
@@ -402,6 +418,7 @@ class WazeClusterApp extends OnlineApp {
             }
         });
         this._components.cameraWarningDistance.on('changed',step=>{
+            if(step===this._written['cell:'+'cameraWarningDistance'+':0:Value'])return;
             const prefs=cameraView.alertPreferences(this._cameras.state), value=50+step*50;
             if(prefs.available&&Number.isInteger(step)&&step>=0&&step<=19&&value!==prefs.warningDistanceM)
                 this._cameraCommand({cmd:'alert-preferences',warningDistanceM:value});
@@ -440,6 +457,7 @@ class WazeClusterApp extends OnlineApp {
             });
         });
         Object.keys(OVERSPEED_SLIDERS).forEach(name=>this._components[name].on('changed',step=>{
+            if(step===this._written['cell:'+name+':0:Value'])return;
             const config=OVERSPEED_SLIDERS[name],prefs=cameraView.overspeedPreferences(this._cameras.state),key=config.key;
             if(!prefs.available||!Number.isInteger(step)||step<0||step>(config.max!==undefined?config.max:30))return;
             const value=typeof config.fromSlider==='function'?config.fromSlider(step):step;
@@ -484,6 +502,7 @@ class WazeClusterApp extends OnlineApp {
             });
         });
         Object.keys(CARD_SLIDERS).forEach(name=>this._components[name].on('changed',step=>{
+            if(step===this._written['cell:'+name+':0:Value'])return;
             const config=CARD_SLIDERS[name], state=this._cameras.state, current=state&&state.cardLayout&&state.cardLayout[this._cameraCardTarget];
             const value=config.inverse?100-step*5:config.min+step*5;
             if(Number.isInteger(step)&&step>=0&&step<=(config.max-config.min)/5&&current&&
@@ -548,7 +567,7 @@ class WazeClusterApp extends OnlineApp {
         // land in _press, which keeps a press delivered twice to one.
         rhmi.on('userEvent', (ev) => {
             const entry = ev && ev.eventType === 'ACTION' && this._actionById[Number(ev.sourceId)];
-            if (entry) {
+            if (entry && (!this._atlasSurface || entry.name.indexOf('atlasKey'+this._atlasSurface+'_')===0)) {
                 this._press(entry.name, entry.handler);
                 if(entry.name.indexOf('cameraType_')===0){
                     delete this._written['selected:'+entry.name];
@@ -559,13 +578,7 @@ class WazeClusterApp extends OnlineApp {
                 }
             }
         });
-        atlasHome.menuTargets().forEach(target => {
-            this._components[target.command].on('focus', event => {
-                if (this._shownPage !== 'trip' || !isTrue(event && (event.focus === undefined ? event.value : event.focus))) return;
-                this._atlasStage.nativeFocus(target.command);
-                this._renderAtlas();
-            });
-        });
+        this._setupAtlasControls();
         rhmi.on('applicationStackChanged', (stack) => {
             // The app holds the foreground while the stack has a ROOT_APP slot;
             // the empty stack seen during startup is ignored.
@@ -584,22 +597,26 @@ class WazeClusterApp extends OnlineApp {
             logger.info('RESTORE_HMI: re-pushing page content');
             this._written = {};
             this._qr.url = undefined;
-            this._tripImage.key = null;
-            this._tripImage.context = null;
+            this._hideAtlas();
+            this._atlasReady = {};
             this._render();
             this._renderLogs();
             this._renderCameras();
         });
         Object.keys(this._rhmiStates).forEach(page=>{
             const state=this._rhmiStates[page];
-            state.on('visible',event=>this._pageVisible(page,isTrue(event&&event.visible)));
+            state.on('visible',event=>this._atlasVisible(page,false,isTrue(event&&event.visible)));
             state.on('focus',event=>{
                 const focus=event&&(event.focus!==undefined?event.focus:event.value);
                 if(page==='position'&&(focus===false||focus===0||focus==='false'||focus==='0'))this._cancelCameraHold('PAGE_FOCUS_LOST');
             });
         });
         this._removeStaleQr();
-        return Promise.all(Object.keys(this._rhmiStates).map(page=>this._rhmiStates[page].updateResources())).then(() => {
+        try {
+            fs.readdirSync(this._atlasResources).filter(name=>/^atlas_strelka-[a-z0-9-]+_[0-9]+\.png$/.test(name))
+                .forEach(name=>fs.unlinkSync(path.join(this._atlasResources,name)));
+        } catch(error) { if(error.code!=='ENOENT')logger.warn('Atlas resources: '+error.message); }
+        return Promise.resolve().then(() => {
             logger.info(`page ready: ${names.length} components found`);
             this._render();
             this._renderLogs();
@@ -699,8 +716,7 @@ class WazeClusterApp extends OnlineApp {
         if(!PAGE_STATES[page]||this._shutdownPromise)return Promise.resolve(false);
         this._cancelCameraHold('NAVIGATION');
         if(this._cameraPending&&page!=='calibration')this._cameraPending.returnOnSaved=false;
-        return Promise.resolve(this.rhmiApplication.openState(PAGE_STATES[page]))
-            .then(()=>true,err=>{logger.warn('camera page: '+(err&&err.message));return false;});
+        return this._navigateAtlas(page, false);
     }
 
     _openDiagnostics() {
@@ -753,12 +769,24 @@ class WazeClusterApp extends OnlineApp {
         this._sawForeground = true;
         /* the tile opens the main page, whichever page the app was left on;
          * its stack change may have come first and opened the Logs page's socket */
+        this._hideAtlas();
+        this._atlasSurface = null;
+        this._atlasPanels = {};
+        this._atlasHistory = ['trip'];
+        this._atlasParents = {};
+        this._atlasRequested = 'trip';
         this._shownPage = 'trip';
         this._pages = this._emptyPages();
         this._logs.close();
         this._cancelCameraHold('ENTRY_POINT');
         this._setVisible(true);
         return Promise.resolve(this.rhmiApplication.openEntryState(uuid))
+            .then(() => {
+                // On reselecting the active tile some head units acknowledge
+                // the open without another visibility event for the same state.
+                if(this._visible && this._atlasRequested==='trip' && !this._atlasSurface)
+                    this._atlasVisible('trip',false,true);
+            })
             .catch((err) => logger.warn(`openEntryState failed: ${err && err.message}`));
     }
 
@@ -806,6 +834,7 @@ class WazeClusterApp extends OnlineApp {
     _setVisible(visible) {
         clearTimeout(this._hideTimer);this._hideTimer=null;
         if (!visible) {
+            this._atlasStage.forgetForeground();
             this._hideAtlas();
             this._pages = this._emptyPages();
             this._cancelCameraHold('APP_HIDDEN');
@@ -1417,15 +1446,133 @@ class WazeClusterApp extends OnlineApp {
         if (this._shownPage === 'trip') this._renderAtlas();
     }
 
+    _setupAtlasControls() {
+        const rhmi=this.rhmiApplication;
+        Object.keys(ATLAS_IDS).forEach(page=>{
+            const surfaces=ATLAS_EDITORS.indexOf(page)>=0?[false,true]:[false];
+            surfaces.forEach(edit=>{
+                const stem=(edit?'Edit':'')+ATLAS_IDS[page];
+                if(edit){
+                    const state=rhmi.getByName(PAGE_STATES[page]+'_AtlasEditor');
+                    this._atlasEditorStates[page]=state;
+                    state.on('visible',e=>this._atlasVisible(page,true,isTrue(e&&e.visible)));
+                }
+                const size=page==='trip'?6:9;
+                ['atlasFrame','atlasStatus'].forEach(prefix=>{
+                    const name=prefix+stem;
+                    this._components[name]=rhmi.getByName(name);
+                });
+                for(let i=0;i<size;i++){
+                    const name='atlasKey'+stem+'_'+i, component=rhmi.getByName(name);
+                    this._components[name]=component;
+                    const press=()=>{
+                        if(!this._visible || this._atlasSurface!==stem || this._atlasStage.front&&this._atlasStage.owns())return;
+                        const target=this._atlasKeys[name];
+                        if(target&&target.enabled!==false)this._atlasAction(target.command);
+                    };
+                    component.on('action',()=>this._press(name,press));
+                    this._actionById[Number(component.getId())]={name,handler:press};
+                    component.on('focus',event=>{
+                        const target=this._atlasKeys[name];
+                        if(this._atlasSurface!==stem || !target || !isTrue(event&&(event.focus===undefined?event.value:event.focus)))return;
+                        this._atlasStage.nativeFocus(target.focusKey||target.command);
+                        if(page==='position'){
+                            this._cameraFocusedArrow=Object.keys(CARD_MOVE_NAMES).find(dir=>CARD_MOVE_NAMES[dir]===target.command)||null;
+                            this._syncCameraHold();
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    _navigateAtlas(page,edit) {
+        const name=PAGE_STATES[page]+(edit?'_AtlasEditor':'');
+        const origin=this._shownPage;
+        if(!edit&&origin!==page && this._atlasHistory.indexOf(page)<0)this._atlasParents[page]=origin;
+        this._atlasRequested=page;
+        return Promise.resolve(this.rhmiApplication.openState(name)).then(()=>{
+            if(this._visible && this._atlasRequested===page && this._atlasSurface!==(edit?'Edit':'')+ATLAS_IDS[page])
+                this._atlasVisible(page,edit,true);
+            return true;
+        },error=>{
+            if(this._atlasRequested===page)this._atlasRequested=null;
+            logger.warn('Atlas navigation: '+(error&&error.message));
+            return false;
+        });
+    }
+
+    _atlasVisible(page,edit,visible) {
+        const stem=(edit?'Edit':'')+ATLAS_IDS[page];
+        if(!visible && this._atlasSurface!==stem)return;
+        if(visible){
+            const last=this._atlasHistory[this._atlasHistory.length-1];
+            const origin=this._atlasParents[last];
+            if(!edit && !this._atlasRequested && origin && page===ATLAS_PARENT[last] && page!==origin){
+                // BMW's Back selects the statically declared parent. A section
+                // also reachable from another tile returns to its actual caller.
+                this._navigateAtlas(origin,false);
+                return;
+            }
+            this._atlasRequested=null;
+            if(this._atlasSurface!==stem)this._hideAtlas();
+            this._atlasSurface=stem;
+            const previous=this._atlasHistory.lastIndexOf(page);
+            if(previous>=0)this._atlasHistory.length=previous+1;
+            else this._atlasHistory.push(page);
+            if(!edit && this._atlasPanels[page])this._atlasPanels[page].edit=null;
+            this._pages=this._emptyPages();
+        }else{
+            this._atlasSurface=null;
+        }
+        this._pageVisible(page,visible);
+    }
+
     _hideAtlas() {
         this._atlasStage.set(null, null, null);
-        this._tripImage.wantedContext = null;
-        this._tripImage.pending = null;
+        this._tripImage.key=null;
+        this._tripImage.context=null;
+        this._tripImage.wantedContext=null;
+        this._tripImage.pending=null;
+        this._tripImage.generation=(this._tripImage.generation||0)+1;
     }
 
     _atlasAction(name) {
-        // Native and GPU controls share guards, debounce, feedback and navigation.
-        if (!this._visible || !this._pages[this._shownPage]) return;
+        const page=this._shownPage,stage=this._atlasStage;
+        if (!this._visible || !this._pages[page] || stage.page!==page || !stage.view) return;
+        const item=atlasStage.targets(page,stage.view).find(t=>t.command===name&&t.enabled!==false);
+        if(!item)return;
+        const panel=this._atlasPanels[page]||{sheet:0,edit:null};
+        if(name==='atlasBack'&&!panel.edit){
+            const from=this._atlasHistory[this._atlasHistory.length-2]||ATLAS_PARENT[page];
+            if(from)this._navigateAtlas(from,false);
+            return;
+        }
+        const next=page!=='trip'&&atlasDetail.reducePanel(panel,name==='atlasBack'?'atlasEditClose':name,stage.view);
+        if(next){
+            this._atlasPanels[page]=next;
+            if(!!next.edit!==!!panel.edit && this._atlasEditorStates[page]){
+                this._navigateAtlas(page,!!next.edit).then(opened=>{
+                    if(!opened){this._atlasPanels[page]=panel;this._renderAtlas();}
+                });
+            }else this._renderAtlas();
+            return;
+        }
+        const value=/^atlas(Value|Choice):([A-Za-z0-9_]+):([0-9]+)$/.exec(name);
+        if(value){
+            const component=this._components[value[2]];
+            if(!component || panel.edit!==value[2] || this._written['enabled:'+value[2]]===false)return;
+            const step=Number(value[3]);
+            if(value[1]==='Value'){
+                const key='cell:'+value[2]+':0:Value';
+                const confirmed=this._written[key];
+                component.emit('changed',step);
+                if(Number.isInteger(confirmed) && this._written[key]===undefined)
+                    this._writeCell(value[2],'Value',confirmed,'SInt',0);
+            }else component.emit('action',{row:step});
+            this._renderAtlas();
+            return;
+        }
         let command = name, event = {};
         if (/^atlasDiagnostic:[0-9]+$/.test(name)) {
             if (this._shownPage !== 'diagnostics') return;
@@ -1448,12 +1595,13 @@ class WazeClusterApp extends OnlineApp {
     _renderAtlas() {
         const page = this._shownPage, home = page === 'trip';
         if (!this._visible || !this._pages[page] || this._shuttingDown || !this._rhmiStates[page]) return;
-        const name = home ? 'tripGraphic' : atlasDetail.names[page];
-        if (!name) { this._hideAtlas(); return; }
+        const stem=this._atlasSurface;
+        if(!stem)return;
+        const name='atlasFrame'+stem;
         if (!this._components[name]) return;
         const state = this._cameras.link === 'up' ? this._cameras.state : null;
         const view = home ? atlasHome.model(state, this._packageJson.version) : atlasDetail.model(page, {
-            state, version:this._packageJson.version, written:this._written, serviceReady:!!state,
+            state, version:this._packageJson.version, written:this._written, serviceReady:!!state, atlasPanel:this._atlasPanels[page],
             region:page === 'regions' ? this._regionView() : null, snapshot:this._diagnosticSnapshot,
             target:this._cameraCardTarget, diagnosticState:page === 'diagnostics' ? this._cameraDiagnosticState() : null
         });
@@ -1462,69 +1610,118 @@ class WazeClusterApp extends OnlineApp {
         this._atlasStage.set(page, view, signature);
         const focus = this._atlasStage.focus[page] || (home ? 'tripCamera' : '');
         const images = this._tripImage;
+        const interactive=this._atlasStage.owns()&&this._atlasStage.front;
+        const items=atlasStage.targets(page,view);
+        const count=home?6:9;
+        for(let i=0;i<count;i++){
+            const slot='atlasKey'+stem+'_'+i, target=items[i];
+            this._atlasKeys[slot]=target;
+            if(target){
+                let value=target.value;
+                if(target.kind==='toggle' && typeof target.selected==='boolean')value=target.selected?'Вкл.':'Выкл.';
+                if(target.kind==='choice' && target.selected)value='Выбрано';
+                this._writeCell(slot,'Text1stCol',target.label,'Text',0);
+                this._writeCell(slot,'Text2ndCol',value && value!==target.label?String(value):'','Text',0);
+                this._setEnabled(slot,target.enabled!==false);
+            }
+            this._setVisibleComp(slot,!!target && !interactive);
+        }
+        const status='atlasStatus'+stem;
+        this._write(status,home?(this._written.tripStatus||'Атлас · Поездка'):[view.title,view.lead].filter(Boolean).join(' · '));
         // Clear obsolete warnings before an upload. Telemetry updates for the
         // same active camera can retain the preceding frame until its replacement.
         const context = home ? [page, view.phase, view.cameraId, view.limit, view.limitScope, view.side].join(':')
             : page === 'cameraDetail' ? page + signature : page;
-        images.wantedContext = context;
-        images.pending = {page, name, view, focus, context, key:page + ':' + focus + ':' + signature};
-        this._setVisibleComp(name, images.context === context);
-        if (home) this._atlasTextFallback(images.context !== context);
+        const surfaceContext=stem+':'+context;
+        images.wantedContext = surfaceContext;
+        this._setVisibleComp(name,!interactive && images.context===surfaceContext);
+        this._setVisibleComp(status,!interactive && images.context!==surfaceContext);
+        if(interactive){images.pending=null;return;}
+        images.pending = {page,name,view,focus,stem,status,context:surfaceContext,generation:images.generation,
+            key:stem+':'+signature};
         this._renderTripImage();
-    }
-
-    _atlasTextFallback(visible) {
-        ['tripStatus','tripReading','tripOutputs'].forEach(name => this._setVisibleComp(name, visible));
     }
 
     _renderTripImage() {
         const images = this._tripImage, rhmi = this.rhmiApplication, pending = images.pending;
         if (images.rendering || !pending || this._shuttingDown || !this._visible ||
-            this._shownPage !== pending.page || typeof rhmi.getResourceBundle !== 'function') return;
+            this._shownPage !== pending.page) return;
+        if(typeof rhmi.getResourceBundle !== 'function'){
+            images.pending=null;
+            this._prepareAtlasRows(pending).catch(error=>logger.warn('Atlas rows: '+error.message));
+            return;
+        }
         images.pending = null;
         if (images.key === pending.key) return;
         let bundle, file;
         images.rendering = Promise.resolve()
             .then(() => {
-                try { fs.mkdirSync(QR_DIR, 0o755); } catch (err) { if (err.code !== 'EEXIST') throw err; }
+                try { fs.mkdirSync(this._atlasResources, 0o755); } catch (err) { if (err.code !== 'EEXIST') throw err; }
                 if (this._shuttingDown) return;
-                file = path.join(QR_DIR, 'atlas_' + this._cameraClientId + '_' + (++images.sequence) + '.png');
+                file = path.join(this._atlasResources, 'atlas_' + this._cameraClientId + '_' + (++images.sequence) + '.png');
                 images.uploadingFile = file;
-                const png = atlasStage.drawPng(canvas => atlasStage.scene(canvas, pending.page, pending.view, pending.focus, false));
+                const png = atlasStage.drawPng(canvas => atlasStage.scene(canvas, pending.page, pending.view, pending.focus, false), atlasStage.summaryHeight);
                 fs.writeFileSync(file, png, { mode: 0o644, flag: 'wx' });
                 fs.chmodSync(file, 0o644);
                 bundle = rhmi.getResourceBundle();
                 return bundle.createResourceHandles([file]);
             })
             .then(() => {
-                if (this._shuttingDown || images.wantedContext !== pending.context) return false;
-                return Promise.resolve(this._components[pending.name].setValue(0, 'Graphic', file, 'ResourceId'))
-                    .then(() => rhmi.flush()).then(() => true);
+                if (this._shuttingDown || images.wantedContext !== pending.context || images.generation!==pending.generation) return false;
+                const handle=bundle.getResourceHandle(file);
+                if(!handle)throw new Error('Missing RHMI graphic handle');
+                return Promise.resolve(this._components[pending.name].setValue(0,'Graphic',handle,'Asset'))
+                    .then(()=>this._prepareAtlasRows(pending)).then(()=>rhmi.flush()).then(()=>true);
             })
             .then(written => {
-                if (!written) return file ? this._retireQr(bundle, file) : undefined;
+                if (!written || images.generation!==pending.generation || images.wantedContext!==pending.context)
+                    return file ? this._retireQr(bundle,file) : undefined;
                 const old = images.file;
                 images.file = file;
                 images.key = pending.key;
                 images.context = pending.context;
                 if (!this._shuttingDown && this._visible && this._shownPage === pending.page) {
-                    const current = images.wantedContext === pending.context;
-                    this._setVisibleComp(pending.name, current);
-                    if (pending.page === 'trip') this._atlasTextFallback(!current);
+                    const current = images.wantedContext === pending.context && images.generation===pending.generation;
+                    const native=!(this._atlasStage.front&&this._atlasStage.owns());
+                    this._setVisibleComp(pending.name, native&&current);
+                    this._setVisibleComp(pending.status, native&&!current);
                 }
-                return old ? this._retireQr(bundle, old) : undefined;
+                const retired=images.previous;
+                images.previous=old;
+                return retired ? this._retireQr(bundle,retired) : undefined;
             })
             .catch(err => {
-                if (!this._shuttingDown) logger.warn('Atlas graphic: ' + err.message);
-                if (!file) return;
-                if (bundle) return this._retireQr(bundle, file);
-                try { fs.unlinkSync(file); } catch (e) { /* no partial image */ }
+                let rows=Promise.resolve();
+                if (!this._shuttingDown && images.wantedContext===pending.context && images.generation===pending.generation) {
+                    logger.warn('Atlas graphic: ' + err.message);
+                    // The packaged entry icon is already in this app's resource
+                    // bundle. Give the hidden Graphic a valid model before
+                    // publishing the text and buttons when a live PNG fails.
+                    rows=rows.then(()=>this._components[pending.name].setValue(0,'Graphic','kaluga_camera.png','ResourceId'))
+                        .then(()=>this._prepareAtlasRows(pending)).catch(e=>logger.warn('Atlas rows: '+e.message));
+                }
+                return rows.then(()=>{
+                    if (!file) return;
+                    if (bundle) return this._retireQr(bundle,file);
+                    try { fs.unlinkSync(file); } catch (e) { /* no partial image */ }
+                });
             })
             .then(() => {
                 images.uploadingFile = null;
                 images.rendering = null;
                 this._renderTripImage();
             });
+    }
+
+    _prepareAtlasRows(frame) {
+        if(this._atlasReady[frame.stem])return this._atlasReady[frame.stem];
+        const state=frame.stem.indexOf('Edit')===0?this._atlasEditorStates[frame.page]:this._rhmiStates[frame.page];
+        const pending=Promise.resolve().then(()=>state.updateResources()).catch(error=>{
+            delete this._atlasReady[frame.stem];
+            throw error;
+        });
+        this._atlasReady[frame.stem]=pending;
+        return pending;
     }
 
     _renderDiagnostics() {
@@ -1650,7 +1847,7 @@ class WazeClusterApp extends OnlineApp {
                 /* gone already */
             }
         }
-        [this._tripImage.file, this._tripImage.uploadingFile].filter(Boolean).forEach(filename => {
+        [this._tripImage.file, this._tripImage.previous, this._tripImage.uploadingFile].filter(Boolean).forEach(filename => {
             try { fs.unlinkSync(filename); } catch (e) { /* already retired */ }
         });
         this._shutdownPromise = Promise.resolve()

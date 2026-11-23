@@ -29,37 +29,54 @@ class Display extends EventEmitter {
     close() { this.ready = false; }
 }
 
-async function run() {
-    const h = create(), app = h.app;
-    app._atlasStage.driver = Display;
+const HOME='ST_OnlineApps_StrelkaTrip';
+const tick=()=>new Promise(resolve=>setImmediate(resolve));
+function slot(h,command) {
+    const app=h.app, prefix='atlasKey'+app._atlasSurface+'_';
+    const key=Object.keys(app._atlasKeys).find(name=>name.startsWith(prefix)&&app._atlasKeys[name]&&app._atlasKeys[name].command===command);
+    assert(key,'missing '+command+' on '+app._shownPage);
+    return h.byName[key];
+}
+function press(h,command) {
+    const component=slot(h,command);
+    assert(component.visible && component.enabled,command+' should accept input');
+    delete h.app._lastPress[component.desc.name];
+    delete h.app._lastPress[command];
+    component.press();
+    return component;
+}
+async function graphics() {
+    const h=create(), app=h.app;
+    app._atlasStage.driver=Display;
     try {
         await app._setupRhmi();
-        await h.enter('ST_OnlineApps_StrelkaTrip');
+        await h.enter(HOME);
         const stage=app._atlasStage, display=stage.gpu, menu=atlas.menuTargets();
         assert.deepStrictEqual(display.rect,{x:124,y:82,w:width,h:height,scale:1,ox:0,oy:0});
-        assert.strictEqual(display.rects.length,6);
+        assert.deepStrictEqual(display.rects,[{x:0,y:0,w:width,h:height}]);
         assert(!display.grabbing);
         display.tap(menu[1]);
-        assert.strictEqual(h.current(),'ST_OnlineApps_StrelkaTrip','background touch discarded');
+        assert.strictEqual(h.current(),HOME,'background touch discarded');
         display.front(true);
+        assert.strictEqual(slot(h,'tripCamera').visible,false);
+        slot(h,'tripCamera').press();
+        assert.strictEqual(h.current(),HOME,'native duplicate events behind overlay are ignored');
         display.knob(65535,0);
         display.knob(0,0);
         assert.strictEqual(stage.focus.trip,'tripMaps','16-bit rotation wraps');
         display.knob(0,1);
         assert.strictEqual(h.current(),'ST_OnlineApps_WazeCluster');
-        display.front(true);
-        const reveal = targets('main',stage.view).filter(t=>t.command==='atlasNative')[0];
-        display.tap(reveal);
-        assert.strictEqual(stage.nativePage,'main');
-        assert.strictEqual(display.visible,false);
-        assert.strictEqual(display.grabbing,false);
-        assert.deepStrictEqual(display.rects,[]);
-        await h.back();
-        assert.strictEqual(stage.page,'trip');
+        assert(display.grabbing && stage.front,'page switching retains the last compositor confirmation');
+        assert(targets('main',stage.view).every(item=>item.command!=='atlasNative'));
+        display.tap({x:0,y:0});
+        assert.strictEqual(h.current(),'ST_OnlineApps_WazeCluster','blank space consumes the touch');
+        const back=targets('main',stage.view).find(item=>item.command==='atlasBack');
+        display.tap(back);
+        assert.strictEqual(h.current(),HOME);
         display.front(true);
         display.emit('touch',1,menu[0].x+9,menu[0].y+9);
         display.emit('touch',3,menu[4].x+9,menu[4].y+9);
-        assert.strictEqual(h.current(),'ST_OnlineApps_StrelkaTrip','cross-row drag cancels');
+        assert.strictEqual(h.current(),HOME,'cross-row drag cancels');
         display.tap(menu[0]);
         assert.strictEqual(h.current(),'ST_OnlineApps_StrelkaCamera');
         await h.back();
@@ -71,39 +88,81 @@ async function run() {
         assert.strictEqual(display.frames,before+1,'congested updates coalesce');
         display.front(false);
         display.knob(0,0);display.knob(2,1);
-        assert.strictEqual(h.current(),'ST_OnlineApps_StrelkaTrip');
+        assert.strictEqual(h.current(),HOME);
+        assert(slot(h,'tripCamera').visible);
+        press(h,'tripCamera');
+        assert.strictEqual(h.current(),'ST_OnlineApps_StrelkaCamera');
         app._setVisible(false);
         assert.strictEqual(display.visible,false);
         assert.strictEqual(stage.page,null);
-        await h.enter('ST_OnlineApps_StrelkaTrip');
-        display.front(true);
-        h.byName.atlasMenuOpen.press();
-        assert.strictEqual(h.current(),'ST_OnlineApps_AtlasMenu');
-        assert.strictEqual(display.visible,false,'native sections sheet owns input');
-        const page=h.ui.containers['17'];
-        assert.strictEqual(Object.values(page.components).filter(c=>c.type==='button').length,6);
-        assert(h.byName.atlasMenuMaps.press());
-        assert.strictEqual(h.current(),'ST_OnlineApps_WazeCluster');
-        await h.back();
-        await h.enter('ST_OnlineApps_AtlasMenu');
-        assert(h.byName.atlasMenuCamera.press());
-        assert.strictEqual(h.current(),'ST_OnlineApps_StrelkaCamera');
-        await h.back();
-        const state={enabled:true,atlasMap:{origin:{lat:54,lon:36},camera:{lat:54.001,lon:36.001},
-            roads:[{points:[[54,36],[54.001,36.001]],current:true},{points:[[54,36],['bad',36]]}]}};
-        const view=atlas.model(state);
-        assert.strictEqual(view.roads.length,1);
-        assert.strictEqual(view.side,'unknown');
-        assert.strictEqual(atlas.model({enabled:true}).roads.length,0);
-        assert.strictEqual(atlas.model({enabled:true,atlasMap:{origin:{lat:190,lon:36}}}).origin,null);
+        await h.enter(HOME);
         display.screen.w=1440;
-        assert.strictEqual(stage.owns(),false,'unmeasured surface uses the RHMI resource');
-        display.screen.w=1920; display.info.controller=false;
-        assert.strictEqual(stage.owns(),false,'native input remains accessible without controller support');
-        console.log('PASS Atlas native entry, geographic evidence, touch, wrapped rotary, overlay, fallback sections, back and frame coalescing');
-    } finally {
-        app._atlasStage.close();
-        h.close();
-    }
+        assert.strictEqual(stage.owns(),false,'unmeasured surface uses native controls');
+        display.screen.w=1920;display.info.controller=false;
+        assert.strictEqual(stage.owns(),false);
+    } finally {app._atlasStage.close();h.close();}
+}
+async function native(order) {
+    const h=create(),app=h.app;
+    app._atlasStage.driver={available:()=>false};
+    try {
+        await app._setupRhmi();
+        await h.enter(HOME,order);
+        for(const id of Object.keys(h.ui.containers).filter(id=>Number(id)>=100)){
+            const state=h.ui.containers[id];
+            const components=Object.values(state.components);
+            assert(components.length && components.every(c=>/^atlas(Title|Status|Frame|Key)/.test(c.name)),state.name);
+            assert.strictEqual(components.filter(c=>/^atlasFrame/.test(c.name)).length,1,state.name);
+        }
+        const currentFrame=app._atlasSurface;
+        h.rhmi.openEntryState=()=>Promise.resolve(); // active tile: no repeated HMI visible signal
+        await app._onEntryPointExecute('native-tile');
+        assert.strictEqual(app._atlasSurface,currentFrame);
+        assert.strictEqual(h.byName.atlasStatus13.visible,true,'status is visible before a PNG arrives');
+        const cam=press(h,'tripCamera');
+        h.rhmi.emit('userEvent',{eventType:'ACTION',sourceId:cam.id});
+        assert.strictEqual(h.current(),'ST_OnlineApps_StrelkaCamera');
+        press(h,'tripCameraDiagnostics');
+        assert.strictEqual(app._shownPage,'diagnostics');
+        await h.back();
+        assert.strictEqual(h.current(),'ST_OnlineApps_StrelkaCamera','hardware Back retains the actual caller');
+        await h.back();
+        assert.strictEqual(h.current(),HOME);
+        const state={enabled:true,capabilities:{alertPreferences:true,overspeedPreferences:true},
+            overspeedPreferences:Object.assign({},require('../src/view_model').OVERSPEED_RECOMMENDED,{soundDistanceM:400})};
+        h.setState(state);
+        await app._openCameraPage('overspeed');
+        press(h,'atlasEdit:cameraSoundDistance');
+        assert(h.current().endsWith('_AtlasEditor'));
+        assert.strictEqual(app._atlasStage.view.edit.value,'400 м');
+        const button=press(h,'atlasValue:cameraSoundDistance:0');
+        h.rhmi.emit('userEvent',{eventType:'ACTION',sourceId:button.id});
+        assert.strictEqual(h.commands.filter(command=>command.cmd==='overspeed-preferences').length,1);
+        assert.strictEqual(h.commands[h.commands.length-1].soundDistanceM,100);
+        h.reset();
+        h.setState(Object.assign({},state,{overspeedPreferences:Object.assign({},state.overspeedPreferences,{soundDistanceM:100})}));
+        await tick();
+        const last=press(h,'atlasValue:cameraSoundDistance:12');
+        assert(last.visible);
+        assert.strictEqual(h.commands[h.commands.length-1].soundDistanceM,700);
+        await h.back();
+        assert.strictEqual(app._atlasStage.view.edit,null);
+        assert.strictEqual(h.current(),'ST_OnlineApps_CameraOverspeed');
+        assert(slot(h,'atlasEdit:cameraSoundDistance').visible);
+        await h.back();
+        assert.strictEqual(h.current(),HOME);
+    } finally {app._atlasStage.close();h.close();}
+}
+async function run() {
+    await graphics();
+    await native('hide-first');
+    await native('show-first');
+    const view=atlas.model({enabled:true,atlasMap:{origin:{lat:54,lon:36},camera:{lat:54.001,lon:36.001},
+        roads:[{points:[[54,36],[54.001,36.001]],current:true},{points:[[54,36],['bad',36]]}]}});
+    assert.strictEqual(view.roads.length,1);
+    assert.strictEqual(view.side,'unknown');
+    assert.strictEqual(atlas.model({enabled:true}).roads.length,0);
+    assert.strictEqual(atlas.model({enabled:true,atlasMap:{origin:{lat:190,lon:36}}}).origin,null);
+    console.log('PASS Atlas standard entry, native/RHMI graphics, rotary and touch isolation, caller/editor Back and 100–700 m settings');
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

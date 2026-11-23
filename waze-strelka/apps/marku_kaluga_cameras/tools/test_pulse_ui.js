@@ -94,15 +94,11 @@ function verifyRegionNames() {
 }
 async function openFromHome(name, expected) {
     if (h.current() !== HOME) await h.enter(HOME);
-    if (!Object.values(h.ui.containers['13'].components).some(item=>item.name===name)) {
-        delete app._lastPress.atlasMenuOpen;
-        assert(c.atlasMenuOpen.press());
-        await settle();
-        assert.strictEqual(h.current(),'ST_OnlineApps_AtlasMenu');
-        assert(Object.values(h.ui.containers['17'].components).some(item=>item.name===name));
-    }
+    const slot=Object.keys(app._atlasKeys).find(key=>key.indexOf('atlasKey13_')===0 && app._atlasKeys[key] && app._atlasKeys[key].command===name);
+    assert(slot,name+' is a visible home action');
+    delete app._lastPress[slot];
     delete app._lastPress[name];
-    assert(c[name].press(), name);
+    assert(c[slot].press(),slot);
     await settle();
     assert.strictEqual(h.current(), expected);
 }
@@ -126,12 +122,16 @@ async function main() {
     assert.strictEqual(h.current(), HOME);
     assert(c.tripStatus.text().includes('Ожидание'));
     const liveHandles = new Set();
+    app._atlasResources=fs.mkdtempSync(require('path').join(require('os').tmpdir(),'strelka-atlas-test-'));
+    let rejectFirst=true;
     const bundle = {
+        getResourceHandle(file) {return liveHandles.has(file)?{asset:file}:null;},
         createResourceHandles(files) {
+            if(rejectFirst){rejectFirst=false;return Promise.reject(new Error('first upload rejected'));}
             for (const file of files) {
                 const png=fs.readFileSync(file);
                 assert.strictEqual(png.readUInt32BE(16),1600);
-                assert.strictEqual(png.readUInt32BE(20),520);
+                assert.strictEqual(png.readUInt32BE(20),240);
                 liveHandles.add(file);
             }
             return Promise.resolve();
@@ -142,27 +142,32 @@ async function main() {
     rhmi.flush = () => Promise.resolve();
     h.setState(state);
     await app._tripImage.rendering;
+    assert.strictEqual(liveHandles.size,0);
+    assert.strictEqual(c.atlasStatus13.visible,true,'the first failed graphic does not hide the active status or buttons');
+    assert.strictEqual(c.atlasKey13_0.visible,true);
+    app._renderAtlas();
+    await app._tripImage.rendering;
     assert.strictEqual(liveHandles.size,1);
     assert.strictEqual(c.tripReading.text(), 'Дистанция 49 м • Лимит 40 км/ч • Скорость 29 км/ч');
     assert.strictEqual(c.tripOutputs.text(), 'HUD показ • Приборы выкл. • Калужская область');
-    assert.strictEqual(c.tripGraphic.cells['0:Graphic'],[...liveHandles][0]);
-    assert(c.tripGraphic.visible);
+    assert.deepStrictEqual(c.atlasFrame13.cells['0:Graphic'],{asset:[...liveHandles][0]});
+    assert(c.atlasFrame13.visible);
     h.setState(mapState);
-    assert(!c.tripGraphic.visible,'changing the provenance alone hides the old verified sign during upload');
+    assert(!c.atlasFrame13.visible,'changing the provenance alone hides the old verified sign during upload');
     assert(c.tripReading.text().includes('Лимит 40 км/ч (по карте)'));
     await app._tripImage.rendering;
-    assert(c.tripGraphic.visible);
+    assert(c.atlasFrame13.visible);
     const stopped=Object.assign({}, state,{vehicleMotion:{code:'READY',speedKmh:0},gpsMotion:{state:'stopped',speedKmh:0}});
     h.setState(stopped);
     await app._tripImage.rendering;
-    assert.strictEqual(liveHandles.size,1,'swap retires old graphic');
+    assert.strictEqual(liveHandles.size,2,'two live handles cover asynchronous HMI texture loading');
     assert(c.tripStatus.text().includes('Остановка'));
     assert(c.tripReading.text().includes('Дистанция 49 м • Лимит 40'));
     const held=Object.assign({}, stopped,{alert:Object.assign({},state.alert,{gpsHeld:true})});
     h.setState(held);
-    assert(!c.tripGraphic.visible,'hide the obsolete graphic while the held state is uploading');
+    assert(!c.atlasFrame13.visible,'hide the obsolete graphic while the held state is uploading');
     await app._tripImage.rendering;
-    assert(c.tripGraphic.visible,'show the new graphic after the held state is uploaded');
+    assert(c.atlasFrame13.visible,'show the new graphic after the held state is uploaded');
     assert(c.tripStatus.text().includes('GPS временно недоступен'));
     assert(c.tripReading.text().includes('Дистанция — • Лимит 40'));
     assert(!c.tripReading.text().includes('49'));
@@ -233,6 +238,7 @@ async function main() {
     if (app._tripImage.file) {
         await app._retireQr(bundle,app._tripImage.file);
         app._tripImage.file=null;
+        if(app._tripImage.previous)await app._retireQr(bundle,app._tripImage.previous);
     }
     console.log('PASS Pulse native entry, readings and provenance, graphic swap, routes, photo, regional names and motion guard');
 }
