@@ -5,6 +5,7 @@ const trip = require('./trip_view.js');
 const camera = require('./view_model.js');
 const diagnostics = require('./diagnostics_view.js');
 const controls = require('./atlas-controls.js');
+const composition = require('./atlas-card-composition.js');
 const qr = require('./qrcodegen.js');
 
 // One non-focusable graphic per actual RHMI state. Existing controls retain their
@@ -39,6 +40,33 @@ function statusLine(written, name) { return safe(written[name]); }
 function splitRow(value) {
     const s=safe(value), pos=s.indexOf(' • ');
     return pos>0 ? [s.slice(0,pos),s.slice(pos+3)] : ['',s];
+}
+function outputText(value) {
+    return value===true?'Вывод включён':value===false?'Вывод выключен':'Состояние выхода неизвестно';
+}
+function calibrationModel(context,target) {
+    const state=context.state, live=state||{}, profile=(live.cardLayout||{})[target]||null;
+    const output=(live.outputs||{})[target==='hud'?'hud':'cluster'];
+    const testActive=!!(live.displayTest && live.displayTest.active && live.displayTest.target===target);
+    const layout=diagnostics.action(state,'cardLayout'), save=diagnostics.action(state,'displayTestStop');
+    let test=testActive ? save : (context.testGuard || diagnostics.action(state,'displayTest'));
+    if(!testActive && test.allowed && output!==true) {
+        test={allowed:false,reason:(target==='hud'?'Проекция HUD':'Приборная панель')+' выключена. Откройте «Вывод и состав» и включите этот выход.'};
+    }
+    const storage=live.storage||{}, written=context.written||{};
+    const storageText=(!state?'Сервис недоступен':written.cameraCardStorage) || (!profile?'Сервис не сообщил профиль экрана':
+        !layout.allowed?layout.reason:storage.persistent===false?'Изменения временные • хранилище недоступно':
+        storage.settingsSaved===true&&storage.persistent===true?'Изменения сохранены в автомобиле':
+        'Сохранение ожидает подтверждения сервиса');
+    const options=composition.rows(target,state);
+    const compositionGuard=diagnostics.action(state,'cardLayout');
+    const compositionAvailable=!!(live.capabilities && live.capabilities.cardComposition===true && live.cardComposition && live.cardComposition[target]);
+    return {target,profile,output,canOutput:!!(live.capabilities&&live.capabilities.outputs),layout,save,test,testActive,storageText,
+        positionHint:written.cameraPositionHint,
+        compositionReason:!compositionAvailable?'Обновите сервис для настройки состава уведомления':!compositionGuard.allowed?compositionGuard.reason:'',
+        composition:options.map(option=>({command:'atlasComposition:'+option.key,kind:'toggle',key:option.key,
+            label:option.label,description:option.description,selected:compositionAvailable?option.enabled:null,
+            enabled:compositionAvailable&&compositionGuard.allowed}))};
 }
 function model(page, input) {
     if(!Object.prototype.hasOwnProperty.call(catalog,page))return null;
@@ -97,6 +125,11 @@ function model(page, input) {
         set('Предупреждения',state?on(live.enabled):'Сервис недоступен',[
             ['Проекция HUD',on(outputs.hud)],['Приборы',on(outputs.cluster)],['Дальность',unit(prefs.warningDistanceM,'м')],
             ['Типы камер',prefs.enabledCount==null?dash:prefs.enabledCount+' из '+camera.ALERT_TYPES.length],['Звук',on(over.soundEnabled)]]);
+        const result=live.commandResult||{};
+        if(result.command==='display-test-stop' && result.phase==='finished'){
+            const stored=live.storage||{};
+            v.rows.push(['Сохранение профиля',stored.settingsSaved===true&&stored.persistent===true?'Сохранён в автомобиле':'Сохранение не подтверждено']);
+        }
     }else if(page==='alerts'){
         set(unit(prefs.warningDistanceM,'м'),'Дальность предупреждения',[
             ['Предупреждения',state?on(live.enabled):dash],['Диапазон','50–1000 м · шаг 50 м'],
@@ -113,11 +146,15 @@ function model(page, input) {
             ['Дистанция',unit(over.soundDistanceM,'м')],['Повтор',over.soundRepeatSec===0?'Однократно':unit(over.soundRepeatSec,'с')],
             ['Канал',over.audioReason]]);
     }else if(page==='calibration'||page==='position'){
-        const profile=(live.cardLayout||{})[target]||{},test=live.displayTest||{};
-        v.preview={x:profile.x,y:profile.y,size:profile.scalePct};
-        set(display,test.active&&test.target===target?'Тест активен':'Предпросмотр профиля',[
-            ['По горизонтали',unit(Number.isFinite(profile.x)?profile.x/10:null,'%')],['По вертикали',unit(Number.isFinite(profile.y)?profile.y/10:null,'%')],
-            ['Размер',unit(profile.scalePct,'%')],['Яркость',unit(profile.brightnessPct,'%')],['Непрозрачность',unit(profile.opacityPct,'%')]]);
+        const c=calibrationModel(context,target), profile=c.profile||{};
+        v.title=(page==='position'?'Положение':'Калибровка')+(target==='hud'?' HUD':' на приборах');
+        v.calibration=c;
+        const renderer=(live.rendererDetails||{})[target]||{};
+        v.preview={x:profile.x,y:profile.y,size:profile.scalePct,brightness:profile.brightnessPct,opacity:profile.opacityPct,
+            canvas:renderer.layout&&renderer.layout.canvas};
+        set(display,c.testActive?'Тест включён':outputText(c.output),[
+            ['X · Горизонталь',unit(Number.isFinite(profile.x)?profile.x/10:null,'%')],['Y · Вертикаль',unit(Number.isFinite(profile.y)?profile.y/10:null,'%')],
+            ['Размер',unit(profile.scalePct,'%')],['Яркость',unit(profile.brightnessPct,'%')],['Прозрачность',unit(Number.isFinite(profile.opacityPct)?100-profile.opacityPct:null,'%')]]);
     }else if(page==='main'){
         set('Навигация телефона','Apple CarPlay / Android Auto',[
             ['CarPlay',w('wocStatus')],['Android Auto',w('wocAaStatus')],['На приборной панели',w('wocMap')],
@@ -143,8 +180,12 @@ function model(page, input) {
         const parts=[written[commandName],written[commandName+'More']].filter(t=>typeof t==='string'&&t.trim());
         v.feedback=parts.join(' · ');
     }
+    if(page==='position' && v.calibration){
+        if(!v.calibration.test.allowed)v.feedback=v.calibration.test.reason;
+        else if(v.calibration.positionHint)v.feedback=v.calibration.positionHint;
+    }
     if(page==='calibration'){
-        v.feedback=w('cameraCardStatus');
+        v.feedback=state?written.cameraCardStatus||'':'';
         const names=['cameraCommand','cameraCommandMore'];
         for(let i=3;i<=32;i++)names.push('cameraCardResultLine'+i);
         v.resultLines=names.map(name=>written[name]).filter(line=>typeof line==='string'&&line.trim());
@@ -200,11 +241,52 @@ function buttonIcon(b) {
     if(/Profile|Settings|Overspeed/.test(b.command))return 'settings';
     return 'open';
 }
-function tile(cv,b,focus) {
+function paragraph(cv,value,x,y,size,width,lineHeight,color,maxLines) {
+    if (!value) return y;
+    const tokens=String(value).trim().split(/\s+/), lines=[];
+    let line='';
+    tokens.forEach(word=>{
+        const next=line?line+' '+word:word;
+        const length=typeof cv.textWidth==='function'?cv.textWidth(next,size,{literal:true,font:'label'}):next.length*size*.55;
+        if(line && length>width && lines.length<maxLines-1){lines.push(line);line=word;}else line=next;
+    });
+    if(line)lines.push(line);
+    lines.forEach((text,i)=>words(cv,text,x,y+i*lineHeight,size,width,color));
+    return y+lines.length*lineHeight;
+}
+function shownStep(button,preview) {
+    return preview && preview.source===button.source && Number.isInteger(preview.step) ?
+        Math.max(0,Math.min(button.max,preview.step)) : button.step;
+}
+function drawSlider(cv,b,active,preview) {
+    const fill=active?P.focus:b.enabled?P.tile:P.soft, fg=active?P.ink:b.enabled?P.text:P.off;
+    const rail=active?'#7fa67d':P.line, current=active?P.ink:b.enabled?P.focus:P.off, t=b.track;
+    const step=shownStep(b,preview), valid=Number.isInteger(step), wide=b.w>=800;
+    const value=preview&&preview.source===b.source?controls.formatStep(b.source,step):b.value;
+    cv.roundRect(b.x,b.y,b.w,b.h,9,fill);
+    const baseline=wide?b.y+35:b.y+27;
+    words(cv,b.label,b.x+18,baseline,wide?26:23,wide?246:b.w-118,fg,true);
+    words(cv,value,b.x+b.w-16,baseline,wide?26:23,100,fg,true,'right');
+    const cy=t.y+t.h/2;
+    cv.roundRect(t.x,cy-4,t.w,8,4,rail);
+    if(valid) {
+        const travel=Math.round(t.w*step/b.max);
+        if(travel>0)cv.roundRect(t.x,cy-4,travel,8,Math.min(4,travel/2),current);
+        cv.circle(t.x+travel,cy,10,current);
+        cv.circle(t.x+travel,cy,4,fill);
+    }
+}
+function tile(cv,b,focus,preview) {
     const active=b.enabled!==false && (focus===b.command||focus===b.focusKey&&b.focusKey);
     const bg=active?P.focus:b.enabled===false?P.soft:P.tile;
     const fg=active?P.ink:b.enabled===false?P.off:P.text, dim=active?P.ink:b.enabled===false?P.off:P.dim;
+    if(b.kind==='slider'){drawSlider(cv,b,active,preview);return;}
     cv.roundRect(b.x,b.y,b.w,b.h,10,bg);
+    if(b.kind==='bar'){
+        symbol(cv,b.command==='cameraCardSave'?'check':'display',b.x+29,b.y+b.h/2,fg,25);
+        words(cv,b.label,b.x+55,b.y+37,27,b.w-70,fg,true);
+        return;
+    }
     if(b.kind==='nav'){
         symbol(cv,b.command==='atlasBack'||b.command.indexOf('atlasSheet:')===0&&b.x<1000?'back':buttonIcon(b),b.x+28,b.y+b.h/2,dim,25);
         words(cv,b.label,b.x+55,b.y+b.h/2+9,24,b.w-66,fg,true);
@@ -240,12 +322,79 @@ function capture(cv,x,y,side) {
     if(side==='rear'||side==='both')ray(true);
     if(side==='unknown')words(cv,'?',x+54,y+34,32,40,P.dim,true);
 }
-function miniPreview(cv,v,x,y,w,h){
-    cv.roundRect(x,y,w,h,8,P.line);cv.roundRect(x+3,y+3,w-6,h-6,5,P.bg);
-    if(!v||![v.x,v.y,v.size].every(Number.isFinite))return;
-    const sw=(w*.28)*v.size/100,sh=Math.min(h-8,sw*.3);
-    const at=(val,max)=>4+Math.max(0,Math.min(1,val/1000))*max;
-    cv.roundRect(x+at(v.x,w-sw-8),y+at(v.y,h-sh-8),sw,sh,3,P.focus);
+function calibrationPreview(v) {
+    const p=Object.assign({},v.preview), drag=v.sliderPreview;
+    if(drag && Number.isInteger(drag.step)) {
+        const spec=controls.sliders[drag.source], keys={cameraCardX:'x',cameraCardY:'y',cameraCardScale:'size',cameraCardBrightness:'brightness',cameraCardTransparency:'opacity'};
+        const key=keys[drag.source];
+        if(spec && key && drag.step>=0 && drag.step<=spec[0]) {
+            const value=spec[1]+drag.step*spec[2];
+            p[key]=key==='x'||key==='y'?value*10:key==='opacity'?100-value:value;
+        }
+    }
+    return p;
+}
+function profileDrawing(cv,profile,x,y,w,h) {
+    cv.roundRect(x,y,w,h,9,P.line);cv.roundRect(x+2,y+2,w-4,h-4,8,P.bg);
+    if(![profile.x,profile.y,profile.size,profile.brightness,profile.opacity].every(Number.isFinite)){
+        words(cv,'Профиль экрана недоступен',x+w/2,y+h*.58,23,w-28,P.dim,false,'center');return;
+    }
+    const canvas=profile.canvas, known=canvas&&Number.isFinite(canvas.width)&&canvas.width>0&&Number.isFinite(canvas.height)&&canvas.height>0;
+    const width=known?canvas.width:1000,height=known?canvas.height:260;
+    const margin=Math.max(8,Math.min(20,Math.round(Math.min(width,height)*.035)));
+    const factor=Math.min(profile.size/100,(width-2*margin)/320,(height-2*margin)/96);
+    if(factor<.75){words(cv,'Выход меньше минимального размера',x+w/2,y+h*.58,22,w-24,P.dim,false,'center');return;}
+    const sx=Number.isFinite(cv.scaleX)&&cv.scaleX>0?cv.scaleX:1;
+    const px=Math.min((w-12)*sx/width,(h-12)/height), dw=width*px/sx,dh=height*px;
+    const left=x+(w-dw)/2, top=y+(h-dh)/2;
+    cv.roundRect(left,top,dw,dh,3,'#182b2b');
+    const cardW=320*factor,cardH=96*factor, point=(val,length,card)=>margin+(length-2*margin-card)*val/1000;
+    const cardX=left+px*point(profile.x,width,cardW)/sx,cardY=top+px*point(profile.y,height,cardH);
+    const paintedW=cardW*px/sx,paintedH=cardH*px;
+    const bright=profile.brightness/100,alpha=profile.opacity/100;
+    const tint=rgb=>'#'+rgb.map((n,i)=>Math.round([24,43,43][i]*(1-alpha)+n*bright*alpha))
+        .map(n=>('0'+n.toString(16)).slice(-2)).join('');
+    cv.roundRect(cardX,cardY,paintedW,paintedH,3,tint([198,244,165]));
+    if(paintedH>=14){
+        const ink=tint([40,65,56]),cx=cardX+paintedW*.18,cy=cardY+paintedH*.52;
+        symbol(cv,'camera',cx,cy,ink,Math.min(paintedW*.22,paintedH*.68));
+        cv.roundRect(cardX+paintedW*.36,cardY+paintedH*.35,paintedW*.47,Math.max(1,paintedH*.09),1,ink);
+        cv.roundRect(cardX+paintedW*.36,cardY+paintedH*.58,paintedW*.30,Math.max(1,paintedH*.09),1,ink);
+    }
+}
+function calibrationInfo(cv,v) {
+    const c=v.calibration, left=46, width=548;
+    cv.roundRect(24,89,592,360,13,P.surface);
+    words(cv,'Схема положения',left,124,27,340,P.text,true);
+    words(cv,v.side,593,123,22,225,P.focus,false,'right');
+    profileDrawing(cv,calibrationPreview(v),left,137,width,113);
+    const messages=[];
+    if(!c.test.allowed)messages.push(['Тест',c.test.reason||'Сервис не разрешил тест']);
+    if(!c.layout.allowed && c.layout.reason && c.layout.reason!==c.test.reason)messages.push(['Настройка',c.layout.reason]);
+    if(v.feedback && v.feedback!==dash && !messages.some(m=>m[1]===v.feedback))messages.push(['',v.feedback]);
+    if(c.storageText && !messages.some(m=>m[1]===c.storageText))messages.push(['',c.storageText]);
+    let pos=280;
+    const shown=messages.slice(0,4);
+    shown.forEach((m,i)=>{
+        const value=m[0]?m[0]+' · '+m[1]:m[1];
+        const remaining=shown.length-i-1;
+        const lines=Math.max(1,Math.min(2,1+Math.floor((430-pos-remaining*33)/24)));
+        pos=paragraph(cv,value,left,pos,22,width,24,m[0]?P.gold:i===0?P.text:P.dim,lines)+9;
+    });
+    if(pos<385 && c.layout.allowed){
+        words(cv,'Коснитесь шкалы или потяните ползунок',left,392,22,width,P.dim);
+        words(cv,'Наклон iDrive влево или вправо меняет значение',left,422,22,width,P.dim);
+    }
+}
+function compositionInfo(cv,v,focus,x,y,w,h) {
+    cv.roundRect(x,y,w,h,14,P.surface);
+    const option=v.calibration.composition.find(b=>b.command===focus)||v.calibration.composition[0];
+    if(!option)return;
+    const left=x+24,width=w-48;
+    words(cv,option.label,left,y+53,35,width,P.text,true);
+    words(cv,option.selected===null?'Состояние не подтверждено':option.selected?'На экране':'Скрыто',left,y+94,24,width,P.focus,true);
+    paragraph(cv,option.description,left,y+145,27,width,35,P.text,4);
+    if(v.calibration.compositionReason)paragraph(cv,v.calibration.compositionReason,left,y+h-41,21,width,24,P.gold,2);
 }
 function information(cv,v,x,y,w,h) {
     cv.roundRect(x,y,w,h,14,P.surface);
@@ -264,17 +413,23 @@ function information(cv,v,x,y,w,h) {
     }
     const context=v.edit?v.edit.label:v.lead;
     if(v.lens)capture(cv,x+w-106,y+19,v.lens);
-    else if(v.preview)miniPreview(cv,v.preview,x+w-149,y+14,122,61);
+    else if(v.calibration)profileDrawing(cv,calibrationPreview(v),x+w-149,y+14,122,61);
     else symbol(cv,v.icon,x+w-47,y+41,P.focus,42);
     words(cv,context,left,y+42,34,room-(v.preview?136:90),P.text,true);
     words(cv,v.edit?'Текущее значение':v.side,left,y+76,21,room-(v.preview?136:90),P.dim);
     if(v.edit){
-        words(cv,v.edit.value,left,y+159,59,room,P.focus,true);
-        if(Number.isInteger(v.edit.step)&&Number.isFinite(v.edit.max)&&v.edit.max>0){
+        const preview=v.sliderPreview;
+        const value=preview&&preview.source===v.edit.name?controls.formatStep(v.edit.name,preview.step):v.edit.value;
+        words(cv,value,left,y+159,59,room,P.focus,true);
+        if(!v.buttons.some(b=>b.kind==='slider') && Number.isInteger(v.edit.step)&&Number.isFinite(v.edit.max)&&v.edit.max>0){
             const bar=room-4;
             cv.roundRect(left,y+190,bar,8,4,P.line);
             const width=bar*Math.max(0,Math.min(1,v.edit.step/v.edit.max));
             if(width>=1)cv.roundRect(left,y+190,width,8,Math.min(4,width/2),P.focus);
+        }
+        if(v.buttons.some(b=>b.kind==='slider')){
+            const spec=controls.sliders[v.edit.name];
+            words(cv,controls.formatStep(v.edit.name,0)+' — '+controls.formatStep(v.edit.name,spec[0])+' · шаг '+String(spec[2]).replace('.',',')+' %',left,y+280,22,room,P.dim);
         }
         if(v.feedback&&v.feedback!==dash)words(cv,v.feedback,left,y+h-23,21,room,P.dim);
         return;
@@ -295,6 +450,10 @@ function photo(cv,lines,x,y,w,h) {
 }
 // The logs service supplies this address only while its local archive is available.
 function archiveQR(cv,url,x,y,size) {
+    if(cv.square){
+        const area=cv.square(x,y,size);
+        return archiveQR(area.canvas,url,area.x,area.y,area.size);
+    }
     const code=qr.QrCode.encodeText(url,qr.QrCode.Ecc.MEDIUM);
     const step=Math.floor(size/(code.size+8)),side=step*(code.size+8);
     cv.fillRect(x,y,side,side,'#ffffff');
@@ -318,7 +477,9 @@ function drawDetail(cv,page,v,focus) {
     words(cv,v.edit?'Значение параметра':v.group,762,65,33,665,P.text,true);
     if(v.sheets>1&&!v.edit)words(cv,(v.sheet+1)+' / '+v.sheets,1564,63,26,120,P.dim,false,'right');
     cv.line(24,86,1564,86,1,P.line);
-    if(v.photo)photo(cv,v.photo,24,105,1540,321);
+    if(page==='calibration' && v.sheet===0 && !v.edit)calibrationInfo(cv,v);
+    else if(v.compositionSheet)compositionInfo(cv,v,focus,24,101,711,331);
+    else if(v.photo)photo(cv,v.photo,24,105,1540,321);
     else{
         information(cv,v,24,101,711,331);
         if(page==='logs'&&v.archiveUrl){
@@ -339,7 +500,7 @@ function drawDetail(cv,page,v,focus) {
         if(v.edit)words(cv,v.edit.label,762,112,21,770,P.dim);
         else if(v.feedback&&v.feedback!==dash)words(cv,v.feedback,762,112,20,800,P.dim);
     }
-    (v.buttons||[]).forEach(b=>tile(cv,b,focus));
+    (v.buttons||[]).forEach(b=>tile(cv,b,focus,v.sliderPreview));
 }
 function drawSummary(cv,page,v) {
     cv.fillRect(0,0,1600,240,P.bg);
@@ -350,6 +511,22 @@ function drawSummary(cv,page,v) {
     cv.line(26,54,1572,54,1,P.line);
     if(v.resultBlock){
         v.resultBlock.forEach((t,i)=>words(cv,t,26+(i<4?0:780),89+(i%4)*40,24,750,P.text));
+        return;
+    }
+    if(v.calibration&&!v.edit){
+        if(v.compositionSheet){
+            v.calibration.composition.forEach((b,i)=>{
+                const x=i<3?26:810, y=83+i%3*51;
+                words(cv,b.label,x,y,23,730,P.focus,true);
+                words(cv,b.description,x,y+22,20,730,P.text);
+            });
+            if(v.calibration.compositionReason)words(cv,v.calibration.compositionReason,26,235,19,1540,P.gold);
+        } else {
+            v.rows.forEach((r,i)=>row(cv,r[0],r[1],26,81+i*34,637,true));
+            const c=v.calibration;
+            paragraph(cv,c.test.allowed?v.feedback||v.side:c.test.reason,710,100,28,840,33,c.test.allowed?P.text:P.gold,2);
+            paragraph(cv,c.storageText,710,174,25,840,29,P.dim,2);
+        }
         return;
     }
     if(v.archiveUrl){
@@ -376,4 +553,5 @@ function drawSummary(cv,page,v) {
     rows.forEach((r,i)=>row(cv,r[0],r[1],26+(i<perCol?0:780),77+(i%perCol+.42)*spacing,746,false));
     if(!rows.length)words(cv,v.lead,28,144,54,1500,P.focus,true);
 }
-module.exports={names,pageIds,model,drawDetail,drawSummary,confirmedDirection,reducePanel:controls.reducePanel};
+module.exports={names,pageIds,model,drawDetail,drawSummary,confirmedDirection,reducePanel:controls.reducePanel,
+    sliderCommand:controls.sliderCommand,sliderNudge:controls.sliderNudge};

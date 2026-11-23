@@ -23,6 +23,8 @@ async function main() {
         await app._setupRhmi();
         const base={enabled:true,outputs:{hud:true,cluster:true},alert:{id:'t1',roadConfirmed:true,
             limitKmh:40,distanceM:180,captureClass:'rear'},serviceVersion:'0.11.0'};
+        base.cardLayout={hud:{x:5,y:5,scalePct:80,brightnessPct:15,opacityPct:95}};
+        base.actions={cardLayout:{allowed:true},displayTest:{allowed:true},displayTestStop:{allowed:true}};
         base.regionalDatabase={selectedRegion:'RU-KLU',phase:'listed',regions:[{region:'RU-KLU'},{region:'RU-MOS'}]};
         const input={state:base,version:'0.11.0',serviceReady:true,written:app._written};
         function checkFrame(view){
@@ -56,7 +58,7 @@ async function main() {
                     assert(!fwCommands.includes(b.source));
                     if(!b.source)return;
                     nativeBackings.add(b.source);
-                    if(b.kind==='editor'){
+                    if(b.kind==='editor'||b.kind==='slider'){
                         const opened=detail.reducePanel(panel,b.command,view);
                         assert.deepStrictEqual(opened,{sheet,edit:b.source});
                         const edit=detail.model(page,Object.assign({},data,{atlasPanel:opened}));
@@ -93,7 +95,9 @@ async function main() {
                 for(let n=0;n<baseline.sheets;n++){
                     if(detail.model(page,{atlasPanel:{sheet:n}}).buttons.some(b=>b.command==='atlasEdit:'+name)){sheet=n;break;}
                 }
-                const rendered=detail.model(page,{written:{['cell:'+name+':0:Value']:step},atlasPanel:{sheet,edit:name}});
+                const profile={x:step*5,y:step*5,scalePct:75+step*5,brightnessPct:10+step*5,opacityPct:100-step*5};
+                const state={cardLayout:{hud:profile},actions:base.actions};
+                const rendered=detail.model(page,{state,written:{['cell:'+name+':0:Value']:step},atlasPanel:{sheet,edit:name}});
                 checkFrame(rendered);
                 assert(rendered.buttons.some(b=>b.enabled&&b.command.startsWith('atlasValue:'+name+':')));
             }
