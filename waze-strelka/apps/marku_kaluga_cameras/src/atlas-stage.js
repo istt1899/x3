@@ -37,8 +37,9 @@ function scene(canvas,page,view,focus,interactive) {
     if(target && page!=='trip')canvas.strokeRoundRect(target.x+2,target.y+2,target.w-4,target.h-4,8,3,'#b6f3bf');
 }
 class Stage {
-    constructor(log,invoke,invalidate,driver) {
+    constructor(log,invoke,invalidate,driver,onFocus) {
         this.log=log;this.invoke=invoke;this.invalidate=invalidate;this.driver=driver||RenderClient;
+        this.onFocus=onFocus||(()=>{});
         this.gpu=null;this.page=null;this.view=null;this.focus={};this.key=null;this.pressed=null;
         this.lastCcu=null;this.placement=null;this.blocked=false;this.dirty=false;this.front=false;this.confirmedFront=false;
     }
@@ -66,8 +67,12 @@ class Stage {
             const previous=this.front;
             this.confirmedFront=!!(s.front&&s.onScreen);
             this.front=!!(this.page&&this.confirmedFront);
-            if(!this.front){this.pressed=null;this.lastCcu=null;gpu.grab(false);}
-            else if(this.owns())gpu.grab(true);
+            if(!this.front){this.pressed=null;this.lastCcu=null;gpu.grab(false);if(previous)this.onFocus(null);}
+            else if(this.owns()){
+                gpu.grab(true);
+                const selected=this.selected(targets(this.page,this.view));
+                this.onFocus(selected&&selected.command);
+            }
             if(previous!==this.front)this.invalidate();
         });
         gpu.on('touch',(phase,x,y)=>this.touch(phase,x,y));
@@ -98,7 +103,7 @@ class Stage {
         // All pixels on our surface belong to this frame, including its empty
         // space. A tap between cards must not reach an HMI widget underneath.
         gpu.claim([{x:0,y:0,w:width,h:height}]);
-        if(this.front)gpu.grab(true);
+        if(this.front){gpu.grab(true);this.onFocus(selected&&selected.command);}
     }
     touch(phase,x,y) {
         if(!this.owns()||!this.gpu.visible||!this.front)return;
@@ -111,6 +116,7 @@ class Stage {
     }
     activate(target) {
         this.focus[this.page]=target.focusKey||target.command;
+        this.onFocus(target.command);
         this.invoke(target.command);
     }
     controller(v) {

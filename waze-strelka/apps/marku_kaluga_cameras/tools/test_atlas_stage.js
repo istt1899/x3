@@ -131,6 +131,16 @@ async function native(order) {
         const state={enabled:true,capabilities:{alertPreferences:true,overspeedPreferences:true},
             overspeedPreferences:Object.assign({},require('../src/view_model').OVERSPEED_RECOMMENDED,{soundDistanceM:400})};
         h.setState(state);
+        await app._openCameraPage('position');
+        const left=slot(h,'cameraCardLeft'),right=slot(h,'cameraCardRight');
+        left.emit('focus',{focus:true});
+        assert.strictEqual(app._cameraFocusedArrow,'left');
+        right.emit('focus',{focus:true});
+        left.emit('focus',{focus:false});
+        assert.strictEqual(app._cameraFocusedArrow,'right','late focus loss cannot cancel a newly focused direction');
+        right.emit('focus',{focus:false});
+        assert.strictEqual(app._cameraFocusedArrow,null,'losing arrow focus immediately stops position input');
+        await h.back();
         await app._openCameraPage('overspeed');
         press(h,'atlasEdit:cameraSoundDistance');
         assert(h.current().endsWith('_AtlasEditor'));

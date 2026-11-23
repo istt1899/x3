@@ -214,7 +214,8 @@ class WazeClusterApp extends OnlineApp {
         // OAP runs <app>/source/javascript/app.js and registers graphics
         // from <app>/rhmiData/resources, shared with its RHMI resource bundle.
         this._atlasResources = path.resolve(__dirname, '..', '..', 'rhmiData', 'resources');
-        this._atlasStage = new atlasStage.Stage(logger, name => this._atlasAction(name), () => this._renderAtlas());
+        this._atlasStage = new atlasStage.Stage(logger, name => this._atlasAction(name), () => this._renderAtlas(), null,
+            command => this._focusAtlasDirection(command));
         this._sawForeground = false;
         this._shutdownPromise = null;
         this._shuttingDown = false;
@@ -1474,16 +1475,26 @@ class WazeClusterApp extends OnlineApp {
                     this._actionById[Number(component.getId())]={name,handler:press};
                     component.on('focus',event=>{
                         const target=this._atlasKeys[name];
-                        if(this._atlasSurface!==stem || !target || !isTrue(event&&(event.focus===undefined?event.value:event.focus)))return;
-                        this._atlasStage.nativeFocus(target.focusKey||target.command);
-                        if(page==='position'){
-                            this._cameraFocusedArrow=Object.keys(CARD_MOVE_NAMES).find(dir=>CARD_MOVE_NAMES[dir]===target.command)||null;
-                            this._syncCameraHold();
+                        if(this._atlasSurface!==stem || !target || this._atlasStage.front&&this._atlasStage.owns())return;
+                        const focus=event&&(event.focus===undefined?event.value:event.focus);
+                        if(isTrue(focus)){
+                            this._atlasStage.nativeFocus(target.focusKey||target.command);
+                            this._focusAtlasDirection(target.command);
+                        }else if([false,0,'false','0'].includes(focus) && CARD_MOVE_NAMES[this._cameraFocusedArrow]===target.command){
+                            this._focusAtlasDirection(null);
                         }
                     });
                 }
             });
         });
+    }
+
+    _focusAtlasDirection(command) {
+        if(this._shownPage!=='position')return;
+        const direction=Object.keys(CARD_MOVE_NAMES).find(dir=>CARD_MOVE_NAMES[dir]===command)||null;
+        if(this._cameraFocusedArrow===direction)return;
+        this._cameraFocusedArrow=direction;
+        this._syncCameraHold();
     }
 
     _navigateAtlas(page,edit) {
