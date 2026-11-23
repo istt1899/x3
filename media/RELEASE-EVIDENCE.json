@@ -47,7 +47,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "d64bb04791faa8314d032bf38fb2f999839dd2f7f0fac2eed1dff21b7c3807e3"
+      "sha256": "8013f7eafbc3c70b0f80cd7e05ad40b4d6e577439921241c4d5e9cd462237e10"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -55,13 +55,12 @@
   },
   "catalog_update": {
     "date": "2026-11-23",
-    "reason": "Persist both navigation display choices and update the shared cluster renderer for wake recovery.",
-    "previous_sha256": "413124282db0c6dba7c2df00836574f8482d1f500e82f637b98b71e440c16f65",
-    "package_commit": "39114539fb56d926310a4b08dc12307c39489ec4",
+    "reason": "Release the selected Cartographer interface for cameras, phone maps and on-screen diagnostics.",
+    "previous_sha256": "d64bb04791faa8314d032bf38fb2f999839dd2f7f0fac2eed1dff21b7c3807e3",
+    "package_commit": "f5a52c2088de3574f6c43fd939b854956c92c3f1",
     "updated_components": {
-      "cluster-render": "0.8.5",
-      "marku-kaluga-cameras": "0.11.3",
-      "marku_kaluga_cameras": "0.11.3"
+      "marku-kaluga-cameras": "0.12.0",
+      "marku_kaluga_cameras": "0.12.0"
     },
     "hardware_scope": "BMW iDrive 7. Physical X3 and X6 M restart and phone reconnect verification pending."
   },
