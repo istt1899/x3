@@ -4,34 +4,36 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 process.env.MGU_RENDERER = 'software';
 const { headUnit } = require('./hu-stub');
 const stage = path.resolve(__dirname, '../../dist/marku_ambient_studio');
 const app = path.join(stage, 'source/javascript');
 const { lightStudio } = require(path.join(app, 'light-studio'));
 const { previewCabin } = require(path.join(app, 'preview-cabin'));
+const { Recorder } = require(path.join(app, 'kit/record'));
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ambient-studio-'));
+const settingsFile = path.join(dataDir, 'settings.json');
 
 function open() {
     const { ctx } = headUnit(stage, { dataDir });
     const { lights, control } = previewCabin(ctx);
-    const targets = new Map(), captions = [];
-    // Record the targets built by the real kit buttons. Pixels are checked in the desktop emulator.
-    const cv = {
-        own: true, text: (s) => captions.push(s), target: (x, y, w, h, run, id) => targets.set(id, run),
-        line() {}, arc() {}, roundRect() {}, strokeRoundRect() {}, polyline() {},
-    };
+    const captions = [];
+    const cv = new Recorder(1600, 520);
+    cv.own = true;
+    const text = cv.text.bind(cv);
+    cv.text = (s, ...args) => { captions.push(s); return text(s, ...args); };
     let selectedPage = null;
     const page = lightStudio(ctx, control, lights, draw, (n) => { selectedPage = n; });
     function draw() {
-        targets.clear();
+        cv.reset();
         captions.length = 0;
         page(cv, ctx.theme());
     }
     function press(key) {
-        const action = targets.get('studio-' + key);
-        assert(action, 'missing button: ' + key);
-        action();
+        const target = cv.targets.find((r) => r.key === 'studio-' + key);
+        assert(target, 'missing button: ' + key);
+        target.run();
     }
     draw();
     return { captions, press, settings: ctx.settings, control, page: () => selectedPage };
@@ -40,6 +42,10 @@ function open() {
 try {
     let ui = open();
     assert(ui.captions.includes('Левая включена'));
+    ui.press('section2');
+    ui.press('check');
+    assert.strictEqual(ui.captions.filter((s) => s === 'Пройдено').length, 3, 'Fresh settings can use defaults');
+    ui.press('section0');
     ui.press('seq1');
     ui.press('frame2');
     ui.press('left');
@@ -72,9 +78,23 @@ try {
     ui.press('section2');
     ui.press('check');
     assert.strictEqual(ui.captions.filter((s) => s === 'Пройдено').length, 3);
-    console.log('Ambient Studio: frame editing, timing, presets, favorites, persistence, navigation and self-check passed');
+    const saved = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+    saved.studioTimes = [1000, 1000, 750, 1000];
+    fs.writeFileSync(settingsFile, JSON.stringify(saved));
+    ui = open();
+    ui.press('section2');
+    ui.press('check');
+    assert.strictEqual(ui.captions.filter((s) => s === 'Пройдено').length, 2);
+    assert.strictEqual(ui.captions.filter((s) => s === 'Ошибка').length, 1, 'Self-check must report invalid saved durations');
+    ui.press('section0');
+    ui.press('left');
+    ui.press('section2');
+    ui.press('check');
+    assert.strictEqual(ui.captions.filter((s) => s === 'Пройдено').length, 3, 'Editing repairs invalid saved durations');
+    console.log('Ambient Studio: editing, timing, presets, favorites, persistence, navigation and self-check with valid, invalid and repaired settings passed');
 } finally {
-    const settingsFile = path.join(dataDir, 'settings.json');
     if (fs.existsSync(settingsFile)) fs.unlinkSync(settingsFile);
     fs.rmdirSync(dataDir);
 }
+
+execFileSync(process.execPath, [path.join(__dirname, 'test_ambient_native_ui.js')], { stdio: 'inherit' });

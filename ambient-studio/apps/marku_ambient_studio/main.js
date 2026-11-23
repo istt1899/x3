@@ -232,12 +232,14 @@ mgu.run({
             if (ctx.preview) return cv.text('Предпросмотр в эмуляторе', x, y, 20, t.dim);
             if (others.comfort) return warnOthers(cv, t, x, y, 1560 - x);
             const n = lights.lights.length;
-            const s = lights.state === 'finding' ? 'Looking for the car\'s lights...'
-                : lights.state === 'none' ? 'The car\'s lights did not answer'
-                    : lights.state === 'car' ? 'Original colour (as set in BMW\'s menu)'
-                        : lights.blind ? 'On in the car: one colour on all lights' : 'On in the car: ' + n + ' lights';
+            const s = lights.state === 'finding' ? 'Поиск модулей подсветки…'
+                : lights.state === 'none' ? 'Модули подсветки не ответили'
+                    : lights.state === 'car' ? 'Штатный цвет из меню BMW'
+                        : lights.blind ? 'Один цвет для всей подсветки' : 'Модулей подсветки под управлением: ' + n;
             cv.text(s, x, y, 20, lights.state === 'none' ? t.warn : t.dim);
-            if (lights.error && lights.state !== 'none') cv.text(lights.error, x, y + 26, 18, t.warn);
+            if (lights.error && lights.state !== 'none') {
+                cv.text('Модуль не подтвердил запрос', x, y + 26, 18, t.warn);
+            }
         }
         // the car picture: the lights as the car shows them (the car's own colour: grey)
         const carNow = (l) => (lights.scene ? lights.at(l) : null);
@@ -341,7 +343,7 @@ mgu.run({
                 n = short || n;
                 G.button(cv, t, bx, by, bw, bh, n, () => { settings.set(k, settings.get(k) !== true); return redraw(); }, { primary: settings.get(k) === true, key: 'tog-' + k });
             });
-            if (!others.comfort && lights.state === 'ours' && S.moves(lights.scene)) cv.text(lights.rate.toFixed(0) + ' writes a second, ' + lights.fps.toFixed(1) + ' frames a second', x, 390, 18, t.dim);
+            if (!others.comfort && lights.state === 'ours' && S.moves(lights.scene)) cv.text('Обновление: ' + lights.rate.toFixed(0) + ' зап./с · ' + lights.fps.toFixed(1).replace('.', ',') + ' кадр/с', x, 390, 18, t.dim);
         }
 
         function drawModes(cv, t) {
@@ -396,7 +398,11 @@ mgu.run({
             }
         }
 
-        const drawStudio = lightStudio(ctx, control, lights, redraw, (i) => { page = i; });
+        const redrawStudio = () => { dirty = true; return render(); };
+        const drawStudio = lightStudio(ctx, control, lights, redrawStudio, (i) => {
+            drawStudio.leave();
+            page = i;
+        }, { stock: () => ambient.available, conflict: () => !!others.comfort, activate: active });
 
         async function render() {
             const t = ctx.theme(), cv = ctx.canvas(W, H).clear(t.bg);
@@ -408,7 +414,9 @@ mgu.run({
         let movedAt = 0;
         const tick = () => {
             const moving = (lights.scene && S.moves(lights.scene)) || (page === 1 && control.on() && S.moves(look()));
-            const due = moving && page <= 1 && Date.now() - movedAt >= MOVE_DRAW_MS;
+            const studioMoving = page === 4 && drawStudio.moving();
+            const due = (moving && page <= 1 || studioMoving) &&
+                Date.now() - movedAt >= (studioMoving ? 125 : MOVE_DRAW_MS);
             if (due) movedAt = Date.now();
             return dirty || due ? render() : null;
         };
@@ -456,7 +464,13 @@ mgu.run({
                 return null;
             });
         }
-        ctx.onTab((i) => { page = (i + TABS.length - 1) % TABS.length; if (page >= 2) editing = null; return redraw(); });
+        ctx.onTab((i) => {
+            const next = (i + TABS.length - 1) % TABS.length;
+            if (page === 4 && next !== 4) drawStudio.leave();
+            page = next;
+            if (page >= 2) editing = null;
+            return page === 4 ? redrawStudio() : redraw();
+        });
         lights.on('change', () => { dirty = true; });
         ambient.on('change', () => { dirty = true; });
         others.on('change', () => { dirty = true; });

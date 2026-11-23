@@ -2,7 +2,7 @@
   "id": "marku_ambient_studio",
   "title": "Студия света",
   "description": "Цвет и яркость подсветки салона, избранные сочетания и покадровый предпросмотр фар на экране iDrive.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "vendor": "custom",
   "loggingId": "OASR",
   "iconGlyph": "ambient",
@@ -65,7 +65,7 @@
       "buttons": [
         [
           "BTN_SETTINGS",
-          "Settings"
+          "Настройки"
         ]
       ]
     }
@@ -73,117 +73,117 @@
   "settings": [
     {
       "key": "carKind",
-      "label": "Car type",
+      "label": "Тип двигателя",
       "type": "choice",
       "default": "ice",
       "hidden": true,
       "options": [
         [
           "ice",
-          "Petrol or diesel"
+          "Бензин или дизель"
         ],
         [
           "hybrid",
-          "Plug-in hybrid"
+          "Подключаемый гибрид"
         ]
       ]
     },
     {
       "key": "follow",
-      "label": "Look by driving mode",
+      "label": "Сцена по режиму движения",
       "type": "bool",
       "default": true,
       "hidden": true
     },
     {
       "key": "welcome",
-      "label": "Welcome sweep at start",
+      "label": "Приветственная подсветка при запуске",
       "type": "bool",
       "default": false,
       "hidden": true
     },
     {
       "key": "sportPulse",
-      "label": "Sport pulse",
+      "label": "Пульсация в режиме Спорт",
       "type": "bool",
       "default": false,
       "hidden": true
     },
     {
       "key": "decorWith",
-      "label": "Decor lights (dash, under the door trim) with",
+      "label": "Декоративная подсветка меняет цвет вместе с",
       "type": "choice",
       "default": "upper",
       "options": [
         [
           "upper",
-          "Upper lights"
+          "Верхней подсветкой"
         ],
         [
           "lower",
-          "Lower lights (like BMW)"
+          "Нижней подсветкой (как у BMW)"
         ]
       ]
     },
     {
       "key": "nightDim",
-      "label": "Dimmer at night",
+      "label": "Приглушать подсветку ночью",
       "type": "bool",
       "default": true
     },
     {
       "key": "keep",
-      "label": "My colour back at each start",
+      "label": "Восстанавливать мой цвет при запуске",
       "type": "bool",
       "default": true
     },
     {
       "key": "flashAlerts",
-      "label": "Redline shift flash",
+      "label": "Вспышка при переключении передачи",
       "type": "bool",
       "default": true,
       "hidden": true
     },
     {
       "key": "turnGlow",
-      "label": "Turn signal glow",
+      "label": "Подсветка при включении поворотника",
       "type": "bool",
       "default": false,
       "hidden": true
     },
     {
       "key": "doorRed",
-      "label": "Open door red",
+      "label": "Красный свет у открытой двери",
       "type": "bool",
       "default": false,
       "hidden": true
     },
     {
       "key": "doorCar",
-      "label": "Open door: the car's own warning (G20 / G26)",
+      "label": "Штатный сигнал открытой двери (G20 / G26)",
       "type": "bool",
       "default": false
     },
     {
       "key": "hazardRed",
-      "label": "Hazard red",
+      "label": "Красный свет при аварийной сигнализации",
       "type": "bool",
       "default": false,
       "hidden": true
     },
     {
       "key": "drive",
-      "label": "Steering wheel",
+      "label": "Расположение руля",
       "type": "choice",
       "default": "lhd",
       "options": [
         [
           "lhd",
-          "Left"
+          "Слева"
         ],
         [
           "rhd",
-          "Right"
+          "Справа"
         ]
       ]
     }
