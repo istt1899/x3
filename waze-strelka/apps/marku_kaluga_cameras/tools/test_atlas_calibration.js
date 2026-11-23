@@ -51,6 +51,7 @@ function checkModel() {
             assert.strictEqual(detail.sliderCommand(b,NaN),null);
             const step=b.step===max ? -1 : 1;
             assert.strictEqual(detail.sliderNudge(b,step),left+(b.step+step));
+            assert.strictEqual(detail.sliderNudge(b,3*step),left+Math.max(0,Math.min(max,b.step+3*step)));
             assert.strictEqual(detail.sliderNudge(Object.assign({},b,{step:max}),1),null);
             assert.strictEqual(detail.sliderNudge(Object.assign({},b,{step:0}),-1),null);
             const edited=profile(target,detail.reducePanel({},b.command,v));

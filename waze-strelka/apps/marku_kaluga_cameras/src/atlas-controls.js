@@ -34,8 +34,8 @@ function sliderCommand(button, x) {
 }
 function sliderNudge(button, delta) {
     if (!button || button.kind !== 'slider' || !button.enabled || !Number.isInteger(button.step) ||
-        !Number.isFinite(delta) || delta === 0) return null;
-    const step = Math.max(0, Math.min(button.max, button.step + (delta < 0 ? -1 : 1)));
+        !Number.isInteger(delta) || delta === 0) return null;
+    const step = Math.max(0, Math.min(button.max, button.step + delta));
     return step === button.step ? null : 'atlasValue:' + button.source + ':' + step;
 }
 const outputs = ['Приборная панель', 'Проекция HUD', 'Приборы и HUD', 'Выключить вывод'];
