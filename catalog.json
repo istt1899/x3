@@ -623,6 +623,31 @@
         "sha256": "07308f173d1a26fb6bed6597f244635c3de01eabca9d14fef57874ed352570d2",
         "url": "https://github.com/istt1899/x3/releases/download/marku_x3_trips@0.2.0/marku_x3_trips@0.2.0.tgz"
       }
+    },
+    {
+      "id": "marku_ambient_studio",
+      "kind": "app",
+      "title": "Студия света",
+      "description": "Цвет и яркость подсветки салона, избранные сочетания и покадровый предпросмотр фар на экране iDrive.",
+      "version": "1.0.1",
+      "requires": {
+        "idrive7-renderd": "2.1.18",
+        "mgu-inputgate": "1.1.0",
+        "mgu-deploy": "0.7.11"
+      },
+      "uninstallable": true,
+      "mguHmi": [
+        "ID7",
+        "ID8"
+      ],
+      "artifact": {
+        "name": "marku_ambient_studio@1.0.1.tgz",
+        "size": 1012755,
+        "sha256": "fe77a1a3417ebbbb6cb6e090c1db5542fbd4af20f2885f1be50c32e90eb6967d",
+        "url": "https://github.com/istt1899/x3/releases/download/ambient-studio-1.0.1/marku_ambient_studio%401.0.1.tgz"
+      },
+      "icon": "https://github.com/istt1899/x3/releases/download/ambient-studio-1.0.1/marku_ambient_studio.png",
+      "iconSha256": "046f958dadf3ce68ab125af79222db291c6f3a419f1de1805df2922941bb0d16"
     }
   ]
 }
