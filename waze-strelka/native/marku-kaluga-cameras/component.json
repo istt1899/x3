@@ -26,6 +26,10 @@
       "mode": "0644"
     },
     {
+      "path": "card-composition.js",
+      "mode": "0644"
+    },
+    {
       "path": "alert-preferences.js",
       "mode": "0644"
     },
@@ -35,6 +39,10 @@
     },
     {
       "path": "camera-orientation.js",
+      "mode": "0644"
+    },
+    {
+      "path": "display-limit.js",
       "mode": "0644"
     },
     {

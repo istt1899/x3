@@ -60,7 +60,7 @@ assert.strictEqual(card.presentation(Object.assign({}, known, { limitKmh: 0.1 })
 assert.strictEqual(card.presentation(referenceOnly).overspeed, false);
 assert.strictEqual(card.presentation(postedOnly).limitScope, 'posted');
 assert.strictEqual(card.presentation(postedOnly).overspeed, false);
-assert.strictEqual(card.presentation(Object.assign({}, postedOnly, { limitKmh: 50 })).limit, 50);
+assert.strictEqual(card.presentation(Object.assign({}, postedOnly, { limitKmh: 50 })).limitScope, "conflict");
 
 const front = facingAlert([270], 90), rear = facingAlert([270], 270), both = facingAlert([90, 270], 90);
 const cross = facingAlert([0], 90);

@@ -93,7 +93,7 @@ for (const bad of [
     assert.strictEqual(card.presentation(changed).limit, null);
 }
 assert.strictEqual(card.presentation(Object.assign({}, aboveMap, { roadConfirmed: false })).limit, null);
-assert.strictEqual(card.presentation(Object.assign({}, aboveMap, { limitKmh: 80 })).limitScope, "road");
+assert.strictEqual(card.presentation(Object.assign({}, aboveMap, { limitKmh: 80 })).limitScope, "conflict");
 async function atlasStatusOverSocket() {
     const fs = require('fs'), os = require('os'), path = require('path'), net = require('net');
     const EventEmitter = require('events');

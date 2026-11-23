@@ -37,6 +37,8 @@ function describe(camera) {
         Number.isFinite(Date.parse(camera.captureSideVerifiedAt)) ? camera.captureSide : null;
     return { type: controls(camera).indexOf('redlight') >= 0 ? 'redlight' : camera.type || 'speed', controls: controls(camera), controlLabels: controls(camera).map(k=>LABELS[k]), title: title(camera),
         cameraLimitKmh: camera.limitKmh === undefined ? null : camera.limitKmh,
+        cameraLimitDate: camera.providerId === 'osm-russia' ? camera.sourcePublishedAt : camera.sourceUpdatedAt || null,
+        cameraLimitDateKind: camera.providerId === 'osm-russia' ? 'edition' : 'record',
         cameraLimitConditional: camera.cameraLimitConditional || null,
         approachLimitEvidence: tulskayaApproachEvidence(camera), dataRegion: camera.dataRegion || null,
         description: camera.description || null, sourceUrl: camera.sourceUrl || null,
@@ -60,7 +62,7 @@ function validLimit(value) { return Number.isFinite(value) && value > 0 && value
 function limitEvidence(record) {
     return record && record.providerId !== 'osm-russia' && /^osm:(?:node|way|relation):[0-9]+$/.test(record.id || '') &&
         typeof record.sourceUrl === 'string' && /^https:\/\/(?:www\.)?openstreetmap\.org\/(?:node|way|relation)\/[0-9]+$/.test(record.sourceUrl) && validLimit(record.limitKmh) ?
-        { id: record.id, url: record.sourceUrl, valueKmh: record.limitKmh } : null;
+        Object.assign({ id: record.id, url: record.sourceUrl, valueKmh: record.limitKmh }, record.sourceUpdatedAt ? {sourceDate:record.sourceUpdatedAt} : {}) : null;
 }
 function createDescriber(records) {
     // Only explicit, already reviewed location links can share a reference.
@@ -76,7 +78,7 @@ function createDescriber(records) {
     return camera => {
         const result = describe(camera), own = limitEvidence(camera), evidence=camera.speedLimitEvidence;
         if(evidence)result.speedLimitEvidence=JSON.parse(JSON.stringify(evidence));
-        if(evidence)result.limitReference={valueKmh:evidence.valueKmh,state:'known',kind:evidence.kind,source:'OpenStreetMap',records:evidence.sources.map(f=>({id:'osm:'+f.kind+':'+f.id,url:f.sourceUrl,valueKmh:evidence.valueKmh,rawTags:f.tags}))};
+        if(evidence)result.limitReference={valueKmh:evidence.valueKmh,state:'known',kind:evidence.kind,source:'OpenStreetMap',records:evidence.sources.map(f=>Object.assign({id:'osm:'+f.kind+':'+f.id,url:f.sourceUrl,valueKmh:evidence.valueKmh,rawTags:f.tags}, f.timestamp ? {sourceDate:f.timestamp} : {}))};
         else if (own) result.limitReference = { valueKmh: own.valueKmh, state: 'known', kind: 'camera-record', source: 'OpenStreetMap', records: [own] };
         else if (camera.providerId === 'gibdd-official' && links[camera.id]) {
             const evidence = links[camera.id], value = evidence[0].valueKmh, consistent = evidence.every(e => e.valueKmh === value);

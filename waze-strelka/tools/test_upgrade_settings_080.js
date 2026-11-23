@@ -2,6 +2,7 @@
 // AC-003: real persisted 0.7 settings, real child/service/socket restarts and EROFS.
 var assert=require('assert'),fs=require('fs'),path=require('path'),os=require('os'),net=require('net'),cp=require('child_process');
 var cards=require('../native/marku-kaluga-cameras/files/card-layout'),prefs=require('../native/marku-kaluga-cameras/files/alert-preferences'),warningPolicy=require('../native/marku-kaluga-cameras/files/warning-policy');
+var composition=require('../native/marku-kaluga-cameras/files/card-composition');
 var root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'strelka-upgrade-080-')),file=path.join(root,'settings.json'),runs=[],seq=0;
 var legacy={enabled:true,outputs:{cluster:false,hud:true},hudOpacityPct:45,
  cardLayout:{hud:{x:230,y:690,scalePct:80,brightnessPct:55,opacityPct:30},map:{x:750,y:220,scalePct:145,brightnessPct:65,opacityPct:85}},
@@ -13,7 +14,7 @@ async function until(fn,attempts,description){
  for(var i=0;i<(attempts||400);i++){if(fn())return;await delay(10);}
  throw Error(description||'Upgrade fixture timed out');
 }
-function known(state){return{enabled:state.enabled,outputs:state.outputs,hudOpacityPct:state.hudOpacityPct,cardLayout:state.cardLayout,alertPreferences:state.alertPreferences,overspeedPreferences:state.overspeedPreferences};}
+function known(state){return{enabled:state.enabled,outputs:state.outputs,hudOpacityPct:state.hudOpacityPct,cardLayout:state.cardLayout,cardComposition:state.cardComposition,alertPreferences:state.alertPreferences,overspeedPreferences:state.overspeedPreferences};}
 async function start(){
  var socket=process.platform==='win32'?'\\\\.\\pipe\\strelka-upgrade-'+process.pid+'-'+(++seq):path.join(root,'ctl-'+(++seq)+'.sock');
  var child=cp.spawn(process.execPath,[path.join(__dirname,'fixtures/upgrade-service.cjs'),root,socket],{windowsHide:true,stdio:['pipe','pipe','pipe']}),output='',errors='',states=[],buffer='';
@@ -31,8 +32,8 @@ async function start(){
  return run;
 }
 async function main(){
- fs.writeFileSync(file,JSON.stringify(legacy,null,2)+'\n');var initial=fs.readFileSync(file),run=await start(),expected=copy(legacy);expected.overspeedPreferences=warningPolicy.normalize(legacy.overspeedPreferences);
- assert.deepStrictEqual(known(run.state()),Object.assign({},legacy,{overspeedPreferences:warningPolicy.normalize(legacy.overspeedPreferences)}));await delay(650);assert(!/WRITE /.test(run.output()),'First open/ticks cannot rewrite legacy preferences');assert(fs.readFileSync(file).equals(initial));
+ fs.writeFileSync(file,JSON.stringify(legacy,null,2)+'\n');var initial=fs.readFileSync(file),run=await start(),expected=copy(legacy);expected.overspeedPreferences=warningPolicy.normalize(legacy.overspeedPreferences);expected.cardComposition=composition.normalize();
+ assert.deepStrictEqual(known(run.state()),expected);await delay(650);assert(!/WRITE /.test(run.output()),'First open/ticks cannot rewrite legacy preferences');assert(fs.readFileSync(file).equals(initial));
  var s=await run.command({cmd:'display-test',target:'hud'});assert.strictEqual(s.displayTest.active,true);assert.strictEqual(s.displayTest.target,'hud');
  var bytes=fs.readFileSync(file),writes=run.output().split('WRITE ').length;
  await run.refresh();
@@ -42,6 +43,8 @@ async function main(){
  s=await run.command({cmd:'display-test',target:'map'});assert.strictEqual(s.displayTest.target,'map');assert.strictEqual(s.displayTest.active,true);
  s=await run.command({cmd:'card-layout',target:'hud',x:245});expected.cardLayout.hud.x=245;assert.deepStrictEqual(known(s),expected);
  s=await run.command({cmd:'card-layout-reset',target:'map'});expected.cardLayout.map=cards.defaultLayouts().map;assert.deepStrictEqual(known(s),expected);
+ s=await run.command({cmd:'card-composition',target:'map',key:'direction',value:false});expected.cardComposition.map.direction=false;
+ assert.deepStrictEqual(known(s),expected,'Changing composition preserves legacy settings and the other surface');
  s=await run.command({cmd:'display-test-stop',target:'map'});assert.strictEqual(s.displayTest.active,false);assert.strictEqual(s.storage.settingsSaved,true);assert.deepStrictEqual(JSON.parse(fs.readFileSync(file,'utf8')),expected);
  await run.close();run=await start();assert.deepStrictEqual(known(run.state()),expected);assert(!/WRITE /.test(run.output()),'Upgrade/restart reading writes no preferences');assert.strictEqual(run.state().displayTest.active,false);
  var durable=fs.readFileSync(file);await run.deny();s=await run.command({cmd:'card-layout',target:'hud',x:900});assert.strictEqual(s.cardLayout.hud.x,900);assert.strictEqual(s.storage.persistent,false);assert.strictEqual(s.storage.settingsSaved,false);assert(/временно/.test(s.commandResult.message));assert(fs.readFileSync(file).equals(durable));

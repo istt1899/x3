@@ -38,7 +38,7 @@ const preferences=require(files+'alert-preferences');
 assert.strictEqual(preferences.matches(merged.records[1],{cameraTypes:{other:false,speed:true}}),false);
 assert.strictEqual(preferences.matches(merged.records[1],{cameraTypes:{other:true,speed:false}}),true);
 
-assert.strictEqual(cards.presentation(Object.assign({},good,{roadConfirmed:true,limitKmh:50})).limit,50);
+assert.strictEqual(cards.presentation(Object.assign({},good,{roadConfirmed:true,limitKmh:50})).limitScope,"conflict");
 assert.strictEqual(layer.applicable({limitKmh:40},{limitReference:{state:'known',valueKmh:60}}),null);
 assert.strictEqual(layer.applicable({limitKmh:40},{cameraLimitConditional:'school hours'}),null);
 const uncertain=rows.concat([row(6,4,30,target)]);

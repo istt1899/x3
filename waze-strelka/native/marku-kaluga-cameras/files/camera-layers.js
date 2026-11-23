@@ -2,6 +2,7 @@
 const {ClusterRender}=require('./cluster_render_client');
 const card=require('./alert-card'), width=card.width, height=card.height;
 const {normalizeLayouts}=require('./card-layout');
+const composition=require('./card-composition');
 function parseTargets(value) {
     const result={},seen={};
     if(typeof value!=='string'||value.length>512)return result;
@@ -32,8 +33,8 @@ function layoutFor(target,canvas,backend,profile) {
     layout.withinBounds=x>=0&&y>=0&&x+w<=canvas.width&&y+h<=canvas.height;
     return layout;
 }
-function styledPixels(alert,target,profile) {
-    const pixels=card.card(alert,target),settings=normalizeLayouts({[target]:profile})[target];
+function styledPixels(alert,target,profile,content) {
+    const pixels=card.card(alert,target,content),settings=normalizeLayouts({[target]:profile})[target];
     for(let i=0;i<pixels.length;i+=4){
         for(let color=0;color<3;color++)pixels[i+color]=Math.round(pixels[i+color]*settings.brightnessPct/100);
         pixels[i+3]=Math.round(pixels[i+3]*settings.opacityPct/100);
@@ -42,10 +43,10 @@ function styledPixels(alert,target,profile) {
 }
 function createDisplay(options){
     let client=null,layers={},states={},sentPixels={},signature='',requested='',active=null,
-        profiles=normalizeLayouts(),profileSignature='',suspended=false;
+        profiles=normalizeLayouts(),profileSignature='',contentProfiles=composition.normalize(),contentSignature='',suspended=false;
     function release(remember){
         if(client)client.close();
-        client=null;layers={};sentPixels={};signature='';profileSignature='';requested='';active=null;
+        client=null;layers={};sentPixels={};signature='';profileSignature='';contentSignature='';requested='';active=null;
         if(remember)Object.keys(states).forEach(n=>{states[n]=Object.assign({},states[n],{
             lastState:states[n].state,state:'скрыт',reason:'NO_ACTIVE_ALERT',target:null,holder:null,
             targetReason:null,rendering:null,retryInMs:null});});
@@ -55,7 +56,12 @@ function createDisplay(options){
         if(!client||!client.ready||!active)return;
         for(const key of Object.keys(layers)){
             if(!states[key].layout.withinBounds)continue;
-            const next=styledPixels(active,key,profiles[key]),prev=sentPixels[key];
+            const content=contentProfiles[key];
+            if(!composition.hasContent(content)&&active.test!==true&&active.calibration!==true){
+                client.set(layers[key],{visible:false});
+                continue;
+            }
+            const next=styledPixels(active,key,profiles[key],content),prev=sentPixels[key];
             if(!prev)client.pixels(layers[key],null,next);
             else{
                 let left=width,top=height,right=-1,bottom=-1;
@@ -89,9 +95,10 @@ function createDisplay(options){
         }
         if(forcePixels)sentPixels={};send();
     }
-    return {update:function(alert,outputs,layouts){
+    return {update:function(alert,outputs,layouts,contents){
         outputs=outputs||{};
         const nextProfiles=normalizeLayouts(layouts),nextProfileSignature=JSON.stringify(nextProfiles);
+        const nextContent=composition.normalize(contents),nextContentSignature=JSON.stringify(nextContent);
         const targets=['map','hud'].filter(t=>t==='map'?outputs.cluster:outputs.hud);
         if(!alert||!targets.length){
             if(client){
@@ -111,7 +118,8 @@ function createDisplay(options){
         }
         const key=targets.join(','),sig=JSON.stringify(card.presentation(alert));
         if(!client||key!==requested){
-            release(false);requested=key;active=alert;signature=sig;suspended=false;profiles=nextProfiles;profileSignature=nextProfileSignature;
+            release(false);requested=key;active=alert;signature=sig;suspended=false;
+            profiles=nextProfiles;profileSignature=nextProfileSignature;contentProfiles=nextContent;contentSignature=nextContentSignature;
             client=new ClusterRender('marku_kaluga_cameras',options&&options.socket);
             const session=client;
             targets.forEach(n=>{states[n]={state:'ожидание',reason:'WAITING_RENDERER',layout:layoutFor(n,null,null,profiles[n])};});
@@ -135,12 +143,14 @@ function createDisplay(options){
             active=alert;
             const resume=suspended;
             suspended=false;
+            const contentChanged=contentSignature!==nextContentSignature;
+            contentProfiles=nextContent;contentSignature=nextContentSignature;
             if(resume||profileSignature!==nextProfileSignature){
                 // A hello received while the alert was absent may have left
                 // no layers. Arrange and send current pixels before showing.
                 profiles=nextProfiles;profileSignature=nextProfileSignature;signature=sig;
                 if(client.ready)arrange(targets,resume);
-            }else if(signature!==sig){signature=sig;send();}
+            }else if(signature!==sig||contentChanged){signature=sig;send();}
         }
     },status:function(){return client?Object.keys(states).map(k=>k+' '+states[k].state+(states[k].reason?' '+states[k].reason:'')).join(', '):'Ожидание подтверждённого предупреждения';},
     diagnostics:function(){return Object.assign(JSON.parse(JSON.stringify(states)), {

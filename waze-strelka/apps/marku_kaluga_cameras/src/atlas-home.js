@@ -2,9 +2,22 @@
 'use strict';
 const trip = require('./trip_view.js');
 const menu = [
-    ['tripCamera','Камера'], ['tripMaps','Карта телефона'], ['tripDatabase','Базы и регионы'],
+    ['tripCamera','Камера'], ['tripMaps','Карты телефона'], ['tripDatabase','Базы и регионы'],
     ['tripDiagnostics','Диагностика'], ['tripSettings','Настройки'], ['tripAbout','Справка']
 ];
+const sectionPages=['cameraDetail','main','regions','diagnostics','cameras','about'];
+const sections=['trip'].concat(sectionPages);
+const labels=['Поездка'].concat(menu.map(item=>item[1]));
+const subSection={logs:'main',database:'regions',diagnosticPhoto:'diagnostics',alerts:'cameras',types:'cameras',
+    calibration:'cameras',position:'cameras',overspeed:'cameras',atlasMenu:'trip'};
+function section(page){return subSection[page]||page;}
+function railTargets(page){
+    const active=section(page);
+    return sections.map((dest,i)=>({
+        command:'atlasNav:'+dest,label:labels[i],kind:'section',destination:dest,selected:active===dest,enabled:true,
+        x:18,y:i===0?10:105+(i-1)*66,w:274,h:i===0?87:60
+    }));
+}
 const C = { panel:'#112820', map:'#1c342e', line:'#395248', text:'#edf4e9', dim:'#b8cbbd',
     green:'#a3edac', stroke:'#779687', warm:'#f1bf76', off:'#70847a' };
 const phases = { waiting:'Ожидание сервиса', disabled:'Камеры выключены', gps:'Ожидание GPS', stop:'Остановка', approach:'Камера впереди',
@@ -23,8 +36,13 @@ function model(state, version) {
         return points.length>1 && points.every(Boolean)?{points,name:typeof r.name==='string'?r.name.slice(0,40):'',current:r.current===true}:null;
     }).filter(Boolean):[];
     const side=view.active ? require('./atlas-detail.js').confirmedDirection(a) : 'unknown';
-    return Object.assign(view,{side, origin:origin||null,camera:camera||null,roads,
+    const limit=trip.approachLimit(view.active?a:null);
+    const limitNote=limit.scope==='conflict'?'Расхождение '+(limit.values||[]).join(' / '):
+        ['speedcam','camera'].indexOf(limit.scope)>=0?'По базе камер':limit.scope==='map'?'По карте':
+        limit.scope==='posted'?'По знаку':limit.scope==='road'?'Дорожный лимит':'Нет данных';
+    return Object.assign(view,{side,limitNote,origin:origin||null,camera:camera||null,roads,
         heading:s.gpsFix&&Number.isFinite(s.gpsFix.headingDeg)?s.gpsFix.headingDeg:null,
+        outputs:view.text.tripOutputs, cameraTitle:a.id?String(a.title||a.id).slice(0,80):'',
         street:s.street&&s.street.state==='ready'&&typeof s.street.name==='string'?s.street.name:'',
         region:typeof raw.region==='string'?raw.region.slice(0,40):''});
 }
@@ -123,27 +141,74 @@ function drawMap(c,v) {
     fitText(c,header,x+32,53,30,w-76,C.text,true);
     if(!geo && v.street)fitText(c,v.street,x+32,96,23,w-70,C.dim);
 }
+function drawRail(c,page,focus) {
+    c.fillRect(0,0,309,520,C.panel);
+    const rail=railTargets(page);
+    const top=rail[0];
+    if(focus===top.command)c.strokeRoundRect(top.x,top.y,top.w,top.h,9,2,C.green);
+    text(c,'Атлас',30,61,45,C.text,true);
+    text(c,'Поездка',32,90,23,page==='trip'?C.green:C.dim,page==='trip');
+    rail.slice(1).forEach((b,i)=>{
+        const focused=focus===(page==='trip'?menu[i][0]:b.command);
+        if(b.selected||focused)c.roundRect(b.x,b.y,b.w,b.h,8,b.selected?'#294a39':'#203b2d');
+        if(b.selected)c.fillRect(b.x,b.y+8,4,b.h-16,C.green);
+        if(focused)c.strokeRoundRect(b.x+2,b.y+2,b.w-4,b.h-4,7,2,C.green);
+        if(!focused&&!b.selected)c.line(30,b.y+1,280,b.y+1,1,C.line);
+        menuIcon(c,i,36,b.y+20);
+        text(c,b.label,78,b.y+40,24,C.text,b.selected||focused);
+    });
+    c.line(308,0,308,520,1,C.line);
+}
 function drawHome(c,v,focus) {
     c.fillRect(0,0,1600,520,C.panel); drawMap(c,v);
-    text(c,'Атлас',30,65,51,C.text,true);text(c,'Меню поездки',32,95,22,C.dim);
-    menuTargets().forEach((b,i)=>{
-        if(focus===b.command){c.roundRect(b.x,b.y,b.w,b.h,8,'#284a37');c.fillRect(b.x,b.y+8,4,b.h-16,C.green);}
-        else c.line(30,b.y+1,280,b.y+1,1,C.line);
-        menuIcon(c,i,36,b.y+20);
-        text(c,b.label,78,b.y+40,24,C.text,focus===b.command);
-    });
-    const xx=1215;
-    fitText(c,phases[v.phase]||'Поездка',xx,54,34,354,C.text,true);
-    text(c,'До камеры',xx,108,23,C.dim);text(c,distance(v.distance),xx,185,69,C.green,true);
-    c.line(xx,218,1568,218,1,C.line);
-    const known=v.limit!==null, advisory=['map','speedcam'].includes(v.limitScope);
-    c.circle(xx+37,280,35,known?(advisory?C.warm:'#eb6b59'):C.off); c.circle(xx+37,280,29,'#f5f1df');
-    text(c,known?v.limit:'—',xx+37,292,34,'#1b2820',true,'center');
-    text(c,'Лимит',xx+94,264,20,C.dim);
-    text(c,advisory?(v.limitScope==='map'?'по карте':'по базе'):'км/ч',xx+94,297,21,C.text);
-    text(c,'Скорость',xx+221,264,20,C.dim);text(c,(v.speed===null?'—':v.speed)+' км/ч',xx+221,298,25,C.text,true);
-    c.line(xx,337,1568,337,1,C.line);
-    text(c,'Направление камеры',xx,377,24,C.dim);optic(c,xx+7,391,v.side);
-    text(c,directions[v.side],xx+102,451,26,C.text,true);
+    drawRail(c,'trip',focus);
+    const xx=1215, known=v.limit!==null;
+    fitText(c,phases[v.phase]||'Поездка',xx,51,33,355,C.text,true);
+    if(!v.active){
+        const waiting=v.phase==='waiting'||v.phase==='gps';
+        fitText(c,'Скорость автомобиля',xx,109,22,348,C.dim);
+        text(c,(v.speed===null?'—':v.speed),xx,183,68,C.green,true);
+        text(c,'км/ч',xx+165,181,25,C.dim);
+        c.line(xx,211,1566,211,1,C.line);
+        fitText(c,waiting?'Связь с автомобилем':'Предупреждения',xx,254,23,350,C.dim);
+        fitText(c,v.phase==='waiting'?'Ожидаем сервис камер':v.phase==='gps'?'Ожидаем координаты':
+            v.phase==='disabled'?'Выключены':v.phase==='passed'?'Проезд подтверждён':'Активной камеры нет',xx,302,29,350,C.text,true);
+        c.line(xx,341,1566,341,1,C.line);
+        text(c,'Экраны автомобиля',xx,381,23,C.dim);
+        const parts=String(v.outputs||'—').split(' • ');
+        fitText(c,parts.slice(0,2).join('  /  '),xx,429,25,350,C.text,true);
+        if(parts[2])fitText(c,parts[2],xx,469,21,350,C.dim);
+        return;
+    }
+    fitText(c,v.cameraTitle||'До камеры',xx,105,22,350,C.dim);
+    text(c,distance(v.distance),xx,182,66,C.green,true);
+    c.line(xx,211,1568,211,1,C.line);
+    const advisory=['map','speedcam','camera'].includes(v.limitScope);
+    c.circle(xx+37,273,35,known?(advisory?C.warm:'#eb6b59'):C.off); c.circle(xx+37,273,29,'#f5f1df');
+    text(c,known?v.limit:'—',xx+37,285,34,'#1b2820',true,'center');
+    const conflict=v.limitScope==='conflict';
+    fitText(c,conflict?'Расхождение':'Лимит',xx+88,258,20,132,C.dim);
+    const scopeLabel=conflict?v.limitNote.replace(/^Расхождение /,''):v.limitNote==='Дорожный лимит'?'по дороге':v.limitNote;
+    fitText(c,scopeLabel,xx+88,294,conflict?26:18,130,conflict?C.warm:C.text,conflict);
+    text(c,'Скорость',xx+221,258,20,C.dim);fitText(c,(v.speed===null?'—':v.speed)+' км/ч',xx+221,292,24,126,C.text,true);
+    c.line(xx,329,1568,329,1,C.line);
+    text(c,'Направление камеры',xx,369,23,C.dim);optic(c,xx+7,373,v.side);
+    fitText(c,directions[v.side],xx+105,434,26,239,C.text,true);
+    fitText(c,String(v.outputs||'—').split(' • ').slice(0,2).join('  /  '),xx,492,20,351,C.dim);
 }
-module.exports={menuTargets,model,drawHome,distance};
+function drawSummary(c,v) {
+    c.fillRect(0,0,1600,240,C.panel);
+    if(!v)return;
+    const at=[28,540,897,1265];
+    fitText(c,phases[v.phase]||'Поездка',at[0],54,40,490,C.text,true);
+    fitText(c,v.street||v.region||'Яндекс Стрелка',at[0],101,28,490,C.dim);
+    if(v.active){optic(c,at[0],111,v.side);fitText(c,directions[v.side],at[0]+89,174,28,390,C.text,true);}
+    else fitText(c,v.text.tripCameraStatus,at[0],170,29,485,C.text);
+    const metrics=[['До камеры',distance(v.distance)],['Лимит',v.limit===null?'—':v.limit+' км/ч'],['Скорость',v.speed===null?'—':v.speed+' км/ч']];
+    metrics.forEach((m,i)=>{const x=at[i+1];c.line(x-22,25,x-22,187,1,C.line);
+        fitText(c,m[0],x,58,29,300,C.dim);fitText(c,m[1],x,139,56,300,C.green,true);});
+    const hint=v.active?v.limitNote:'';
+    if(hint)fitText(c,hint,at[2],177,24,310,C.dim);
+    c.line(28,198,1570,198,1,C.line);fitText(c,v.outputs||'—',28,228,23,1530,C.dim);
+}
+module.exports={menuTargets,railTargets,section,drawRail,model,drawHome,drawSummary,distance};

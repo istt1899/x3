@@ -34,8 +34,9 @@ let count=0;function ok(text){console.log('ok '+(++count)+' - '+text);}
         ['cameraDiagnostics','cameraAlertsLink','cameraTypesLink','cameraHudSetup','cameraMapSetup','cameraDatabaseLink']);
     const ids=matches(xml,/<(?:container|layoutGroup|component) id="(\d+)"/g).map(x=>x[1]);assert.strictEqual(new Set(ids).size,ids.length);
     Object.keys(ui.containers).forEach(id=>{const s=ui.containers[id],controls=Object.values(s.components).filter(x=>['button','checkBox','slider','dropDownMenu'].includes(x.type));
-        if(Number(id)>=3)assert(controls.length<=(id==='6'||id==='11'?12:8),s.name+': '+controls.length+' controls');
-        assert.strictEqual(c[s.name].resources,1,'every registered state updates resources');
+        if(Number(id)>=100)assert(controls.filter(c=>/^atlasKey/.test(c.name)).length<=9,s.name+' has at most nine contextual button slots');
+        else if(Number(id)>=3)assert(controls.length<=(id==='6'||id==='11'?12:8),s.name+': '+controls.length+' backing controls');
+        assert.strictEqual(c[s.name].resources,s.name===N.hub?1:0,'a unit without a graphic API loads rows only for the open screen');
     });
     Object.values(ui.containers['4'].components).filter(x=>/^cameraDiag_/.test(x.name)).forEach(d=>assert.strictEqual(d.properties.Focusable.value,3,'report rows are real reading stops'));
     assert(Object.values(ui.containers['4'].components).some(x=>x.name==='cameraGpsReset'));
@@ -131,7 +132,7 @@ let count=0;function ok(text){console.log('ok '+(++count)+' - '+text);}
     h.reset();const noOutputs=state();noOutputs.outputs={hud:false,cluster:false};noOutputs.actions=policy.policies(noOutputs,noOutputs.gpsFix,Date.now());
     h.setState(noOutputs);await h.enter(N.diag);assert(c.cameraDiagTest.text().includes('включите приборы или HUD'));
     h.reset();h.setState(state());await h.enter(N.diag);press('cameraDiagCalibration');assert.strictEqual(h.current(),N.cal);assert.strictEqual(commands[commands.length-1].cmd,'calibration-test');
-    ack('HUD: отказ TARGET_NOT_AVAILABLE','error');assert(c.cameraCommand.text().includes('отказ'));assert.strictEqual(h.current(),N.cal);await h.back();assert.strictEqual(h.current(),N.hub);
+    ack('HUD: отказ TARGET_NOT_AVAILABLE','error');assert(c.cameraCommand.text().includes('отказ'));assert.strictEqual(h.current(),N.cal);await h.back();assert.strictEqual(h.current(),N.diag,'Back returns to the caller that opened calibration');
     ok('motion/output guards refuse locally; diagnostics targets an enabled output, names it and retains manual selection');
 
     h.reset();const typed=state();h.setState(typed);await h.enter(N.types);commands.length=0;press('cameraTypesAll');assert.deepStrictEqual(commands[0].cameraTypes,view.ALERT_TYPES.reduce((a,t)=>{a[t.key]=true;return a;},{}));

@@ -23,7 +23,9 @@
     "src/bmw_hold_bridge.js",
     "src/camera_move_repeater.js",
     "src/atlas-home.js",
+    "src/atlas-controls.js",
     "src/atlas-detail.js",
+    "src/atlas-card-composition.js",
     "src/atlas-stage.js"
   ],
   "sdk": [
