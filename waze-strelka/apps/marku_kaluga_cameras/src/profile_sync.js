@@ -132,7 +132,7 @@ function sessionReader(someipBuilders, log, options) {
 }
 
 /* One request to a socket on a connection of its own: resolves to the
- * first line done(msg) accepts, null when the connection opened and none
+ * first line done(msg, socket) accepts (obj=null listens for initial status), null when the connection opened and none
  * came, or undefined when it did not open. */
 function askOnce(path, obj, done, ms) {
     return new Promise((resolve) => {
@@ -152,9 +152,10 @@ function askOnce(path, obj, done, ms) {
         s.setEncoding('utf8');
         s.on('connect', () => {
             linked = true;
-            s.write(JSON.stringify(obj) + '\n');
+            if (obj !== null) s.write(JSON.stringify(obj) + '\n');
         });
         s.on('data', (chunk) => {
+            if (over) return;
             buf += chunk;
             let i;
             while ((i = buf.indexOf('\n')) >= 0) {
@@ -165,7 +166,7 @@ function askOnce(path, obj, done, ms) {
                     /* not ours */
                 }
                 buf = buf.slice(i + 1);
-                if (msg && done(msg)) {
+                if (msg && done(msg, s)) {
                     finish(msg);
                     return;
                 }
@@ -208,6 +209,8 @@ class ProfileSync extends EventEmitter {
     start() {
         if (this._stopped && this._read) {
             this._stopped = false;
+            this._checkOutputs = true;
+            this._startupRevision = this._control && this._control.outputRevision;
             this._poll();
         }
     }
@@ -257,7 +260,7 @@ class ProfileSync extends EventEmitter {
             }
             if (agreed) {
                 this._confirmed = id;
-                if (id !== this.profile && Date.now() >= this._retryAt) {
+                if ((id !== this.profile || this._checkOutputs) && Date.now() >= this._retryAt) {
                     return this._ask({ cmd: 'profile', id });
                 }
             }
@@ -282,7 +285,8 @@ class ProfileSync extends EventEmitter {
             }
             const ev = `${msg.cmd}-reply`;
             return askOnce(this._patchPath, msg, (m) => m.ev === ev || (m.ev === 'refused' && m.cmd === msg.cmd), this._replyMs)
-                .then((r) => {
+                .then(async (r) => {
+                    if (this._stopped) return;
                     if (msg.cmd === 'profile-own') {
                         this._askedOwn = null;
                     }
@@ -293,6 +297,8 @@ class ProfileSync extends EventEmitter {
                         this._log.info(`driver profile: ${r.own ? 'its own' : 'the shared'} map settings${r.changed ? ', applied' : ''}`);
                         if (r.changed && r.settings) {
                             this._toRender(r.settings);
+                        } else if (this._checkOutputs && msg.cmd === 'profile') {
+                            this._checkOutputs = !(await this._restoreOutputs(r.settings));
                         }
                     } else {
                         /* not taken: asked again (patchd not running: at the
@@ -314,6 +320,41 @@ class ProfileSync extends EventEmitter {
         const p = this._chain.then(run, run);
         this._chain = p.catch(() => {});
         return p;
+    }
+
+    /* The saved profile can be unchanged while a newly started renderer has
+     * different outputs. Compare actual status with the driver's choice.
+     * A renderer that starts late is checked on the next regular poll. */
+    async _restoreOutputs(settings) {
+        const control = this._control;
+        const superseded = () => this._stopped || (control && control.outputRevision !== this._startupRevision);
+        const known = (s) => s && [s.cluster, s.hud].every((v) => v === 0 || v === 1);
+        if (!known(settings) || superseded()) return true;
+        const order = settings.hud && !settings.cluster ? ['hud', 'cluster'] : ['cluster', 'hud'];
+        let sent = false;
+        const reconcile = (status, send) => {
+            if (superseded()) return true;
+            if (!status || status.ev !== 'status') return false;
+            if (!known(status)) return true; // older renderer without output selection
+            const changes = order.filter((display) => status[display] !== settings[display]);
+            if (!changes.length) return true;
+            if (!sent) {
+                sent = true;
+                for (const display of changes) send({ cmd: display, on: String(settings[display]) });
+            }
+            return false; // wait for the renderer to report the requested state
+        };
+        if (control && control.render.connected()) {
+            return reconcile(control.renderStatus, (cmd) => control.render.send(cmd));
+        }
+        // With the settings page closed, use the renderer's initial status.
+        // If the page opens meanwhile, let its connection take over on the next poll.
+        let pageOpened = false;
+        const reply = await askOnce(this._renderPath, null, (status, socket) => {
+            pageOpened = control && control.render.connected();
+            return pageOpened || reconcile(status, (cmd) => socket.write(JSON.stringify(cmd) + '\n'));
+        }, this._replyMs);
+        return !!reply && !pageOpened;
     }
 
     /* The render to the settings in effect: a display turned on first, so a

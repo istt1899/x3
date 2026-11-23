@@ -343,6 +343,36 @@ async function main() {
     });
 
     await render.close();
+    await check('cold start: restores cluster only when the renderer starts late and keeps it on phone reconnect', async () => {
+        const saved = new FakePatch(PSOCK);
+        const late = new FakeRender(RSOCK);
+        late.cluster = 0;
+        late.hud = 1;
+        await saved.listen();
+        const boot = new ProfileSync({ readProfile: () => Promise.resolve('driverB'), patchPath: PSOCK, renderPath: RSOCK, pollMs: POLL });
+        boot.start();
+        await until('driver loaded without the renderer', () => boot.profile === 'driverB');
+        await sleep(POLL * 2);
+        await late.listen();
+        try {
+            await until('stored outputs restored in background', () => late.cluster === 1 && late.hud === 0);
+            late.stream(true);
+            await until('first map', () => late.state === 'showing');
+            late.stream(false);
+            late.stream(true);
+            await until('map after phone reconnect', () => late.state === 'showing');
+            await sleep(POLL * 3);
+            const polls = saved.count('profile');
+            await sleep(POLL * 3);
+            assert.strictEqual(saved.count('profile'), polls, 'startup reconciliation finished');
+            assert.deepStrictEqual(late.received, [{ cmd: 'cluster', on: '1' }, { cmd: 'hud', on: '0' }]);
+            assert.deepStrictEqual([late.cluster, late.hud], [1, 0]);
+        } finally {
+            boot.stop();
+            await late.close();
+            await saved.close();
+        }
+    });
     [RSOCK, PSOCK].forEach((p) => { try { fs.unlinkSync(p); } catch (e) { /* gone */ } });
     console.log(`${passed}/${passed} passed`);
     assert(changes > 0);

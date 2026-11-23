@@ -802,8 +802,8 @@ async function main() {
         await until('Off', () => render.cluster === 0 && showOn.shown() === 'Show on: Off' && byName.wocMap.text === 'Cluster map: Off' &&
             byName.wocHud.text === 'HUD map: Off' && byName.wocGuide.enabled === false && hudRows().every((e) => e === false));
         assert.deepStrictEqual(render.received, [{ cmd: 'cluster', on: '0' }], 'Off: only the cluster off');
-        await until('Off saved', () => patch.received.length > savesBeforeOff);
-        assert.deepStrictEqual(patch.received.slice(savesBeforeOff).filter((m) => /^(cluster|hud)$/.test(m.cmd)), [{ cmd: 'cluster', on: 0 }]);
+        await until('Off saved', () => patch.received.slice(savesBeforeOff).filter((m) => /^(cluster|hud)$/.test(m.cmd)).length === 2);
+        assert.deepStrictEqual(patch.received.slice(savesBeforeOff).filter((m) => /^(cluster|hud)$/.test(m.cmd)), [{ cmd: 'cluster', on: 0 }, { cmd: 'hud', on: 0 }]);
         /* the render on neither (its own configuration) reads as Off, a choice still to make */
         render.received.length = 0;
         render.announce(render.state, render.reason);

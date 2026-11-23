@@ -309,6 +309,43 @@ test('the turn card checkbox: the asked card until its change ends; the one on d
     c.close();
 });
 
+test('cluster-only survives a restart and a phone reconnect when the live and saved outputs differed', async (render, patch) => {
+    patch.map.cluster = 0;
+    patch.map.hud = 1;
+    patch.announce('patched', 'high', null);
+    const first = control();
+    first.open();
+    try {
+        await until('live cluster-only setting', () => first.canChooseShownOn() && first.shownOn() === 'cluster');
+        first.showOn('cluster');
+        await until('cluster-only saved for next start', () => patch.map.cluster === 1 && patch.map.hud === 0);
+        assert.deepStrictEqual(render.received, [], 'saving the choice does not disturb a running display');
+    } finally {
+        first.close();
+    }
+
+    // On boot the map service takes its destinations from its saved configuration.
+    render.cluster = patch.map.cluster;
+    render.hud = patch.map.hud;
+    render.stream(false);
+    render.stream(true);
+    await until('first phone stream while settings are closed', () => render.state === 'showing');
+    render.stream(false);
+    render.stream(true);
+    await until('phone stream restored', () => render.state === 'showing');
+
+    const next = control();
+    next.open();
+    try {
+        await until('restored map on the cluster', () => /^Cluster map: Showing/.test(next.mapText()));
+        assert.strictEqual(next.shownOn(), 'cluster');
+        assert.strictEqual(next.hudText(), 'HUD map: Off');
+        assert.deepStrictEqual(render.received, [], 'no extra display command on reconnect');
+    } finally {
+        next.close();
+    }
+});
+
 test('where the map shows: the cluster by default; the HUD and both through the render, patchd saves each change; Off for neither', async (render, patch) => {
     const c = control();
     c.open();
@@ -335,9 +372,13 @@ test('where the map shows: the cluster by default; the HUD and both through the 
     c.showOn('cluster');
     await until('the cluster again', () => render.hud === 0 && c.shownOn() === 'cluster' && c.hudText() === 'HUD map: Off');
     assert.deepStrictEqual(render.received.slice(2), [{ cmd: 'cluster', on: '1' }, { cmd: 'hud', on: '0' }], 'only what changes');
-    await until('each saved', () => patch.received.filter((m) => /^(cluster|hud)$/.test(m.cmd)).length === 4);
-    assert.deepStrictEqual(patch.received.filter((m) => /^(cluster|hud)$/.test(m.cmd)),
-        [{ cmd: 'hud', on: 1 }, { cmd: 'cluster', on: 0 }, { cmd: 'cluster', on: 1 }, { cmd: 'hud', on: 0 }]);
+    await until('each saved', () => patch.received.filter((m) => /^(cluster|hud)$/.test(m.cmd)).length === 8);
+    assert.deepStrictEqual(patch.received.filter((m) => /^(cluster|hud)$/.test(m.cmd)), [
+        { cmd: 'cluster', on: 1 }, { cmd: 'hud', on: 0 },
+        { cmd: 'hud', on: 1 }, { cmd: 'cluster', on: 0 },
+        { cmd: 'cluster', on: 1 }, { cmd: 'hud', on: 1 },
+        { cmd: 'cluster', on: 1 }, { cmd: 'hud', on: 0 }
+    ]);
     /* Off: the cluster off, the HUD stays off, nothing else sent; the stock map back */
     render.received.length = 0;
     patch.received.length = 0;
@@ -345,8 +386,8 @@ test('where the map shows: the cluster by default; the HUD and both through the 
     assert.deepStrictEqual([c.shownOn(), c.clusterOn(), c.hudOn()], ['off', false, false], 'Off at once, before the render answers');
     await until('off', () => render.cluster === 0 && render.hud === 0 && c.renderStatus.cluster === 0 && c.mapText() === 'Cluster map: Off');
     assert.deepStrictEqual(render.received, [{ cmd: 'cluster', on: '0' }], 'only the cluster off');
-    await until('off saved', () => patch.received.some((m) => m.cmd === 'cluster'));
-    assert.deepStrictEqual(patch.received.filter((m) => /^(cluster|hud)$/.test(m.cmd)), [{ cmd: 'cluster', on: 0 }]);
+    await until('off saved', () => patch.count('cluster') === 1 && patch.count('hud') === 1);
+    assert.deepStrictEqual(patch.received.filter((m) => /^(cluster|hud)$/.test(m.cmd)), [{ cmd: 'cluster', on: 0 }, { cmd: 'hud', on: 0 }]);
     assert(c.hudText() === 'HUD map: Off' && c.canChooseShownOn() && !c.canChangeHudSize() && !c.canCentreHud(), 'Off: the choice, not the HUD\'s size and place');
     c.showOn('off');
     c.setHudSizeStep(6);

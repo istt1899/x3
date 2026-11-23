@@ -286,6 +286,7 @@ class WazeClusterControl extends EventEmitter {
         this._wakeTimer = null;
         this._forget();
         this.captureState = { state: 'unavailable' };
+        this.outputRevision = 0;    /* explicit display choices in this app session */
         this.renderStatus = null;   /* the render tool's last status while connected */
 
         this.render = new LineSocket({
@@ -400,17 +401,25 @@ class WazeClusterControl extends EventEmitter {
      * turned on goes first, so a switch from one display to the other never
      * passes through neither. */
     showOn(choice) {
-        if (!SHOWN_ON.includes(choice) || !this.canChooseShownOn() || choice === this.shownOn()) {
+        if (!SHOWN_ON.includes(choice) || !this.canChooseShownOn()) {
             return;
         }
+        this.outputRevision++;
         const want = { cluster: choice === 'cluster' || choice === 'both', hud: choice === 'hud' || choice === 'both' };
-        const changes = ['cluster', 'hud'].filter((d) => this._shows(d) !== want[d]).sort((a, b) => want[b] - want[a]);
-        this._askedShownOn = choice;
-        changes.forEach((d) => {
-            this.render.send({ cmd: d, on: want[d] ? '1' : '0' });
-            this.patch.send({ cmd: d, on: want[d] ? 1 : 0 });
-        });
-        this.emit('change');
+        const destinations = choice === 'hud' ? ['hud', 'cluster'] : ['cluster', 'hud'];
+        const changes = destinations.filter((display) => this._shows(display) !== want[display]);
+        // The renderer reports live outputs. Save the complete choice even when
+        // those outputs already match, since patchd owns the next boot's settings.
+        for (const display of destinations) {
+            this.patch.send({ cmd: display, on: want[display] ? 1 : 0 });
+        }
+        if (changes.length) {
+            this._askedShownOn = choice;
+            for (const display of changes) {
+                this.render.send({ cmd: display, on: want[display] ? '1' : '0' });
+            }
+            this.emit('change');
+        }
     }
 
     /* True while cluster-render's mapping guard keeps the HUD off. */
