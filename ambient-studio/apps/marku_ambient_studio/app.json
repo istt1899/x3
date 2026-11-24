@@ -2,7 +2,7 @@
   "id": "marku_ambient_studio",
   "title": "Студия света",
   "description": "Подсветка салона, стробоскоп и световые эффекты на экране iDrive, диагностический тест дальнего света BMW.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "vendor": "custom",
   "loggingId": "OASR",
   "iconGlyph": "ambient",
@@ -53,7 +53,7 @@
     },
     "de.bmw.infrastructure.VehicleInformation": {
       "_optional": "selector position for the stationary headlight test",
-      "statusGearboxDrive": "rs",
+      "statusGearboxDrive": "s",
       "DataPowerTrain2": "s"
     },
     "de.bmw.infotainment.vehicle.Vehicle2": {

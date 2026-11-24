@@ -9,6 +9,9 @@ process.env.MGU_RENDERER = 'software';
 const { headUnit } = require('./hu-stub');
 const stage = path.resolve(__dirname, '../../dist/marku_ambient_studio');
 const app = path.join(stage, 'source/javascript');
+const manifest = JSON.parse(fs.readFileSync(path.join(stage, 'source/manifest.json'), 'utf8'));
+assert.strictEqual(manifest.proxies['de.bmw.infrastructure.VehicleInformation'].attributes.statusGearboxDrive, 's',
+    'The Store must accept a selector field with a notifier and no getter');
 const { headlightTest } = require(path.join(app, 'headlight-test'));
 const { lightStudio } = require(path.join(app, 'light-studio'));
 const { previewCabin } = require(path.join(app, 'preview-cabin'));
@@ -139,6 +142,17 @@ async function verifyHardware() {
     assert(refused.test.status().note.endsWith('NRC 31'));
     assert(refused.calls.every(([sid]) => sid !== 0x2E));
     assert.deepStrictEqual(refused.holds, [true, false]);
+
+    const notifierOnly = rig();
+    notifierOnly.test.updateSpeed(0);
+    await notifierOnly.test.start(80);
+    assert.deepStrictEqual(notifierOnly.calls, [], 'Zero speed alone cannot authorize the headlight test');
+    notifierOnly.test.updateGear('powertrain', undefined);
+    await notifierOnly.test.start(80);
+    assert.deepStrictEqual(notifierOnly.calls, [], 'An ambiguous N/P event cannot authorize the test');
+    notifierOnly.test.updateGear('powertrain', 'P');
+    await notifierOnly.test.start(80);
+    assert.strictEqual(notifierOnly.calls.filter(([sid]) => sid === 0x2E).length, 3);
 
     const stale = rig();
     stale.parked();
