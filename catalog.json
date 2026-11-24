@@ -628,8 +628,8 @@
       "id": "marku_ambient_studio",
       "kind": "app",
       "title": "Студия света",
-      "description": "Цвет и яркость подсветки салона, избранные сочетания и покадровый предпросмотр фар на экране iDrive.",
-      "version": "1.0.1",
+      "description": "Подсветка салона, стробоскоп и световые эффекты на экране iDrive, диагностический тест дальнего света BMW.",
+      "version": "1.0.2",
       "requires": {
         "idrive7-renderd": "2.1.18",
         "mgu-inputgate": "1.1.0",
@@ -641,10 +641,10 @@
         "ID8"
       ],
       "artifact": {
-        "name": "marku_ambient_studio@1.0.1.tgz",
-        "size": 1012755,
-        "sha256": "fe77a1a3417ebbbb6cb6e090c1db5542fbd4af20f2885f1be50c32e90eb6967d",
-        "url": "https://github.com/istt1899/x3/releases/download/ambient-studio-1.0.1/marku_ambient_studio%401.0.1.tgz"
+        "name": "marku_ambient_studio@1.0.2.tgz",
+        "size": 1136328,
+        "sha256": "1e29940aa5cc41f921af3273913a62e00e7b8b4fa65e1f6937436e84eb0ffddf",
+        "url": "https://github.com/istt1899/x3/releases/download/catalog/marku_ambient_studio%401.0.2.tgz"
       },
       "icon": "https://github.com/istt1899/x3/releases/download/ambient-studio-1.0.1/marku_ambient_studio.png",
       "iconSha256": "046f958dadf3ce68ab125af79222db291c6f3a419f1de1805df2922941bb0d16"
