@@ -1,8 +1,8 @@
 {
   "id": "marku_ambient_studio",
   "title": "Студия света",
-  "description": "Цвет и яркость подсветки салона, избранные сочетания и покадровый предпросмотр фар на экране iDrive.",
-  "version": "1.0.1",
+  "description": "Подсветка салона, стробоскоп и световые эффекты на экране iDrive, диагностический тест дальнего света BMW.",
+  "version": "1.0.2",
   "vendor": "custom",
   "loggingId": "OASR",
   "iconGlyph": "ambient",
@@ -51,10 +51,14 @@
       "_optional": "an open door: its lights red",
       "CentralLockingSystemAndPanelStatus": "s"
     },
+    "de.bmw.infrastructure.VehicleInformation": {
+      "_optional": "selector position for the stationary headlight test",
+      "statusGearboxDrive": "rs",
+      "DataPowerTrain2": "s"
+    },
     "de.bmw.infotainment.vehicle.Vehicle2": {
-      "_optional": "the car's speed: driven (for a car that does not say it is locked and left), and the light show only standing still",
-      "statusCarSpeed2": "rs",
-      "statusLightStatus": "rs"
+      "_optional": "the car's speed: driven (for a car that does not say it is locked and left), and the stationary headlight test",
+      "statusCarSpeed2": "rs"
     }
   },
   "screens": [

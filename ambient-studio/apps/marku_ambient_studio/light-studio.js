@@ -3,6 +3,8 @@
 const { drawCabin } = require('./cabin');
 const { sample } = require('./lin');
 const scenes = require('./scenes');
+const { drawHeadlights } = require('./headlight-art');
+const { modes, flashLengths, intervals, orderNames, lampLabel, strobeFrames, frameAt } = require('./headlight-preview');
 
 const sequences = [
     { name: 'Вместе', frames: [0, 3, 0, 3] },
@@ -17,7 +19,7 @@ const presets = [
 const holds = [500, 1000, 1500, 2000];
 const defaultTimes = [1000, 1000, 1000, 1000];
 const sections = [[0, 'Фары и эффекты', 246], [1, 'Салон', 153], [2, 'Проверка', 188]];
-const masks = ['Обе выключены', 'Левая включена', 'Правая включена', 'Обе включены'];
+const previewScale = 4;
 const zoneNames = { upper: 'Верхняя зона', lower: 'Нижняя зона' };
 const model = sample();
 const C = {
@@ -32,28 +34,59 @@ const lookFor = (p) => ({ kind: 'solid', upper: { rgb: p.upper.slice(), bright: 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const total = (times) => times.reduce((sum, ms) => sum + ms, 0);
 
-// Only manual frame selection or editing can change this still image.
-function drawFront(cv, mask) {
-    const edge = '#5f7482', metal = '#a1aebb', dark = '#202e38', off = '#536873', beam = '#9cdef4';
-    cv.roundRect(102, 280, 424, 83, 31, dark);
-    cv.polyline([[104,303],[120,271],[159,259],[196,217],[224,204],[402,204],[432,216],[473,259],[514,273],[525,306]], 4, edge);
-    cv.polyline([[177,255],[205,224],[224,216],[400,216],[424,226],[452,255],[177,255]], 3, edge);
-    cv.polyline([[124,321],[150,338],[244,345],[384,345],[478,338],[506,321]], 3, edge);
-    [266,318].forEach((x) => {
-        cv.strokeRoundRect(x, 287, 43, 28, 8, 2, metal);
-        [10,18,26,34].forEach((dx) => cv.line(x + dx, 293, x + dx, 310, 2, edge));
-    });
-    [[143, 2], [388, 1]].forEach(([x, bit]) => {
-        const on = !!(mask & bit);
-        cv.roundRect(x - 7, 283, 110, 36, 14, on ? '#2c4c5d' : '#253843');
-        cv.polyline([[x,296],[x+16,305],[x+42,305],[x+55,296],[x+69,305],[x+90,299]], 5, on ? beam : off);
-    });
-}
-
 function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
     const { settings } = ctx;
     let section = 0, frame = 0, report = null, saved = false, zone = null;
     let lastEdit = null, lastCabin = null, elapsed = 0, started = null;
+    let armed = false, confirmation = 0, testPreview = null, previewFinished = false;
+    const { headlights } = vehicle;
+    const strobe = { mode: 0, flash: 1, rate: 1, burst: 2, order: 0, fog: false };
+    const hardwareStatus = () => headlights ? headlights.status() :
+        { busy: false, note: '', blocked: 'На этом стенде доступен экранный тест' };
+
+    function resetPreview() {
+        testPreview = null;
+        previewFinished = false;
+        confirmation = 0;
+    }
+    function setArmed(value) {
+        resetPreview();
+        timing(true);
+        if (!value && headlights) headlights.stop();
+        armed = value;
+    }
+    function configure(key, value) {
+        resetPreview();
+        strobe[key] = value;
+    }
+    function playStrobe() {
+        if (testPreview) { resetPreview(); return; }
+        confirmation = 0;
+        previewFinished = false;
+        const steps = strobeFrames(strobe.mode, strobe.burst, strobe.order, flashLengths[strobe.flash],
+            intervals[strobe.rate], strobe.fog);
+        testPreview = { steps, started: Date.now() };
+    }
+    function previewMask() {
+        if (!testPreview) return 0;
+        const index = frameAt(testPreview.steps, (Date.now() - testPreview.started) / previewScale);
+        if (index >= 0) return testPreview.steps[index].mask;
+        resetPreview();
+        previewFinished = true;
+        return 0;
+    }
+    function testBMW() {
+        const status = hardwareStatus();
+        if (status.busy) { headlights.stop(); return; }
+        if (!headlights || status.blocked) { confirmation = 0; return; }
+        if (confirmation > Date.now()) {
+            confirmation = 0;
+            void headlights.start(flashLengths[strobe.flash]);
+        } else {
+            resetPreview();
+            confirmation = Date.now() + 10000;
+        }
+    }
     const validSequence = (value) => Number.isInteger(value) && value >= 0 && value <= sequences.length;
     const chosen = () => {
         const value = settings.get('studioSequence');
@@ -91,7 +124,7 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
     }
     function setSection(value) {
         if (section !== value) {
-            timing(true);
+            setArmed(false);
             zone = null;
             saved = false;
         }
@@ -199,14 +232,57 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
 
         if (section === 0) {
             const xs = frames(), times = durations(), length = total(times), point = timing();
-            title('Дальний свет', 48, 158);
-            label('Только на экране', 575, 158, 22, C.accent, 'right');
+            const frameIndex = point > 0 || started !== null
+                ? frameAt(times.map((ms) => ({ ms })), point) : frame;
+            const hardware = armed ? hardwareStatus() : null;
+            const mask = armed ? previewMask() : (xs[frameIndex] || 0);
+            title('Фары BMW', 48, 158);
+            label('Экранный предпросмотр', 575, 158, 22, C.accent, 'right');
             cv.roundRect(48, 177, 531, 220, 10, C.stage);
-            drawFront(cv, xs[frame]);
-            label('Вид спереди', 314, 382, 21, C.dim, 'center');
-            label(masks[xs[frame]], 48, 438, 26, C.text, 'left', true);
-            label('Кадр ' + (frame + 1) + ' из 4', 573, 438, 22, C.dim, 'right');
-            label('Левая и правая стороны — по ходу движения', 48, 476, 20, C.dim);
+            drawHeadlights(cv, mask);
+            label(lampLabel(mask), 48, 424, 24, C.text, 'left', true);
+            if (!armed) {
+                label(frameIndex < 0 ? 'Тест завершён' : 'Кадр ' + (frameIndex + 1) + ' из 4',
+                    575, 424, 21, C.dim, 'right');
+            } else if (mask & 48) label('Вид сзади', 575, 424, 21, C.dim, 'right');
+            button(48, 435, 531, 43, armed ? 'Выключить стробоскоп' : 'Включить стробоскоп',
+                'strobe-toggle', () => setArmed(!armed), { primary: !armed, selected: armed });
+
+            if (armed) {
+                const rateNames = ['1 Гц', '2 Гц', '3 Гц', '4 Гц'];
+                const confirming = confirmation > Date.now() && !hardware.blocked;
+                title('Стробоскоп', 641, 158);
+                label('Включён', 1542, 158, 22, C.ok, 'right');
+                modes.forEach(({ name }, i) => {
+                    button(641 + i * 229, 176, 216, 49, name, 'strobe-mode' + i,
+                        () => configure('mode', i), { selected: strobe.mode === i, enabled: !hardware.busy });
+                });
+                button(641, 241, 290, 50, 'Импульс · ' + flashLengths[strobe.flash] + ' мс', 'strobe-flash',
+                    () => configure('flash', (strobe.flash + 1) % flashLengths.length), { enabled: !hardware.busy });
+                button(946, 241, 290, 50, 'Частота · ' + rateNames[strobe.rate], 'strobe-rate',
+                    () => configure('rate', (strobe.rate + 1) % intervals.length), { enabled: !hardware.busy });
+                const lampChoice = strobe.mode === 3 ? 'Все огни' : strobe.fog ? 'Дальний + ПТФ' : 'Дальний свет';
+                button(1251, 241, 291, 50, lampChoice, 'strobe-lamps', () => configure('fog', !strobe.fog),
+                    { enabled: strobe.mode !== 3 && !hardware.busy, selected: strobe.mode === 3 || strobe.fog });
+                if (strobe.mode === 2) {
+                    button(641, 302, 290, 45, 'Вспышек в серии · ' + strobe.burst, 'strobe-burst',
+                        () => configure('burst', strobe.burst % 3 + 1), { enabled: !hardware.busy });
+                    button(946, 302, 290, 45, orderNames[strobe.order], 'strobe-order',
+                        () => configure('order', (strobe.order + 1) % orderNames.length), { enabled: !hardware.busy });
+                }
+                const previewNote = testPreview ? 'Идёт экранный тест · замедлен в 4 раза' : previewFinished
+                    ? 'Экранный тест завершён' : 'Левая и правая фары указаны по ходу движения';
+                label(previewNote, 641, 375, 22, C.dim);
+                const carNote = confirming ? 'На закрытой площадке · 3 вспышки дальнего света' :
+                    hardware.note || hardware.blocked || 'BMW · тест обеих фар на стоянке';
+                label(carNote, 641, 408, 22, confirming ? C.warm : C.dim);
+                button(641, 424, 420, 53, testPreview ? 'Остановить экранный тест' : 'Тест на экране',
+                    'strobe-play', playStrobe, { primary: true, enabled: !hardware.busy });
+                const carAction = hardware.busy ? 'Остановить тест BMW' : confirming ? 'Подтвердить тест фар' : 'Тест фар BMW';
+                button(1073, 424, 469, 53, carAction, 'strobe-bmw', testBMW,
+                    { enabled: hardware.busy || (!hardware.blocked && !testPreview), selected: confirming });
+                return;
+            }
 
             title('Редактор кадров', 641, 158);
             label('Длина сцены · ' + seconds(length), 1548, 158, 22, C.dim, 'right');
@@ -217,7 +293,7 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
             const stripX = 641, stripW = 901;
             let start = 0;
             xs.forEach((mask, i) => {
-                const x = stripX + i * 229, selected = i === frame;
+                const x = stripX + i * 229, selected = i === frameIndex;
                 cv.roundRect(x, 239, 216, 88, 9, selected ? C.active : C.stage);
                 cv.strokeRoundRect(x, 239, 216, 88, 9, selected ? 2 : 1, selected ? C.accent : C.border);
                 label('Кадр ' + (i + 1), x + 14, 269, 22, C.text, 'left', true);
@@ -227,7 +303,7 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
                     cv.roundRect(ix, 281, 89, 30, 5, on ? C.accent : C.soft);
                     label(j ? 'Правая' : 'Левая', ix + 44.5, 302, 18, on ? C.bg : C.dim, 'center', true);
                 });
-                target(x, 239, 216, 88, 'frame' + i, () => { frame = i; });
+                target(x, 239, 216, 88, 'frame' + i, () => { timing(true); frame = i; });
                 const width = stripW * times[i] / length;
                 cv.roundRect(stripX + start + 1, 337, width - 3, 6, 2, selected ? C.accent : C.border);
                 start += width;
@@ -239,7 +315,7 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
             button(641, 360, 276, 53, 'Левая фара', 'left', () => edit(1), { selected: !!(xs[frame] & 1) });
             button(929, 360, 276, 53, 'Правая фара', 'right', () => edit(2), { selected: !!(xs[frame] & 2) });
             button(1217, 360, 325, 53, 'Время кадра · ' + seconds(times[frame]), 'hold', () => edit(0));
-            const playback = started !== null ? 'Пауза' : point > 0 && point < length ? 'Продолжить' : 'Проверить длительность';
+            const playback = started !== null ? 'Пауза' : point > 0 && point < length ? 'Продолжить тест' : 'Тест кадров';
             button(641, 424, 358, 53, playback, 'play', toggleTiming, { primary: true });
             button(1011, 424, 160, 53, 'Сброс времени', 'play-reset', () => timing(true), { enabled: started !== null || point > 0 });
             button(1183, 424, 175, 53, 'Отменить', 'undo', undo, { enabled: !!lastEdit });
@@ -323,7 +399,8 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
                 label(found ? (ctx.preview ? 'В модели' : 'В конфигурации') : 'Нет данных', 575, y + 27, 22, found ? C.ok : C.dim, 'right');
             });
             label('Внешние фары', 48, 395, 24, C.text, 'left', true);
-            label('Экранная схема. Данных о фарах нет.', 48, 434, 22, C.dim);
+            const car = hardwareStatus();
+            label(car.blocked || car.note || 'Готово к тесту на стоянке', 48, 434, 22, C.dim);
 
             title('Самопроверка', 641, 158);
             label('Проверка формата кадров и расчёта цвета', 641, 193, 22, C.dim);
@@ -342,8 +419,8 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
         }
     }
 
-    draw.moving = () => section === 0 && started !== null;
-    draw.leave = () => { timing(true); zone = null; saved = false; };
+    draw.moving = () => section === 0 && (started !== null || armed);
+    draw.leave = () => { setArmed(false); zone = null; saved = false; };
     return draw;
 }
 

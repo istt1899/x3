@@ -3,7 +3,7 @@
  * Ambient config - any colour on the car's ambient light, animations, and a look for each driving mode.
  *
  * Tabs:
- *   Свет           cabin presets, a screen-only headlight storyboard, and a local model self-check
+ *   Свет           cabin presets, a headlight test and storyboard, and a local model self-check
  *   Colour         the colour ring (and white) for the whole car, the upper lights or the lower ones, the
  *                  brightness, and the car from above lit as the car is; Original colour gives the light back
  *   Animations     Solid, Breathing, Rainbow, Smooth fade, Colour wave, how fast, shown moving on the car picture;
@@ -29,6 +29,7 @@ const { Lights } = require('./lights');
 const { Control } = require('./control');
 const { Others } = require('./others');
 const { lightStudio } = require('./light-studio');
+const { headlightTest } = require('./headlight-test');
 const { previewCabin } = require('./preview-cabin');
 const { t: translate } = require('./kit/i18n');
 const { drawCabin } = require('./cabin');
@@ -91,7 +92,17 @@ async function background(bg) {
         }
         return l;
     };
-    const find = () => lights.find().then(counted).then((l) => { if (!l.length) again(); }, (e) => { log.warn('lights: ' + e); again(); });
+    let scan = null;
+    const scanLights = (opts) => {
+        if (scan) return scan;
+        if (headlights.status().busy) return Promise.resolve(lights.lights);
+        scan = lights.find(opts).then(
+            (value) => { scan = null; return value; },
+            (error) => { scan = null; throw error; },
+        );
+        return scan;
+    };
+    const find = () => scanLights().then(counted).then((l) => { if (!l.length) again(); }, (e) => { log.warn('lights: ' + e); again(); });
     setTimeout(find, lights.lights.length ? FIND_LATER_MS : 0);
     signals.watch('de.bmw.infotainment.vehicle.Vehicle', '1', {
         statusDayNightChangeOver: (v) => {
@@ -125,13 +136,36 @@ async function background(bg) {
         VehicleCondition: onCondition('VehicleCondition'),
         vehicleConditionNoCrc: onCondition('vehicleConditionNoCrc'),
     }, log).catch((e) => log.warn('vehicle state: ' + (e && e.message || e)));
+    const others = new Others({ log }).start();
+    const headlights = headlightTest({
+        diag, log,
+        hold: (on) => lights.hold('headlight-test', on),
+        available: () => {
+            if (control._away) return 'BMW в режиме ожидания';
+            if (others.comfort) return 'Диагностика занята другим приложением';
+            if (diag.available !== true) return 'Диагностика BMW недоступна';
+            if (scan) return 'Идёт поиск подсветки салона';
+            return '';
+        },
+    });
+    signals.watch('de.bmw.infrastructure.VehicleInformation', '1', {
+        statusGearboxDrive: (value) => {
+            const stage = value && value.statusActualStageDrive;
+            headlights.updateGear('gearbox', Car.stageOf(stage));
+        },
+        DataPowerTrain2: (value) => {
+            const selected = Car.selectionOf(value && value.statusGearSelectionDrive);
+            headlights.updateGear('powertrain', selected && selected.stage);
+        },
+    }, log, { pollMs: 1000 }).catch((e) => log.warn('headlight test gear: ' + e));
     // the speed
     signals.watch('de.bmw.infotainment.vehicle.Vehicle2', '1', {
         statusCarSpeed2: (v) => {
             const k = v && v.speedVehicleCentreOfGravity;
+            headlights.updateSpeed(k);
             if (typeof k === 'number' && k !== 65535 && k * 0.015625 > 1 && k * 0.015625 < 400) active();
         },
-    }, log).catch((e) => log.warn('speed: ' + (e && e.message || e)));
+    }, log, { pollMs: 1000 }).catch((e) => log.warn('speed: ' + (e && e.message || e)));
     setInterval(() => {
         if (stateSeen || control._away || Date.now() - activeT <= IDLE_MS) return;
         log.info('vehicle state: none from the car, not driven or used for ' + IDLE_MS / 60000 + ' min: parked');
@@ -150,7 +184,6 @@ async function background(bg) {
         if (key === 'turnGlow' || key === 'doorRed' || key === 'hazardRed' || key === 'drive') control.signals();
         if (key === 'doorCar') control.carDoorSetting();
     });
-    const others = new Others({ log }).start();
     // IterioDev's Comfort tool writes the same lights while its own ambient colour is on: then ours stand aside (no
     // writes, so the two don't fight and the lights don't jump), and carry on once it is off or gone. Comfort running
     // for the Seats app alone (its ambient off) leaves the lights to us (others.js).
@@ -160,7 +193,7 @@ async function background(bg) {
     };
     others.on('change', besideComfort);
     besideComfort();
-    return { ambient, lights, control, active, others, lookAgain: () => lights.find({ force: true }).then(counted) };
+    return { ambient, lights, control, active, others, headlights, lookAgain: () => scanLights({ force: true }).then(counted) };
 }
 
 const nearest = (rgb) => {
@@ -177,7 +210,7 @@ mgu.run({
     background,
     async start(ctx) {
         const { ui, settings, log } = ctx;
-        const { ambient, lights, control, active, others, lookAgain } = ctx.background || await background(ctx);
+        const { ambient, lights, control, active, others, headlights, lookAgain } = ctx.background || await background(ctx);
         // editing: null (the driver's own look) or a driving mode whose look the Colour and Animations tabs change
         let page = 4, part = 'all', dirty = true, editing = null;
         const T0 = Date.now();
@@ -402,7 +435,7 @@ mgu.run({
         const drawStudio = lightStudio(ctx, control, lights, redrawStudio, (i) => {
             drawStudio.leave();
             page = i;
-        }, { stock: () => ambient.available, conflict: () => !!others.comfort, activate: active });
+        }, { stock: () => ambient.available, conflict: () => !!others.comfort, activate: active, headlights });
 
         async function render() {
             const t = ctx.theme(), cv = ctx.canvas(W, H).clear(t.bg);
@@ -416,7 +449,7 @@ mgu.run({
             const moving = (lights.scene && S.moves(lights.scene)) || (page === 1 && control.on() && S.moves(look()));
             const studioMoving = page === 4 && drawStudio.moving();
             const due = (moving && page <= 1 || studioMoving) &&
-                Date.now() - movedAt >= (studioMoving ? 125 : MOVE_DRAW_MS);
+                Date.now() - movedAt >= (studioMoving ? 100 : MOVE_DRAW_MS);
             if (due) movedAt = Date.now();
             return dirty || due ? render() : null;
         };
@@ -475,6 +508,11 @@ mgu.run({
         ambient.on('change', () => { dirty = true; });
         others.on('change', () => { dirty = true; });
         settings.onChange(() => { dirty = true; });
+        ui.onVisible((name, visible) => {
+            if (name !== 'MAIN') return;
+            if (!visible) drawStudio.leave();
+            dirty = true;
+        });
         ctx.onLayout(() => { dirty = true; });
         ctx.loop('MAIN', 8, tick);
         render().then(() => log.info('first frame done')).catch((e) => log.warn('first render: ' + e));

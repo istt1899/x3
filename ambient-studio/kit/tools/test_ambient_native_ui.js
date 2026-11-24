@@ -94,7 +94,7 @@ async function verify(screen, output) {
     const log = { debug() {}, info() {}, warn() {}, error: (...parts) => errors.push(parts.join(' ')) };
     const hu = headUnit(stage, { dataDir, live: true, image() {}, log, sets: { layout: 'full' } });
     const { display, settings } = hu;
-    const sections = { headlights: 'frame0', cabin: 'preset1', check: 'check' };
+    const sections = { headlights: 'frame0', strobe: 'strobe-play', cabin: 'preset1', check: 'check' };
     const target = (key) => (display.pageTargets || []).find((r) => r.key === 'studio-' + key);
     const captureSection = async (section, name = section) => {
         await waitFor(() => display.app && target(sections[section]), section);
@@ -152,6 +152,24 @@ async function verify(screen, output) {
         assert.strictEqual(display.app.tabs.sel, 0, 'Light must open first');
         assert(fs.statSync(stream).size > 0, 'No commands sent to the native renderer');
         await captureSection('headlights');
+        assert(display.gpu.sent.layer.size > 0, 'BMW artwork needs a cached native layer');
+        assert.strictEqual(display.gpu.sent.image.size, 0, 'Native renderer cannot upload IMAGE resources');
+        controller();
+        pressTarget('strobe-toggle');
+        await captureSection('strobe');
+        assert(!target('strobe-bmw'), 'Physical test is unavailable without a diagnostic provider');
+        touchTarget('strobe-mode2');
+        await waitFor(() => target('strobe-burst') && target('strobe-order'), 'burst controls');
+        touchTarget('strobe-mode1');
+        touchTarget('strobe-play');
+        const ready = display.app.words.slice();
+        await waitFor(() => display.app.words.some((word, i) => word !== ready[i]), 'running strobe preview');
+        if (output) capture(display, hu.kitDir, path.join(output, screen + '-strobe-test.png'));
+        touchTarget('strobe-play');
+        touchTarget('section1');
+        await waitFor(() => target('preset1'), 'leave strobe');
+        touchTarget('section0');
+        await waitFor(() => target('frame0') && !target('strobe-play'), 'strobe disarmed after navigation');
 
         controller();
         pressTarget('seq1');
@@ -205,7 +223,7 @@ async function verify(screen, output) {
         verifyGeometry(display, screen + ' Cabin after return');
         assert.strictEqual(hu.stack.at(-1), 'MAIN', 'App must stay in the main screen');
         assert.deepStrictEqual(errors, []);
-        console.log('Ambient Studio native ' + screen + ': bounds, touch, rotary focus, storyboard and tab navigation passed');
+        console.log('Ambient Studio native ' + screen + ': bounds, touch, rotary focus, strobe, storyboard and tab navigation passed');
     } finally {
         await hu.ui.close('MAIN');
         if (display.gpu) display.gpu.close();
