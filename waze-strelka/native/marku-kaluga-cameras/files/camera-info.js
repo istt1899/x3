@@ -40,7 +40,7 @@ function describe(camera) {
         cameraLimitDate: camera.providerId === 'osm-russia' ? camera.sourcePublishedAt : camera.sourceUpdatedAt || null,
         cameraLimitDateKind: camera.providerId === 'osm-russia' ? 'edition' : 'record',
         cameraLimitConditional: camera.cameraLimitConditional || null,
-        approachLimitEvidence: tulskayaApproachEvidence(camera), dataRegion: camera.dataRegion || null,
+        approachLimitEvidence: tulskayaApproachEvidence(camera), dataRegion: camera.dataRegion || camera.region || null,
         description: camera.description || null, sourceUrl: camera.sourceUrl || null,
         provenance: camera.provenance || 'OpenStreetMap', positionKind: camera.positionKind || 'camera-node',
         positionSourceUrl: camera.positionSourceUrl || camera.sourceUrl || null,

@@ -64,7 +64,7 @@ assert.strictEqual(described.capture.source, 'osm-direction');
 
 // --- rebuilt coverage on the shipped bundle --------------------------------
 const bundle = require('./build-camera-database').bundle();
-assert.strictEqual(bundle.version, '2026.11.21.1', 'the rebuilt database carries the new version');
+assert.strictEqual(bundle.version, '2026.11.27.1', 'the rebuilt database carries the new version');
 const cov = require(path.join(base, 'database-coverage')).summarize(bundle.records, bundle.zones);
 assert.strictEqual(cov.sourceRecords, 14218);
 assert(cov.facingKnown > 100, 'facingKnown grew far beyond the old OSM-only 20: ' + cov.facingKnown);

@@ -23,13 +23,17 @@ export function convert(snapshot){
         const inCity=r.position.lat>=CITY.latMin&&r.position.lat<=CITY.latMax&&r.position.lon>=CITY.lonMin&&r.position.lon<=CITY.lonMax;
         const record={id:r.id,type:r.type,controls:r.controls.slice(),position:{lat:r.position.lat,lon:r.position.lon},region:'RU-MOW',
             limitKmh:Number.isInteger(r.limitKmh)&&r.limitKmh>=5&&r.limitKmh<=180?r.limitKmh:null,
-            inMoscowCity:inCity,directionKnown:!!r.rawDirection,rawDirection:r.rawDirection||null};
+            inMoscowCity:inCity,directionKnown:!!r.rawDirection,rawDirection:r.rawDirection||null,
+            provenance:r.provenance,sourceUrl:r.sourceUrl,positionKind:r.positionKind,
+            sourceUpdatedAt:r.osmTimestamp,osmVersion:r.osmVersion};
+        if(typeof r.rawTags?.['maxspeed:conditional']==='string')
+            record.cameraLimitConditional=r.rawTags['maxspeed:conditional'];
         if(typeof r.description==='string'&&r.description.trim())record.description=r.description.trim().slice(0,250);
         records.push(record);
     }
     records.sort((a,b)=>a.id.localeCompare(b.id));
     return{schemaVersion:1,version:Date.parse(snapshot.sourceTimestamp)||0,sourceTimestamp:snapshot.sourceTimestamp||null,
-        generatedAt:new Date().toISOString(),source:'OpenStreetMap',licence:'ODbL-1.0',region:'RU-MOW',osmRelation:OSM_RELATION,
+        generatedAt:snapshot.generatedAt,source:'OpenStreetMap',licence:'ODbL-1.0',region:'RU-MOW',osmRelation:OSM_RELATION,
         providerUrl:PROVIDER_URL,pbfMd5:PBF_MD5,records};
 }
 function main(){

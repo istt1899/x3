@@ -18,7 +18,7 @@ function select(alert) {
     const mapped = alert.roadMapLimitSource;
     if (road) add(alert.limitKmh, 'road', 'Подтверждённый подход', alert.roadLimitUpdatedAt);
     if (road) add(alert.postedApproachLimitKmh, 'posted', 'Знак на подходе', alert.postedApproachUpdatedAt);
-    if (road && mapped && mapped.provider === 'openstreetmap' && mapped.tag === 'maxspeed' &&
+    if (road && !alert.gpsHeld && mapped && mapped.provider === 'openstreetmap' && mapped.tag === 'maxspeed' &&
         Number.isSafeInteger(mapped.wayId) && mapped.wayId > 0 && String(mapped.wayId) === String(alert.way) && date(mapped.sourceTimestamp)) {
         add(alert.roadMapLimitKmh, 'map', 'OpenStreetMap', mapped.sourceTimestamp, 'edition');
     }

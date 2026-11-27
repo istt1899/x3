@@ -12,6 +12,7 @@ function confirmedDirection(alert) {
     // That estimate is useful for guidance but cannot identify the photographed bumper.
     if (!capture || capture.verified !== true || !alert.captureClass || alert.captureClass === 'cross') return 'unknown';
     if (captureSides.includes(capture.side)) return capture.side;
+    if (alert.dataRegion === 'RU-MOW' && capture.source === 'osm-direction') return 'unknown';
     return Number.isFinite(capture.facingDeg) && captureSides.includes(alert.captureClass) ? alert.captureClass : 'unknown';
 }
 function presentation(alert) {
@@ -35,6 +36,7 @@ function presentation(alert) {
         speedText:speed===null?'—':hiddenBoundary===null?String(speed):'>'+hiddenBoundary, direction, captureClass: direction,
         distance: !distanceStale && Number.isFinite(distance) && distance >= 0 ? Math.round(distance) : null, distanceStale,
         mode: alert.positionKind === 'intersection' ? 'Ориентир' : alert.roadConfirmed === true ? (alert.controlScope === 'enforcement-location' ? 'Рубеж' : 'По дороге') : 'Рядом',
+        mappedApproach: alert.mappedApproach === true && alert.gpsHeld !== true,
         test: alert.test === true, calibration: alert.calibration === true, decoy: !!(alert.decoyReport && alert.decoyReport.state === 'reported'),
         overspeed, flashActive:overspeed&&warning.flashActive===true, flashPhase:overspeed&&warning.flashActive===true&&warning.flashPhase===true };
 }
@@ -200,7 +202,7 @@ function card(alert, target, profile) {
         rightAligned('км/ч', 308, 73, 18, muted);
     }
     if (content.direction) {
-        const directionLabel = { front: 'В лоб', rear: 'В спину', both: 'Обе стороны', unknown: 'Неизвестно' }[model.direction];
+        const directionLabel = { front: 'В лоб', rear: 'В спину', both: 'Обе стороны', unknown: model.mappedApproach ? 'Подход' : 'Неизвестно' }[model.direction];
         rightAligned(directionLabel, 313, 94, 18, model.direction === 'unknown' ? muted : teal);
     }
     if (model.test || model.calibration) {

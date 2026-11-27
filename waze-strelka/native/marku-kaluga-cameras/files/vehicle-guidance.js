@@ -1,14 +1,17 @@
 'use strict';
 const pack = require('./road-zones.json');
 const reviewedRoads = require('./reviewed-road-zones.json');
-let qleverRoads = { zones: [] };
-try {
-    const supplement = require('./qlever-road-zones.json');
-    if (supplement.schema === 1 && Array.isArray(supplement.zones)) qleverRoads = supplement;
-} catch (error) {
-    // The packaged supplement may be missing or corrupt after a partial installation.
-    // Its failure must not prevent the ordinary and reviewed camera zones from loading.
+function optionalRoads(file) {
+    try {
+        const supplement = require(file);
+        if (supplement.schema === 1 && Array.isArray(supplement.zones)) return supplement;
+    } catch (error) {
+        // A partial installation must leave the ordinary zones usable.
+    }
+    return { zones: [] };
 }
+const qleverRoads = optionalRoads('./qlever-road-zones.json');
+const moscowRoads = optionalRoads('./moscow-road-zones.json');
 const database = require('./kaluga-speed.json');
 const info = require('./camera-info');
 const preferences = require('./alert-preferences');
@@ -135,7 +138,7 @@ function connectsAtCamera(hit, fix, travel) {
 function candidate(z, fix, range, diagnostic, tracking) {
     const x = longitudeDelta(fix.lon, z.lon) * 111320 * Math.cos(z.lat * Math.PI / 180), y = (fix.lat - z.lat) * 111320;
     const reject = reason => { if (diagnostic) diagnostic.reason = reason; return null; };
-    if (z.roadMapLimitSource) {
+    if (z.coverageRadiusM) {
         range = Math.min(range, z.coverageRadiusM);
         if (!Number.isFinite(fix.accuracyM) || fix.accuracyM > 10) return reject('MAP_ACCURACY');
     }
@@ -143,7 +146,7 @@ function candidate(z, fix, range, diagnostic, tracking) {
     const hits = z.roads.map(r => project(r, x, y)).filter(Boolean).sort((a, b) => a.error - b.error), hit = hits[0];
     if (diagnostic && hit) { diagnostic.way = hit.road.id; diagnostic.lateralErrorM = hit.error; }
     // Retention never expands the source road corridor or its heading gates.
-    const corridor = z.roadMapLimitSource ? Math.min(6, Math.max(3, fix.accuracyM)) :
+    const corridor = z.coverageRadiusM ? Math.min(6, Math.max(3, fix.accuracyM)) :
         fix.accuracyM === null ? 6 : Math.min(12, Math.max(6, fix.accuracyM));
     if (!hit || hit.error > corridor) return reject('OFF_ROAD');
     if (hit.road.cam === null) {
@@ -151,7 +154,7 @@ function candidate(z, fix, range, diagnostic, tracking) {
         return reject('CAMERA_WAY_MISSING');
     }
     // Without metre uncertainty admit only well-separated roads.
-    const ambiguityMargin = z.roadMapLimitSource ? Math.max(12, fix.accuracyM + 6) :
+    const ambiguityMargin = z.coverageRadiusM ? Math.max(12, fix.accuracyM + 6) :
         fix.accuracyM === null ? ADMISSION_ACCURACY_M + 3 : Math.max(8, fix.accuracyM + 3);
     const tied = hits.slice(1).filter(other => other.error - hit.error < ambiguityMargin);
     if (tied.length) {
@@ -176,6 +179,7 @@ function candidate(z, fix, range, diagnostic, tracking) {
         return reject('CAMERA_PASSED');
     }
     const result = { id: z.id, way: hit.road.id, sign, distanceM, limitKmh: z.limit, confidence: 'road', roadConfirmed: true };
+    if (z.facing) result.mappedApproach = true;
     if (z.roadMapLimitSource && hit.road.id === z.roadMapLimitSource.wayId) {
         result.roadMapLimitKmh = z.roadMapLimitKmh;
         result.roadMapLimitSource = z.roadMapLimitSource;
@@ -232,8 +236,18 @@ function createGuidance(data) {
             record.sourcePublishedAt === qleverRoads.sourceTimestamp &&
             record.position.lat === z.lat && record.position.lon === z.lon;
     });
+    mapZones.forEach(z => covered.add(z.id));
+    const localMapZones = moscowRoads.zones.filter(z => {
+        const record = byId[z.id];
+        return record && !covered.has(z.id) && record.region === 'RU-MOW' &&
+            record.provenance === 'OpenStreetMap' && record.sourceUrl === 'https://www.openstreetmap.org/node/' + z.id.split(':')[2] &&
+            record.rawDirection === z.facing && record.osmVersion === z.osmVersion &&
+            (record.cameraLimitConditional || null) === z.cameraLimitConditional &&
+            record.limitKmh === z.cameraLimitKmh &&
+            record.position.lat === z.lat && record.position.lon === z.lon;
+    });
     const zones = suppliedZones.map(prepare)
-        .concat(reviewed.map(z => prepare(Object.assign({}, z, { roadOnly: true }))), mapZones.map(prepare));
+        .concat(reviewed.map(z => prepare(Object.assign({}, z, { roadOnly: true }))), mapZones.map(prepare), localMapZones.map(prepare));
     zones.forEach(z => { zoneById[z.id] = z; });
     const describeCamera = info.createDescriber(records);
     function atlasMap(fix, alert) {
@@ -454,7 +468,7 @@ function createGuidance(data) {
                     // including near the device where the angle alone is weak.
                     const differentRoad = detail.reason === 'CAMERA_WAY_MISSING' && !detail.connectingWay;
                     const wrongDirection = ['ONEWAY_MISMATCH', 'HEADING_MISMATCH', 'CAMERA_DIRECTION'].indexOf(detail.reason) >= 0;
-                    const ambiguousMapRoad = zone.roadMapLimitSource && detail.reason === 'AMBIGUOUS_ROAD';
+                    const ambiguousMapRoad = zone.coverageRadiusM && detail.reason === 'AMBIGUOUS_ROAD';
                     if (differentRoad || detail.unrelatedWay || wrongDirection || ambiguousMapRoad) {
                         if (tracked) clearReason = detail.reason;
                         continue;
@@ -559,11 +573,12 @@ function createGuidance(data) {
                 state.cameraId = previous.id; state.distanceM = previous.distanceM;
                 state.way = previous.way || null;
                 transition(previous, reason, f);
-                if (previous.speedcamApproach || previous.roadMapLimitSource && (routeDeparture.includes(reason) || reason === 'MAP_ACCURACY' || reason === 'POSITION_JUMP')) {
+                if (previous.speedcamApproach || (previous.roadMapLimitSource || previous.mappedApproach) && (routeDeparture.includes(reason) || reason === 'MAP_ACCURACY' || reason === 'POSITION_JUMP')) {
                     const held = Object.assign({}, previous);
                     delete held.speedcamApproach;
                     delete held.roadMapLimitKmh;
                     delete held.roadMapLimitSource;
+                    delete held.mappedApproach;
                     active = held;
                     return held;
                 }

@@ -84,7 +84,8 @@ function captureFor(record) {
             source: 'osm-relation', verified: false };
     }
     var raw = record.rawDirection;
-    if (typeof raw === 'string' && /^[0-9]{1,3}(?:\.[0-9]+)?$/.test(raw) && Number(raw) <= 360) {
+    if ((record.provenance === 'OpenSpeedcam' || /^osc:/.test(record.id || '')) &&
+        typeof raw === 'string' && /^[0-9]{1,3}(?:\.[0-9]+)?$/.test(raw) && Number(raw) <= 360) {
         /* OpenSpeedcam, сообщественное соглашение: азимут контролируемого
          * потока. Публичная документация поля отсутствует — verified=false. */
         var oscFlow = Math.round(Number(raw)) % 360;
