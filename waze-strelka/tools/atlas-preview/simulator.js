@@ -48,6 +48,7 @@ function persist() {
 }
 let page='trip', history=[], panel=emptyPanel(), target='hud', selected='', region='RU-KLU', regionPage=null;
 let diagnosticPage=0, diagnosticService=false, diagnosticBlock=0, resultBlock=0, snapshot=null, test=null, timer=null, capture=false, activeOutput=null;
+let atlasDraft=null, atlasMessage='';
 let message='', lastState, view, buttons=[], lastBitmap='', logEntries=[], datasetStatus='idle', updateAvailable=true;
 let cropped=false, outside=false;
 const outputCards={hud:null,map:null};
@@ -130,7 +131,7 @@ function stateNow() {
         (saved.alertPreferences.cameraTypes.speed||saved.alertPreferences.cameraTypes.lane);
     const fix=roadPosition(distance,phase==='parallel');
     const state={...saved,serviceVersion:config.version,observedAtMs:now,appClock:{wallMs:now,wallUtc:new Date(now).toISOString()},
-        capabilities:{alertPreferences:true,overspeedPreferences:true,cardComposition:true,outputs:true,displayTest:true,update:true,hudOpacity:true},
+        capabilities:{alertPreferences:true,overspeedPreferences:true,cardComposition:true,outputs:true,displayTest:true,layoutPreview:true,update:true,hudOpacity:true},
         audio:{available:false,reason:'Учебный стенд • звуковой канал BMW не подключён'},
         gpsFix:held?null:{...fix,speedKmh:speed,timeMs:now,source:'simulator'},vehicleMotion:{code:held?'UNAVAILABLE':'READY',speedKmh:speed},
         gpsMotion:{state:held?'unknown':speed===0?'stopped':'moving',speedKmh:speed},
@@ -142,6 +143,21 @@ function stateNow() {
         storage:{persistent:storageAvailable,settingsSaved:storageAvailable},rendererDetails:{connection:'ready'},
         displayTest:test?{active:true,target:test,pinned:true}:{active:false}};
     state.actions=policy.policies(state,state.gpsFix,now,null,speed);
+    state.centerCameraScalePct=saved.centralCameraScalePct;
+    if(atlasDraft&&!state.actions.cardLayout.allowed)atlasDraft=null;
+    if(atlasDraft){
+        const sample={id:'__atlas_preview__',title:'Камера скорости',controls:['speed','redlight'],distanceM:180,
+            roadConfirmed:true,limitKmh:60,speedKmh:48,captureDirectionVerified:true,captureDirection:'front'};
+        const profiles=layout.normalizeLayouts(state.cardLayout), cards={};
+        for(const out of ['map','hud']){
+            if(atlasDraft.scale)profiles[out].scalePct=atlasDraft.scale;
+            const node=el(out);
+            cards[out]=atlasDraft.cards[out]||(atlasDraft.cards[out]=layers.styledPixels(sample,out,profiles[out],state.cardComposition[out]));
+            state.rendererDetails[out]={state:'shown',target:'shown',rendering:'verified',
+                layout:layers.layoutFor(out,{width:node.width,height:node.height},'simulator',profiles[out])};
+        }
+        state.layoutPreview={session:atlasDraft.id,scalePct:atlasDraft.scale,revision:atlasDraft.revision,alert:sample,cards,profiles};
+    }
     return state;
 }
 const compare={cameraWarningDistance:s=>(s.alertPreferences.warningDistanceM-50)/50,
@@ -193,11 +209,13 @@ window.addEventListener('pagehide',endInput);
 function go(next,replacing=false) {
     endInput();
     outside=false;
+    atlasDraft=null;atlasMessage='';
     if(!replacing&&next!==page)history.push({page,panel:{...panel},selected,target});
     page=next;panel=emptyPanel();selected='';
 }
 function back() {
     endInput();
+    atlasDraft=null;atlasMessage='';
     if(panel.cameraOutput && panel.cameraFrom==='cameraDetail'){panel=emptyPanel();selected='atlasCameraOpen';return;}
     if(panel.edit){selected='atlasEdit:'+panel.edit;panel={sheet:panel.sheet,edit:null};return;}
     if(page==='main' && panel.sheet>0){panel=emptyPanel();selected='atlasSheet:1';return;}
@@ -286,9 +304,11 @@ function renderOutputs(s) {
             continue;
         }
         const preview=inputStage.sliderPreview;
-        if(preview&&out===target&&(page==='calibration'||page==='cameraDetail'&&panel.cameraOutput===target))setProfileStep(profile,preview.source,preview.step);
+        if(s.layoutPreview)Object.assign(profile,s.layoutPreview.profiles[out]);
+        if(preview&&s.layoutPreview&&preview.source==='cameraCardScale')profile.scalePct=75+5*preview.step;
+        else if(preview&&out===target&&page==='calibration')setProfileStep(profile,preview.source,preview.step);
         const activeTest=test===out&&s.actions.cardLayout.allowed;
-        const visibleAlert=activeTest?{...makeWarning(150,0,false),test:true,calibration:true}:s.alert;
+        const visibleAlert=activeTest?{...makeWarning(150,0,false),test:true,calibration:true}:s.layoutPreview?s.layoutPreview.alert:s.alert;
         const info=layers.layoutFor(out,{width:node.width,height:node.height},'simulator',profile);
         ctx.clearRect(0,0,node.width,node.height);
         const show=enabled&&visibleAlert&&info.withinBounds&&(activeTest||composition.hasContent(fields));
@@ -361,7 +381,7 @@ function drawStage(){
         node.width=width;node.height=height;
     }
     const shown=inputStage.sliderPreview||inputStage.hold?{...view,sliderPreview:inputStage.sliderPreview,holding:inputStage.hold?.command}:view;
-    const key=JSON.stringify([width,height,page,shown,sceneFocus]);
+    const key=JSON.stringify([width,height,page,shown.previewCards?{...shown,previewCards:Object.keys(shown.previewCards)}:shown,sceneFocus]);
     if(key===lastBitmap)return;
     stage.sceneAtSize(screenRaster,page,shown,sceneFocus,width,height);
     bitmap(node,screenRaster.d,width,height);lastBitmap=key;
@@ -375,7 +395,7 @@ function render() {
             offset:[s.phone.x,s.phone.y],error:'',centerScale:s.phone.centerScale,
             centerError:storageAvailable?'':'Размер хранится только в этом сеансе'},mapInteractive:true,
         centralCameraScalePct:saved.centralCameraScalePct,centralScaleError:storageAvailable?'':'Размер хранится только в этом сеансе',
-        version:config.version,atlasPanel:panel,region:reg,target,snapshot,serviceReady:true,diagnosticService,diagnosticState:s,
+        version:config.version,atlasPanel:panel,layoutEditor:{...(atlasDraft||{}),message:atlasMessage},region:reg,target,snapshot,serviceReady:true,diagnosticService,diagnosticState:s,
         testGuard:!s.outputs[target==='hud'?'hud':'cluster']?{allowed:false,reason:'Включите вывод на выбранный экран.'}:s.actions.displayTest});
     if(!view)throw Error('Отсутствует экран '+page);
     buttons=stage.targets(page,view);
@@ -400,6 +420,11 @@ function changeValue(control,step) {
     if(!Number.isInteger(step))return;
     const profile=saved.cardLayout[target],o=saved.overspeedPreferences, minmax=(v,a,b)=>Math.min(b,Math.max(a,v));
     if(control.startsWith('cameraCard')&&!lastState.actions.cardLayout.allowed)return;
+    if(control==='cameraCardScale'&&panel.cameraOutput&&atlasDraft){
+        atlasDraft.scale=75+5*minmax(step,0,10);
+        atlasDraft.revision++;
+        return;
+    }
     if(control==='atlasCenterCameraScale')saved.centralCameraScalePct=65+5*minmax(step,0,12);
     else if(control==='atlasCenterMapScale')saved.phone.centerScale=65+5*minmax(step,0,12);
     else if(control==='cameraWarningDistance')saved.alertPreferences.warningDistanceM=50+50*minmax(step,0,19);
@@ -431,16 +456,21 @@ function execute(command){
     if(command==='atlasCameraOpen'){
         const from=page;
         if(from!=='cameraDetail')go('cameraDetail');
-        panel={...emptyPanel(),cameraOutput:'center',cameraFrom:from};selected='atlasCameraOutput:center';return;
+        panel={...emptyPanel(),cameraOutput:'all',cameraFrom:from};selected='atlasPreviewStart';return;
     }
     if(panel.cameraOutput){
         if(command==='atlasCameraClose'){back();return;}
         if(command==='atlasCameraSlider'){panel.cameraAdjust=!panel.cameraAdjust;return;}
-        if(command.startsWith('atlasCameraOutput:')){
-            endInput();
-            panel.cameraOutput=command.split(':')[1];panel.cameraAdjust=false;
-            if(panel.cameraOutput!=='center')target=panel.cameraOutput;
-            return;
+        if(command==='atlasPreviewStart'){
+            atlasDraft={id:'simulator',revision:0,scale:null,cards:{}};atlasMessage='';return;
+        }
+        if(command==='atlasPreviewSave'&&atlasDraft&&atlasDraft.scale){
+            saved.centralCameraScalePct=atlasDraft.scale;
+            for(const out of ['hud','map'])saved.cardLayout[out].scalePct=atlasDraft.scale;
+            atlasDraft=null;atlasMessage='Размер уведомлений сохранён';persist();return;
+        }
+        if(command==='atlasPreviewHud'||command==='atlasPreviewMap'){
+            configure(command==='atlasPreviewHud'?'hud':'map');return;
         }
     }
     if(command==='atlasExit'){exitAtlas();return;}

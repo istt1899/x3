@@ -53,9 +53,9 @@ class CameraControl extends EventEmitter {
         sock.on('data', (chunk) => {
             if (this.sock !== sock) return;
             this.buffer += chunk;
-            if (this.buffer.length > 131072) { sock.destroy(); return; }
             let nl;
             while ((nl = this.buffer.indexOf('\n')) >= 0) {
+                if (nl > 131072) { sock.destroy(); return; }
                 const line = this.buffer.slice(0, nl).trim(); this.buffer = this.buffer.slice(nl + 1);
                 if (!line) continue;
                 let msg;
@@ -70,6 +70,7 @@ class CameraControl extends EventEmitter {
                     this.emit('change');
                 }
             }
+            if (this.buffer.length > 131072) sock.destroy();
         });
         sock.on('close', () => {
             if (this.sock !== sock) return;

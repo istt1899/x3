@@ -12,6 +12,8 @@ var databaseCoverage = require('./database-coverage');
 var officialData = require('./official-camera-data'), databaseVersion = require('./database-version.json');
 var captureData = require('./capture-data');
 var crypto = require('crypto');
+var zlib = require('zlib');
+var cameraLayers = require('./camera-layers');
 var regionalData = require('./russia-regional-store');
 var speedcamPrivate = require('./speedcam-private');
 var speedcamDownload = require('./speedcam-download');
@@ -49,6 +51,7 @@ function mkdirp(dir) {
   var parent = path.dirname(dir); if (parent !== dir) mkdirp(parent);
   try { fs.mkdirSync(dir); } catch (e) { if (e.code !== 'EEXIST' || !fs.statSync(dir).isDirectory()) throw e; }
 }
+function previewScale(value) { return Number.isInteger(value) && value >= 75 && value <= 125 && value % 5 === 0; }
 function readSettings(file) {
   var settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), cardComposition: cardComposition.normalize(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() };
   try {
@@ -56,6 +59,7 @@ function readSettings(file) {
     if (typeof p.enabled === 'boolean') settings.enabled = p.enabled;
     if (p.outputs) ['cluster', 'hud'].forEach(function (key) { if (typeof p.outputs[key] === 'boolean') settings.outputs[key] = p.outputs[key]; });
     if (Number.isInteger(p.hudOpacityPct) && p.hudOpacityPct >= 10 && p.hudOpacityPct <= 100) settings.hudOpacityPct = p.hudOpacityPct;
+    if (previewScale(p.centerCameraScalePct)) settings.centerCameraScalePct = p.centerCameraScalePct;
     settings.cardLayout = cardLayout.normalizeLayouts(p.cardLayout);
     settings.cardComposition = cardComposition.normalize(p.cardComposition);
     settings.alertPreferences = alertPreferences.normalize(p.alertPreferences);
@@ -108,8 +112,8 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), cardComposition: cardComposition.normalize(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.12.1', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
-    cardLayout: settings.cardLayout,
+  var state = { serviceVersion: '0.13.0', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+    cardLayout: settings.cardLayout, centerCameraScalePct: settings.centerCameraScalePct || null, layoutPreview: null,
     cardComposition: settings.cardComposition,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -119,7 +123,7 @@ function start(options) {
     audio: { available: false, reason: 'Безопасный звуковой канал BMW не подтверждён' },
     commandResult: null, actions: {}, databaseUpdate: { phase: 'idle', busy: false }, nearestCandidates: [],
     atlasMap: { origin: null, roads: [], camera: null },
-    hudDimming: 'unavailable', capabilities: { outputs: false, update: false, hudOpacity: false, displayTest: false, cardComposition: true, vehicleSpeedTest: true, alertPreferences: true, overspeedPreferences: true, gpsReset: false },
+    hudDimming: 'unavailable', capabilities: { outputs: false, update: false, hudOpacity: false, displayTest: false, layoutPreview: false, cardComposition: true, vehicleSpeedTest: true, alertPreferences: true, overspeedPreferences: true, gpsReset: false },
     rendererDetails: {}, displayTest: { active: false, pinned: false, target: null, calibration: false, untilMs: 0 },
     gps: 'Ожидание моста GPS BMW', gpsFix: null, gpsMotion: { state:'unknown', conflict:false, roadMismatch:false, sources:[] }, clock: clockSnapshot(Date.now(), null),
     gpsBridge: { state: 'stopped', errorCode: null, ageMs: null, reason: 'Мост не запущен: приложение не стартовало или остановлено' },
@@ -187,7 +191,7 @@ function start(options) {
     guidance = options.guidance || require('./vehicle-guidance').createGuidance({ zones: zones.zones, records: database.records });
   }
   catch (e) { state.error = 'Guidance unavailable: ' + e.message; }
-  try { display = options.display || require('./camera-layers').createDisplay(); state.capabilities.outputs = true; state.capabilities.displayTest = true; }
+  try { display = options.display || cameraLayers.createDisplay(); state.capabilities.outputs = true; state.capabilities.displayTest = true; state.capabilities.layoutPreview = true; }
   catch (e) { state.renderer = 'unavailable'; state.error = state.error || 'Display unavailable: ' + e.message; }
   try { dimmer = options.dimmer || require('./hud-dimmer').createDimmer(); state.capabilities.hudOpacity = true; }
   catch (e) { state.hudDimming = 'unavailable'; }
@@ -207,6 +211,7 @@ function start(options) {
     state.alert = null;
     state.atlasMap = { origin: null, roads: [], camera: null };
     if (state.displayTest.active || previewRequest) stopDisplayTest('GPS_RESET');
+    closeLayoutPreview();
   }
   function motionFixes(now) {
     if (typeof gps.motionFixes !== 'function') return null; // older injected GPS providers
@@ -334,17 +339,33 @@ function start(options) {
       close: function () { Object.keys(pending).forEach(function (id) { clearTimeout(pending[id].timer); pending[id].reject(new Error('Сервис закрыт')); }); pending = {}; state.audioRequest = null; } };
   }
   function publicState() { return state; }
+  var waitingStatus = new WeakMap();
   function send(sock) {
-    var pending = typeof sock.writableLength === 'number' ? sock.writableLength : sock.bufferSize;
-    if (typeof pending !== 'number') pending = 0;
-    if (!sock.destroyed && pending < 65536) sock.write(JSON.stringify({ ev: 'status', state: publicState() }) + '\n');
+    if (sock.destroyed) return;
+    var pending = waitingStatus.get(sock);
+    if (pending) { pending.latest = true; return; }
+    var current = layoutSession && layoutSession.socket !== sock ? Object.assign({}, state, {layoutPreview:null}) : publicState();
+    if (!sock.write(JSON.stringify({ ev: 'status', state: current }) + '\n')) {
+      // Finish the current frame and coalesce intermediate updates. In
+      // particular, the final command state survives a busy socket.
+      pending = { latest: false };
+      waitingStatus.set(sock, pending);
+      function drain() {
+        sock.removeListener('close', closeStatus);
+        waitingStatus.delete(sock);
+        if (pending.latest) send(sock);
+      }
+      function closeStatus() { sock.removeListener('drain', drain); waitingStatus.delete(sock); }
+      sock.once('drain', drain);
+      sock.once('close', closeStatus);
+    }
   }
   function broadcast(force) {
     var signature = JSON.stringify(state);
     if (!force && signature === lastStatus) return;
     lastStatus = signature; clients.forEach(send);
   }
-  function save(next) {
+  function save(next, requirePersistence) {
     var tmp = settingsPath + '.tmp';
     try {
       fs.writeFileSync(tmp, JSON.stringify(next), { mode: 0o600 });
@@ -352,13 +373,90 @@ function start(options) {
     } catch (e) {
       state.storage = { persistent: false, settingsSaved: false, error: e.code || e.message };
       try { fs.unlinkSync(tmp); } catch (ignored) {}
+      if (requirePersistence) throw new Error('Не удалось сохранить размер уведомлений');
     }
-    settings = next; state.enabled = settings.enabled; state.outputs = settings.outputs; state.hudOpacityPct = settings.hudOpacityPct; state.cardLayout = settings.cardLayout; state.cardComposition = settings.cardComposition; state.alertPreferences = settings.alertPreferences; state.overspeedPreferences = settings.overspeedPreferences;
+    settings = next; state.centerCameraScalePct = settings.centerCameraScalePct || null; state.enabled = settings.enabled; state.outputs = settings.outputs; state.hudOpacityPct = settings.hudOpacityPct; state.cardLayout = settings.cardLayout; state.cardComposition = settings.cardComposition; state.alertPreferences = settings.alertPreferences; state.overspeedPreferences = settings.overspeedPreferences;
   }
-  function nextSettings() { return { enabled: settings.enabled, outputs: Object.assign({}, settings.outputs), hudOpacityPct: settings.hudOpacityPct, cardLayout: cardLayout.normalizeLayouts(settings.cardLayout), cardComposition: cardComposition.normalize(settings.cardComposition), alertPreferences: alertPreferences.normalize(settings.alertPreferences), overspeedPreferences: warningPolicy.normalize(settings.overspeedPreferences) }; }
+  function nextSettings() { return { enabled: settings.enabled, centerCameraScalePct: settings.centerCameraScalePct, outputs: Object.assign({}, settings.outputs), hudOpacityPct: settings.hudOpacityPct, cardLayout: cardLayout.normalizeLayouts(settings.cardLayout), cardComposition: cardComposition.normalize(settings.cardComposition), alertPreferences: alertPreferences.normalize(settings.alertPreferences), overspeedPreferences: warningPolicy.normalize(settings.overspeedPreferences) }; }
   function testTargetEnabled(target) { return target === 'hud' ? settings.outputs.hud : target === 'map' ? settings.outputs.cluster : settings.outputs.hud || settings.outputs.cluster; }
   var previewRequest = null;
   var monotonicNow = options.monotonicNow || function() { return process.uptime() * 1000; };
+  var layoutSession = null;
+  var layoutSample = { id: '__atlas_preview__', title: 'Камера скорости', controls: ['speed', 'redlight'],
+    distanceM: 180, distance: 180, roadConfirmed: true, limitKmh: 60, speedKmh: 48,
+    captureDirectionVerified: true, captureDirection: 'front' };
+  function closeLayoutPreview() {
+    layoutSession = null;
+    state.layoutPreview = null;
+  }
+  function editLayouts(scale) {
+    var profiles = cardLayout.normalizeLayouts(settings.cardLayout);
+    if (scale !== null) ['map', 'hud'].forEach(function (target) { profiles[target].scalePct = scale; });
+    return profiles;
+  }
+  function updateLayoutPreview() {
+    if (!layoutSession) return null;
+    if (!state.actions.cardLayout.allowed || monotonicNow() >= layoutSession.deadline) {
+      closeLayoutPreview();
+      return null;
+    }
+    var layouts = editLayouts(layoutSession.scale);
+    var imageKey = JSON.stringify([settings.cardComposition, layouts.map.brightnessPct, layouts.map.opacityPct,
+      layouts.hud.brightnessPct, layouts.hud.opacityPct]);
+    if (imageKey !== layoutSession.imageKey) {
+      layoutSession.imageKey = imageKey;
+      layoutSession.cards = {};
+      ['map', 'hud'].forEach(function (target) {
+        var pixels = cameraLayers.styledPixels(layoutSample, target, layouts[target], settings.cardComposition[target]);
+        layoutSession.cards[target] = zlib.deflateSync(pixels).toString('base64');
+      });
+    }
+    state.layoutPreview = { session: layoutSession.id, revision: layoutSession.revision, scalePct: layoutSession.scale,
+      alert: layoutSample, cards: layoutSession.cards, profiles: layouts };
+    return layouts;
+  }
+  function editLayoutPreview(msg, sock) {
+    var allowed = ['cmd', 'requestId', 'session', 'scalePct', 'revision'];
+    if (typeof msg.session !== 'string' || !/^[a-zA-Z0-9._:-]{1,96}$/.test(msg.session) ||
+        Object.keys(msg).some(function (key) { return allowed.indexOf(key) < 0; })) throw new Error('Сеанс предпросмотра недействителен');
+    var own = layoutSession && layoutSession.id === msg.session && layoutSession.socket === sock;
+    if (msg.cmd === 'layout-preview-cancel') {
+      if (own) { closeLayoutPreview(); tick(); }
+      return;
+    }
+    var now = gpsNow(), policy = actionsAt(now, gps.current(now)).cardLayout;
+    if (!policy.allowed) { if (own) { closeLayoutPreview(); tick(); } throw new Error(policy.reason); }
+    if (msg.cmd === 'layout-preview-start') {
+      if (layoutSession && monotonicNow() >= layoutSession.deadline) closeLayoutPreview();
+      if (layoutSession && !own && layoutSession.socket !== sock) throw new Error('Уже открыт другой сеанс предпросмотра');
+      if (!display) throw new Error('Рендерер предупреждений недоступен');
+      if (state.displayTest.active) stopDisplayTest('ATLAS_PREVIEW');
+      if (!layoutSession || !own) layoutSession = { id: msg.session, socket: sock, scale: null, revision: 0 };
+    } else if (!own || monotonicNow() >= layoutSession.deadline) throw new Error('Тест завершён. Включите предпросмотр снова');
+    if (msg.cmd === 'layout-preview') {
+      if (!previewScale(msg.scalePct) || !Number.isSafeInteger(msg.revision) || msg.revision < 1)
+        throw new Error('Некорректный масштаб предпросмотра');
+      if (msg.revision > layoutSession.revision) {
+        layoutSession.scale = msg.scalePct;
+        layoutSession.revision = msg.revision;
+      }
+    }
+    if (msg.cmd === 'layout-preview-save') {
+      if (msg.revision !== layoutSession.revision) throw new Error('Дождитесь обновления теста');
+      if (layoutSession.scale !== null) {
+        var next = nextSettings();
+        next.cardLayout = editLayouts(layoutSession.scale);
+        next.centerCameraScalePct = layoutSession.scale;
+        save(next, true);
+      }
+      closeLayoutPreview();
+      tick();
+      commandResult(msg.cmd, 'finished', 'Размер уведомлений сохранён', state.commandResult.id);
+      return;
+    }
+    layoutSession.deadline = monotonicNow() + 8000;
+    tick();
+  }
   function finishPreview(phase, message) {
     if (!previewRequest) return;
     var result = Object.assign({}, previewRequest.result, { phase: phase, message: message.slice(0, 300), timeMs: Date.now() });
@@ -371,10 +469,10 @@ function start(options) {
     state.displayTest.active = false; state.displayTest.pinned = false; state.displayTest.untilMs = 0;
     state.displayTest.stoppedReason = reason;
   }
-  function updateDisplay(alert, outputs) {
+  function updateDisplay(alert, outputs, layouts) {
     if (!display) return;
     try {
-      display.update(alert, outputs, settings.cardLayout, settings.cardComposition);
+      display.update(alert, outputs, layouts || settings.cardLayout, settings.cardComposition);
       state.renderer = display.status();
       state.rendererDetails = typeof display.diagnostics === 'function' ? display.diagnostics() : {};
     } catch (e) {
@@ -554,7 +652,8 @@ function start(options) {
     var displayOutputs = state.displayTest.active && state.displayTest.target ? {
       cluster: state.displayTest.target === 'map' && settings.outputs.cluster, hud: state.displayTest.target === 'hud' && settings.outputs.hud
     } : settings.outputs;
-    updateDisplay(displayAlert, displayOutputs);
+    var previewLayouts = updateLayoutPreview();
+    updateDisplay(previewLayouts ? layoutSample : displayAlert, displayOutputs, previewLayouts);
     if (previewRequest && state.displayTest.active && settlePreview()) updateDisplay(state.alert, settings.outputs);
     if (audio) { audio.configure(settings.overspeedPreferences); audio.update(state.alert, warningFix, now, holding || guidanceHeld); var audioState = audio.status();
       if(state.audio && state.audio.probeState)audioState.probeState=state.audio.probeState;
@@ -567,10 +666,11 @@ function start(options) {
     }
     broadcast(false);
   }
-  function execute(msg) {
+  function execute(msg, sock) {
     if(closed)throw new Error('Сервис завершает работу');
     if (!msg || typeof msg.cmd !== 'string') throw new Error('Invalid command');
     if (msg.cmd === 'status') return;
+    if (['layout-preview-start','layout-preview','layout-preview-keep','layout-preview-save','layout-preview-cancel'].indexOf(msg.cmd) >= 0) return editLayoutPreview(msg, sock);
     if (msg.cmd === 'gps-reset') {
       if(Object.keys(msg).some(function(key){return ['cmd','requestId'].indexOf(key)<0;}))throw new Error('Неизвестное поле перезапуска GPS');
       if(!state.capabilities.gpsReset)throw new Error('Источник GPS не поддерживает явный сброс сеанса');
@@ -589,6 +689,7 @@ function start(options) {
       if(!policy.allowed)throw Object.assign(new Error(policy.reason), { code: policy.code });
       var target = msg.target === undefined ? null : cardLayout.validateTarget(msg.target);
       if(!testTargetEnabled(target))throw new Error('Включите выход «' + (target === 'hud' ? 'HUD' : 'Приборы') + '» для камер');
+      closeLayoutPreview();
       previewRequest = { result: state.commandResult, deadline: monotonicNow() + 10000 };
       state.displayTest.result = state.commandResult;
       state.displayTest.calibration = msg.cmd === 'calibration-test';
@@ -720,10 +821,10 @@ function start(options) {
       return;
     }
     if (msg && msg.requestId !== undefined && !requestToken(msg)) throw new Error('Invalid requestId');
-    var userCommand = msg && typeof msg.cmd === 'string' && ['status','vehicle-nmea','gps-bridge','vehicle-context','audio-played'].indexOf(msg.cmd)<0;
+    var userCommand = msg && typeof msg.cmd === 'string' && ['status','vehicle-nmea','gps-bridge','vehicle-context','audio-played','layout-preview-keep','layout-preview-cancel','layout-preview'].indexOf(msg.cmd)<0;
     if(userCommand) { commandResult(msg.cmd,'requested','Выполняется: ' + msg.cmd, null, requestToken(msg)); broadcast(true); }
     try {
-      var answer=execute(msg);
+      var answer=execute(msg, sock);
       if(userCommand && state.commandResult.phase==='requested' && ['display-test','calibration-test','database-check','database-rollback','audio-test','regional-list','regional-download','regional-rollback'].indexOf(msg.cmd)<0)
         commandResult(msg.cmd,'finished',state.storage.settingsSaved === false && ['card-layout','card-layout-reset','card-move','card-composition','alert-preferences','overspeed-preferences'].indexOf(msg.cmd) >= 0 ? 'Настройка действует временно: хранилище недоступно' : 'Настройка применена',state.commandResult.id);
       if(userCommand)broadcast(true);return answer;
@@ -744,7 +845,9 @@ function start(options) {
     clients.push(sock); sock.setEncoding('utf8');
     function drop() {
       clients = clients.filter(function (c) { return c !== sock; });
-      if (vehicleSpeedSocket !== sock) return;
+      var previewLost = layoutSession && layoutSession.socket === sock;
+      if (previewLost) closeLayoutPreview();
+      if (vehicleSpeedSocket !== sock) { if (previewLost) tick(); return; }
       vehicleSpeedSocket = null;
       vehicleSpeedSample = null;
       tick();
@@ -815,7 +918,7 @@ function start(options) {
   try { gps.start(); } catch (e) { state.error = 'GPS start: ' + e.message; }
   var timer = setInterval(tick, 500); tick();
   function close() {
-    if (closed) return; stopDisplayTest('SERVICE_CLOSED'); closed = true; clearInterval(timer); if (speedcamInstaller) speedcamInstaller.close(); gps.close(); if (display) display.close(); if (dimmer) dimmer.close(); if(store)store.close(); if(regionalStore)regionalStore.close(); if(audio)audio.close();
+    if (closed) return; closeLayoutPreview(); stopDisplayTest('SERVICE_CLOSED'); closed = true; clearInterval(timer); if (speedcamInstaller) speedcamInstaller.close(); gps.close(); if (display) display.close(); if (dimmer) dimmer.close(); if(store)store.close(); if(regionalStore)regionalStore.close(); if(audio)audio.close();
     if(typeof gps.removeListener==='function'){gps.removeListener('fix',tick);gps.removeListener('status',onGpsStatus);}
     clients.forEach(function (c) { c.destroy(); }); try { server.close(); } catch (e) {}
     if (ownsSocket) { try { fs.unlinkSync(socketPath); } catch (e) {} }

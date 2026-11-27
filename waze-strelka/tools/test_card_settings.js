@@ -31,15 +31,15 @@ async function start(dir, gps, options) {
       details[target] = { state: 'shown', target: 'shown', rendering: 'verified', layout: renderer.layoutFor(target, target === 'map' ? { width: 1088, height: 480 } : { width: 800, height: 400 }, 'test', layouts[target]) };
     });
   }, diagnostics: function () { return clone(details); }, status: function () { return 'ready'; }, close: function () { closed++; } };
-  var app;
+  var app, control = socket(dir);
   await new Promise(function (resolve, reject) {
-    app = service.start(Object.assign({ dataDir: dir, socket: socket(dir), gps: gps, guidance: { evaluate: function () { return actual; } },
+    app = service.start(Object.assign({ dataDir: dir, socket: control, gps: gps, guidance: { evaluate: function () { return actual; } },
       display: display, dimmer: { update: function () {}, status: function () { return 'test'; }, close: function () {} },
       storeFactory: function (opts) { return { current: function () { return opts.initial; }, status: function () { return { phase: 'idle' }; }, close: function () {} }; },
       onListening: resolve, onError: reject }, options || {}));
   });
   apps.push(app);
-  return { app: app, latest: function () { return latest; }, details: details, closed: function () { return closed; },
+  return { app: app, socket: control, latest: function () { return latest; }, details: details, closed: function () { return closed; },
     actual: function (value) { actual = value; }, refresh: function () { gps.fix.timeMs = Date.now(); gps.fix.motionTimeMs = Date.now(); app.tick(); } };
 }
 function removeOwned(dir) {
@@ -51,7 +51,12 @@ function connect(control) {
   sock.on('data', function (chunk) { buffer += chunk; var nl; while ((nl = buffer.indexOf('\n')) >= 0) { replies.push(JSON.parse(buffer.slice(0, nl))); buffer = buffer.slice(nl + 1); } });
   return { sock: sock, replies: replies, command: async function (message) {
     var id = 'card-test-' + (++sequence); sock.write(JSON.stringify(Object.assign({ requestId: id }, message)) + '\n');
-    await until(function () { return replies.some(function (reply) { return reply.state && reply.state.commandResult && reply.state.commandResult.requestId === id && reply.state.commandResult.phase !== 'requested'; }); });
+    try { await until(function () { return replies.some(function (reply) { return reply.state && reply.state.commandResult && reply.state.commandResult.requestId === id && reply.state.commandResult.phase !== 'requested'; }); }); }
+    catch(error) {
+      throw Error(message.cmd + ' ' + id + ' ' + JSON.stringify(replies.slice(-6).map(function(reply) {
+        return reply.state ? {result:reply.state.commandResult, size:JSON.stringify(reply).length} : reply;
+      })));
+    }
     return replies.filter(function (reply) { return reply.state && reply.state.commandResult && reply.state.commandResult.requestId === id; }).pop().state;
   } };
 }
@@ -160,6 +165,66 @@ async function main() {
   assert.strictEqual(failure.app.state().storage.settingsSaved, false);
   assert(/временно/.test(failure.app.state().commandResult.message));
   failure.app.command({ cmd: 'display-test-stop' }); assert(/временно/.test(failure.app.state().commandResult.message)); failure.app.close();
+  var liveDir = directory('atlas-preview'), monotonic = 1000;
+  var live = await start(liveDir, gps, { monotonicNow: function () { return monotonic; } });
+  var preview = live.app, baseLayouts;
+  preview.command({ cmd:'outputs', cluster:true, hud:true });
+  preview.command({ cmd:'card-layout', target:'hud', brightnessPct:35, opacityPct:45, x:600 });
+  baseLayouts = clone(preview.state().cardLayout);
+  var editor = connect(live.socket), other = connect(live.socket);
+  var send = function(msg) { editor.sock.write(JSON.stringify(Object.assign({session:'sample'},msg)) + '\n'); };
+  var snapshot = await editor.command({cmd:'layout-preview-start',session:'sample'});
+  assert.strictEqual(snapshot.layoutPreview.revision, 0);
+  assert.deepStrictEqual(live.latest().outputs, {cluster:true,hud:true});
+  assert.strictEqual((await other.command({cmd:'layout-preview-start',session:'elsewhere'})).commandResult.phase,'error');
+  send({cmd:'layout-preview',scalePct:120,revision:2});
+  await until(function () { return preview.state().layoutPreview.revision === 2; });
+  send({cmd:'layout-preview',scalePct:85,revision:1});
+  assert.strictEqual((await editor.command({cmd:'layout-preview-save',session:'sample',revision:1})).commandResult.phase,'error');
+  snapshot = preview.state();
+  assert.deepStrictEqual(snapshot.cardLayout, baseLayouts);
+  assert.deepStrictEqual([live.latest().layouts.map.scalePct,live.latest().layouts.hud.scalePct],[120,120]);
+  ['map','hud'].forEach(function(target) {
+    var rgba = require('zlib').inflateSync(Buffer.from(snapshot.layoutPreview.cards[target],'base64'));
+    var wire = live.latest();
+    assert.deepStrictEqual(rgba,renderer.styledPixels(wire.alert,target,wire.layouts[target],wire.contents[target]));
+  });
+  assert.strictEqual(snapshot.alert,null);
+  assert.strictEqual(snapshot.speedWarning.overspeed,false);
+  send({cmd:'layout-preview-cancel'});
+  await until(function () { return preview.state().layoutPreview === null; });
+  assert.deepStrictEqual(preview.state().cardLayout,baseLayouts);
+
+  await editor.command({cmd:'layout-preview-start',session:'sample'});
+  send({cmd:'layout-preview',scalePct:110,revision:1});
+  snapshot = await editor.command({cmd:'layout-preview-save',session:'sample',revision:1});
+  assert.strictEqual(snapshot.commandResult.phase,'finished');
+  assert.strictEqual(snapshot.centerCameraScalePct,110);
+  assert.deepStrictEqual(snapshot.cardLayout,{
+    map:Object.assign({},baseLayouts.map,{scalePct:110}),hud:Object.assign({},baseLayouts.hud,{scalePct:110})
+  });
+  assert.strictEqual(snapshot.layoutPreview,null);
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(liveDir,'settings.json'))).centerCameraScalePct,110);
+
+  await editor.command({cmd:'layout-preview-start',session:'sample'});
+  preview.command({cmd:'outputs',cluster:false,hud:true});
+  assert.deepStrictEqual(live.latest().outputs,{cluster:false,hud:true});
+  gps.fix.speedKmh=5; live.refresh();
+  assert.strictEqual(preview.state().layoutPreview,null);
+  gps.fix.speedKmh=0; live.refresh();
+  await editor.command({cmd:'layout-preview-start',session:'sample'});
+  monotonic+=8001; preview.tick();
+  assert.strictEqual(preview.state().layoutPreview,null);
+  await editor.command({cmd:'layout-preview-start',session:'sample'});
+  other.sock.destroy();
+  editor.sock.destroy();
+  await until(function () { return preview.state().layoutPreview === null; });
+  preview.close(); await immediate();
+  var liveRestarted = await start(liveDir,gps);
+  assert.strictEqual(liveRestarted.app.state().centerCameraScalePct,110);
+  assert.strictEqual(liveRestarted.app.state().layoutPreview,null);
+  liveRestarted.app.close();
+  console.log('PASS Atlas live preview: socket isolation, exact raster, shared revision, save, cancel, motion, expiry, restart');
   var freshDir = directory('stop-defaults'), fresh = await start(freshDir, gps); assert(!fs.existsSync(path.join(freshDir, 'settings.json')));
   fresh.app.command({ cmd: 'display-test-stop' }); assert(fresh.app.state().storage.settingsSaved); assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(freshDir, 'settings.json'))).cardLayout, defaults); fresh.app.close();
   console.log('PASS explicit Done persists even defaults; failed writes are marked temporary and never reported saved');

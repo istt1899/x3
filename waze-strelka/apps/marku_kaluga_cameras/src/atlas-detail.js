@@ -78,8 +78,7 @@ function model(page, input) {
         v.ride=cameraScene.model(state,context.version,context.centralCameraScalePct);
         v.lens=v.ride.side;
         const destination=(context.atlasPanel||{}).cameraOutput;
-        if(Object.prototype.hasOwnProperty.call(cameraScene.screens,destination))
-            return cameraScene.editor(v,context,destination);
+        if(destination==='all') return cameraScene.editor(v,context);
         set(face[v.lens]||'Сторона неизвестна',ride.text.tripCameraStatus,[
             ['Дистанция',unit(ride.distance,'м')],['Лимит',trip.limitText(trip.approachLimit(ride.active?raw:null)).replace(/^Лимит[: ]+/, '')],
             ['Камера',ride.active?ride.text.tripCameraIdentity:dash],['Подход',ride.text.tripCameraRoad],['Основание',ride.text.tripCameraEvidence.replace(/^Основание: /,'')]]);

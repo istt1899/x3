@@ -145,21 +145,23 @@ def check(file, screenshot_dir):
                              ("tripDiagnostics","diagnostics"),("tripSettings","cameras"),("tripAbout","about")]:
             action_state(cmd,expected);back();assert where()=="trip"
         assert commands()[:8]==["tripCamera","tripMaps","tripDatabase","tripDiagnostics","tripSettings","tripAbout","atlasCameraOpen","atlasExit"]
+        val("phase").select_option("stop")
         native("atlasCameraOpen",touch=True);assert where()=="cameraDetail"
         camera_slider=page.locator('[data-command="atlasCameraSlider"]')
         assert camera_slider.get_attribute("aria-valuetext")=="100 %"
-        native("atlasValue:atlasCenterCameraScale:8",touch=True)
+        assert not camera_slider.is_enabled()
+        native("atlasPreviewStart",touch=True)
+        before = [val(out).evaluate("c=>c.toDataURL()") for out in ("central","map","hud")]
+        native("atlasValue:cameraCardScale:6",touch=True)
         assert camera_slider.get_attribute("aria-valuetext")=="105 %"
-        native("atlasCameraOutput:hud")
-        before_hud=int(camera_slider.get_attribute("aria-valuenow"))
-        native("atlasValue:cameraCardScale:"+str(before_hud+1))
-        assert int(camera_slider.get_attribute("aria-valuenow"))==before_hud+1
-        native("atlasCameraOutput:map")
-        assert int(camera_slider.get_attribute("aria-valuenow"))==before_hud
+        assert all(val(out).evaluate("c=>c.toDataURL()") != previous
+                   for out,previous in zip(("central","map","hud"),before))
         save("09-camera-editor")
+        native("atlasPreviewSave")
         native("atlasCameraClose");assert where()=="trip"
         native("tripCamera");native("atlasCameraOpen")
         assert camera_slider.get_attribute("aria-valuetext")=="105 %"
+        native("atlasPreviewStart");native("atlasValue:cameraCardScale:7")
         back();assert where()=="cameraDetail" and "atlasCameraOpen" in commands()
         assert "tripCameraDiagnostics" in commands()
         home()

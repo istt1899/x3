@@ -19,6 +19,7 @@ function confirmedDirection(alert) {
     if(a.captureDirectionVerified===true && valid(a.captureDirection))return a.captureDirection;
     if(!capture||capture.verified!==true||!a.captureClass||a.captureClass==='cross')return 'unknown';
     if(valid(capture.side))return capture.side;
+    if(a.dataRegion==='RU-MOW'&&capture.source==='osm-direction')return 'unknown';
     return Number.isFinite(capture.facingDeg)&&valid(a.captureClass)?a.captureClass:'unknown';
 }
 function point(lat,lon) {
@@ -43,7 +44,7 @@ function model(state,version,centralScale) {
         outputProfiles[target]={enabled:outputs[target==='map'?'cluster':'hud'],fields:composition,
             size:layout.scalePct,brightness:layout.brightnessPct,opacity:layout.opacityPct};
     }
-    return Object.assign(v,{side:confirmedDirection(a),limitNote,origin:raw.origin&&point(raw.origin.lat,raw.origin.lon)||null,
+    return Object.assign(v,{side:confirmedDirection(a),mappedApproach:a.mappedApproach===true&&a.gpsHeld!==true,limitNote,origin:raw.origin&&point(raw.origin.lat,raw.origin.lon)||null,
         camera:raw.camera&&point(raw.camera.lat,raw.camera.lon)||null,roads,
         heading:s.gpsFix&&Number.isFinite(s.gpsFix.headingDeg)&&s.gpsFix.headingDeg>=0&&s.gpsFix.headingDeg<360?s.gpsFix.headingDeg:null,
         street:s.street&&s.street.state==='ready'&&typeof s.street.name==='string'?s.street.name.slice(0,80):'',
@@ -156,7 +157,7 @@ function hero(c,v,x,y,w,h) {
         const r=Math.min(26,h*.11)*k,cy=y+h*.83;
         sign(c,v.limit,left+r,cy,r);
         let dirX=left+2*r+18;
-        const dir=v.side==='unknown'?'Сторона не подтверждена':faces[v.side];
+        const dir=v.side==='unknown'?(v.mappedApproach?'Подход по карте':'Сторона не подтверждена'):faces[v.side];
         if(v.side!=='unknown'){captureArrow(c,v.side,dirX+5,cy-4,10*k,C.accent);dirX+=22;}
         text(c,dir,dirX,cy+4,23*k,inner-(dirX-left),C.text,true);
         text(c,v.limitNote,dirX,cy+25,16,inner-(dirX-left),v.limitScope==='conflict'?C.amber:C.dim);
@@ -209,23 +210,33 @@ function preview(c,v,target,x,y,w,h,scaleOverride) {
     text(c,primary,tx,baseline+5,(compact?21:35)*scale,w-(tx-x)-18,ink,true);
     if(main.length && aux.length)text(c,aux.join(' · '),tx,y+h-9,(compact?16:22)*scale,w-(tx-x)-18,ink);
 }
-function editor(v,context,target){
-    const central=target==='center', p=v.ride.outputProfiles[target]||{},guard=diagnostics.action(context.state,'cardLayout');
-    const source=central?'atlasCenterCameraScale':'cameraCardScale', min=central?65:75, max=central?12:15;
-    const pct=central?v.ride.centralScale:p.size;
-    const step=Number.isInteger(pct)&&(pct-min)%5===0&&(pct-min)/5>=0&&(pct-min)/5<=max?(pct-min)/5:null;
-    const enabled=step!==null&&(central||guard.allowed);
-    v.cameraOutput=target;v.title='Вид уведомления';v.group='Редактор';v.edit=null;v.sheet=0;v.sheets=1;
-    if(context.atlasPanel.cameraAdjust && enabled)v.edit={name:source,label:'Размер',value:pct+' %',step,max};
-    v.side=screens[target];v.feedback=central?context.centralScaleError||'':guard.allowed?'':guard.reason;
-    const btn=(command,label,x,y,w,extra)=>Object.assign({command,label,enabled:true,x,y,w,h:59},extra);
-    v.buttons=Object.keys(screens).map((key,i)=>btn('atlasCameraOutput:'+key,screens[key],24+i*511,83,493,{kind:'choice',selected:key===target}));
-    v.buttons.push(btn('atlasCameraSlider','Размер',24,335,1540,{kind:'slider',source,step,max,enabled,value:step===null?'—':pct+' %',
-        track:{x:224,y:365,w:1145,h:8,wide:true}}));
-    v.buttons.push(btn('atlasValue:'+source+':'+(step-1),'Уменьшить',24,443,272,{enabled:enabled&&step>0}),
-        btn('atlasValue:'+source+':'+(step+1),'Увеличить',310,443,272,{enabled:enabled&&step<max}));
-    if(!central)v.buttons.push(btn(target==='hud'?'cameraHudSetup':'cameraMapSetup','Яркость, положение и состав',599,443,650));
-    v.buttons.push(btn('atlasCameraClose','Назад',1281,443,283));
+function editor(v,context){
+    const state=context.state||{}, local=context.layoutEditor||{}, incoming=state.layoutPreview;
+    const live=incoming&&incoming.session===local.id?incoming:null;
+    const guard=diagnostics.action(context.state,'cardLayout');
+    const connected=!!(state.capabilities&&state.capabilities.layoutPreview===true);
+    const idle=Number.isInteger(state.centerCameraScalePct)?state.centerCameraScalePct:v.ride.centralScale;
+    const pct=local.scale||live&&live.scalePct||Math.max(75,idle);
+    const step=(pct-75)/5, max=10, enabled=!!live&&guard.allowed&&!local.saving;
+    v.cameraOutput='all';v.title='Настроить уведомление';v.edit=null;v.sheet=0;v.sheets=1;
+    v.sample=live?model(Object.assign({},state,{alert:live.alert,enabled:true,gpsMotion:{state:'moving',speedKmh:48},
+        vehicleMotion:{}}),context.version,pct):null;
+    v.previewOverride=local.scale||null; v.previewCards=live&&live.cards; v.previewProfiles=live&&live.profiles; v.previewDetails=state.rendererDetails||{};
+    if(context.atlasPanel.cameraAdjust&&enabled)v.edit={name:'cameraCardScale',label:'Размер',value:pct+' %',step,max};
+    v.feedback=local.message||(!connected?'Для живого теста нужен сервис Атласа 0.13.0.':!guard.allowed?guard.reason:
+        local.saving?'Сохраняю размер…':live&&local.revision>live.revision?'Обновляю тест…':'');
+    const btn=(command,label,x,y,w,extra)=>Object.assign({command,label,enabled:true,x,y,w,h:52},extra);
+    v.buttons=[
+        btn('atlasCameraSlider','Размер',24,335,1540,{kind:'slider',source:'cameraCardScale',step,max,enabled,value:pct+' %',
+            track:{x:224,y:359,w:1145,h:8,wide:true}}),
+        btn(live?'atlasPreviewSave':'atlasPreviewStart',live?'Сохранить':'Показать тест',24,438,300,
+            {enabled:live?enabled&&local.revision>0:connected&&guard.allowed&&!local.starting}),
+        btn('atlasValue:cameraCardScale:'+(step-1),'-',337,438,105,{enabled:enabled&&step>0}),
+        btn('atlasValue:cameraCardScale:'+(step+1),'+',454,438,105,{enabled:enabled&&step<max}),
+        btn('atlasPreviewHud','Настройки HUD',574,438,335),
+        btn('atlasPreviewMap','Настройки приборов',924,438,370),
+        btn('atlasCameraClose','Назад',1309,438,255)
+    ];
     return v;
 }
 function button(c,b,focus) {
@@ -244,34 +255,69 @@ function button(c,b,focus) {
     }
     text(c,b.label,labelX,cy+9,26,b.x+b.w-labelX-18,ink,true);
 }
+function physicalStatus(v,target){
+    const name=v.ride.outputProfiles[target], d=v.previewDetails[target]||{};
+    if(name.enabled!==true)return name.enabled===false?'Выключен':'Выход неизвестен';
+    if(!v.previewCards)return 'Готов к тесту';
+    if(d.disabled||d.target==='unavailable'||d.state==='отказ'||d.reason==='CANVAS_TOO_SMALL')return 'Недоступен';
+    if(d.state==='shown'&&d.target==='shown')return d.rendering==='verified'?'Слой подключён':'Проверьте на экране';
+    return 'Ожидание вывода';
+}
+function drawPhysical(c,v,target,x,y,w,h,pct){
+    const background='#102622', d=v.previewDetails[target]||{}, frame=d.layout&&d.layout.canvas;
+    const profile=(v.previewProfiles||{})[target], card=(v.previewCards||{})[target];
+    const sy=Math.min((w-24)*(c.scaleX||1)/(frame?frame.width:1000),(h-65)/(frame?frame.height:360));
+    const sx=sy/(c.scaleX||1), cw=frame?frame.width:1000,ch=frame?frame.height:360;
+    const left=x+(w-cw*sx)/2, top=y+35+(h-55-ch*sy)/2;
+    c.roundRect(x,y,w,h,12,C.panel);
+    text(c,screens[target],x+16,y+27,24,w-28,C.text,true);
+    c.roundRect(left,top,cw*sx,ch*sy,3,background);
+    if(card&&profile&&c.raster){
+        const actual=d.layout&&d.layout.card;
+        if(actual&&(!pct||pct===profile.scalePct)){
+            c.raster(target,card,320,96,left+actual.x*sx,top+actual.y*sy,actual.width*sx,actual.height*sy);
+        }else{
+            const scale=pct||profile.scalePct;
+            const margin=Math.max(8,Math.min(20,Math.round(Math.min(cw,ch)*.035)));
+            const k=Math.min(scale/100,(cw-2*margin)/320,(ch-2*margin)/96);
+            if(k>=.75){
+                const width=Math.floor(320*k), height=Math.floor(96*k);
+                const px=margin+Math.round((cw-2*margin-width)*profile.x/1000);
+                const py=margin+Math.round((ch-2*margin-height)*profile.y/1000);
+                c.raster(target,card,320,96,left+px*sx,top+py*sy,width*sx,height*sy);
+            }
+        }
+    }
+    const status=physicalStatus(v,target);
+    text(c,status+(card&&!frame?' · размер экрана неизвестен':''),x+16,y+h-10,18,w-28,C.dim);
+}
 function editorDraw(c,v,focus) {
-    const ride=v.ride, target=v.cameraOutput, slider=v.buttons.find(b=>b.kind==='slider');
-    const pct=v.sliderPreview&&v.sliderPreview.source===slider.source?(target==='center'?65:75)+5*v.sliderPreview.step:
-        slider.step===null?null:parseInt(slider.value,10);
-    text(c,v.title,28,57,39,1190,C.text,true);
-    const left=24,top=158,w=1540,h=158;
-    if(target==='center'){
-        c.roundRect(left,top,w,h,12,C.panel);
-        text(c,'Предпросмотр · '+screens[target],left+22,top+36,22,w-42,C.dim);
-        const size=Math.round(35*(pct||100)/100);
-        const display=ride.active?ride.cameraTitle+'  ·  '+distance(ride.distance)+'  ·  '+faces[ride.side]:phases[ride.phase];
-        text(c,display,left+22,top+107,size,w-44,C.text,true);
-    }else preview(c,ride,target,left,top,w,h,pct);
-    if(v.feedback)text(c,v.feedback,27,425,18,1515,C.amber);
-    else if(v.edit)text(c,'Поворот iDrive меняет размер. Нажмите, чтобы закончить.',27,425,18,1515,C.dim);
+    const slider=v.buttons.find(b=>b.kind==='slider');
+    const draft=v.sliderPreview&&v.sliderPreview.source===slider.source?v.sliderPreview.step:null;
+    const pct=draft===null?parseInt(slider.value,10):75+5*draft;
+    text(c,v.title,28,55,39,1190,C.text,true);
+    text(c,'Тест на стоянке',1556,55,22,325,C.dim,false,'right');
+    const x=24,y=85,w=497,h=221;
+    c.roundRect(x,y,w,h,12,C.panel);
+    text(c,screens.center,x+16,y+27,24,w-28,C.text,true);
+    if(v.sample&&c.subscene){
+        c.subscene(x+18,y+36,Math.min((w-36)/548,(h-45)/316),
+            cc=>hero(cc,Object.assign({},v.sample,{centralScale:pct}),0,0,548,316));
+    }else text(c,'Включите тест, чтобы увидеть карточку',x+18,y+128,23,w-32,C.dim);
+    const mirrorScale=draft===null?v.previewOverride:pct;
+    drawPhysical(c,v,'map',x+518,y,w,h,mirrorScale);
+    drawPhysical(c,v,'hud',x+1036,y,w,h,mirrorScale);
+    if(v.feedback)text(c,v.feedback,27,413,19,1515,C.amber);
+    else if(v.edit)text(c,'Поворот iDrive меняет размер. Нажмите, чтобы закончить.',27,413,19,1515,C.dim);
     v.buttons.forEach(b=>{
         if(b.kind==='slider'){
-            const current=v.sliderPreview&&v.sliderPreview.source===b.source?v.sliderPreview.step:b.step;
-            const bar=b.track;
+            const current=draft===null?b.step:draft, bar=b.track, travel=bar.w*current/b.max;
             c.roundRect(b.x,b.y,b.w,b.h,8,b.enabled?C.panel:C.bg);
-            text(c,b.label,b.x+20,b.y+39,24,164,C.text,true);
+            text(c,b.label,b.x+20,b.y+34,24,164,C.text,true);
             c.roundRect(bar.x,bar.y,bar.w,8,4,C.road);
-            if(Number.isInteger(current)){
-                const travel=bar.w*current/b.max;
-                if(travel>0)c.roundRect(bar.x,bar.y,travel,8,Math.min(4,travel/2),C.accent);
-                c.circle(bar.x+travel,bar.y+4,9,C.accent);
-            }
-            text(c,pct===null?'—':pct+' %',b.x+b.w-20,b.y+39,25,143,C.text,true,'right');
+            if(travel>0)c.roundRect(bar.x,bar.y,travel,8,Math.min(4,travel/2),C.accent);
+            c.circle(bar.x+travel,bar.y+4,9,C.accent);
+            text(c,pct+' %',b.x+b.w-20,b.y+34,25,143,C.text,true,'right');
         }else button(c,b,focus);
     });
 }

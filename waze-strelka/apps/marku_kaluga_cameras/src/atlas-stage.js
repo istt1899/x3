@@ -2,6 +2,7 @@
 'use strict';
 const fs=require('fs');
 const path=require('path');
+const zlib=require('zlib');
 const home=require('./atlas-home.js');
 const detail=require('./atlas-detail.js');
 
@@ -13,7 +14,7 @@ if(!fs.existsSync(kit)) {
     kit=path.join(__dirname,'..',manifest.tree,'javascript','atlas-kit');
 }
 const {Canvas}=require(path.join(kit,'canvas.js'));
-const {Recorder}=require(path.join(kit,'record.js'));
+const {Recorder,setImage}=require(path.join(kit,'record.js'));
 const {RenderClient}=require(path.join(kit,'renderd.js'));
 const width=1600,height=520;
 const summaryHeight=240;
@@ -45,23 +46,48 @@ function actionTarget(page,view,command){
 }
 // Layout coordinates stretch to the viewport. Glyphs, circular signs and QR
 // modules keep square pixels, including inside the narrower detail pane.
-function paneCanvas(canvas,left,sx,sy) {
-    const x=value=>left+value*sx;
+const rasterCache={};
+function paintRaster(canvas,target,encoded,sw,sh,x,y,w,h){
+    let picture=rasterCache[target];
+    if(!picture||picture.encoded!==encoded){
+        let pixels;
+        try{
+            const raw=typeof encoded==='string'&&encoded.length<=16384?
+                zlib.inflateSync(Buffer.from(encoded,'base64')):encoded;
+            if(!raw||raw.length!==sw*sh*4)return;
+            pixels=Buffer.alloc(raw.length);
+            for(let i=0;i<raw.length;i+=4){
+                const alpha=raw[i+3]/255;
+                for(let c=0;c<3;c++)pixels[i+c]=Math.round(raw[i+c]*alpha+[16,38,34][c]*(1-alpha));
+                pixels[i+3]=255;
+            }
+        }catch(error){return;}
+        picture={encoded,pixels,id:target==='map'?811:812};
+        rasterCache[target]=picture;
+        if(setImage)setImage(picture.id,sw,sh,pixels);
+    }
+    if(typeof canvas.picture==='function')canvas.picture(picture.id,x,y,w,h,0);
+    else canvas.drawImage(picture.pixels,sw,sh,x,y,w,h);
+}
+function paneCanvas(canvas,left,sx,sy,offsetY) {
+    const x=value=>left+value*sx, y=value=>(offsetY||0)+value*sy;
     const unit=Math.min(sx,sy);
     return {
         scaleX:sx/sy,
-        square:(a,b,size)=>({canvas,x:Math.round(x(a)),y:Math.round(b*sy),size:Math.floor(size*unit)}),
+        subscene:(a,b,scale,draw)=>draw(paneCanvas(canvas,x(a),sx*scale,sy*scale,y(b))),
+        raster:(target,encoded,sw,sh,a,b,w,h)=>paintRaster(canvas,target,encoded,sw,sh,x(a),y(b),w*sx,h*sy),
+        square:(a,b,size)=>({canvas,x:Math.round(x(a)),y:Math.round(y(b)),size:Math.floor(size*unit)}),
         fillRect:(a,b,w,h,color)=>{
-            const leftEdge=Math.round(x(a)),topEdge=Math.round(b*sy);
-            canvas.fillRect(leftEdge,topEdge,Math.round(x(a+w))-leftEdge,Math.round((b+h)*sy)-topEdge,color);
+            const leftEdge=Math.round(x(a)),topEdge=Math.round(y(b));
+            canvas.fillRect(leftEdge,topEdge,Math.round(x(a+w))-leftEdge,Math.round(y(b+h))-topEdge,color);
         },
-        roundRect:(a,b,w,h,r,color)=>canvas.roundRect(x(a),b*sy,w*sx,h*sy,r*unit,color),
-        strokeRoundRect:(a,b,w,h,r,n,color)=>canvas.strokeRoundRect(x(a),b*sy,w*sx,h*sy,r*unit,n*unit,color),
-        circle:(a,b,r,color)=>canvas.circle(x(a),b*sy,r*unit,color),
-        arc:(a,b,r,R,start,end,color)=>canvas.arc(x(a),b*sy,r*unit,R*unit,start,end,color),
-        line:(a,b,c,d,n,color)=>canvas.line(x(a),b*sy,x(c),d*sy,n*unit,color),
-        polyline:(points,n,color)=>canvas.polyline(points.map(v=>[x(v[0]),v[1]*sy]),n*unit,color),
-        text:(str,a,b,size,color,opts)=>canvas.text(str,x(a),b*sy,size*unit,color,opts),
+        roundRect:(a,b,w,h,r,color)=>canvas.roundRect(x(a),y(b),w*sx,h*sy,r*unit,color),
+        strokeRoundRect:(a,b,w,h,r,n,color)=>canvas.strokeRoundRect(x(a),y(b),w*sx,h*sy,r*unit,n*unit,color),
+        circle:(a,b,r,color)=>canvas.circle(x(a),y(b),r*unit,color),
+        arc:(a,b,r,R,start,end,color)=>canvas.arc(x(a),y(b),r*unit,R*unit,start,end,color),
+        line:(a,b,c,d,n,color)=>canvas.line(x(a),y(b),x(c),y(d),n*unit,color),
+        polyline:(points,n,color)=>canvas.polyline(points.map(v=>[x(v[0]),y(v[1])]),n*unit,color),
+        text:(str,a,b,size,color,opts)=>canvas.text(str,x(a),y(b),size*unit,color,opts),
         textWidth:(str,size,opts)=>canvas.textWidth(str,size*unit,opts)/sx
     };
 }
@@ -89,9 +115,9 @@ function tiltAxis(value,positive,negative){
     return 0;
 }
 class Stage {
-    constructor(log,invoke,invalidate,driver,onFocus) {
+    constructor(log,invoke,invalidate,driver,onFocus,onPropose) {
         this.log=log;this.invoke=invoke;this.invalidate=invalidate;this.driver=driver||RenderClient;
-        this.onFocus=onFocus||(()=>{});
+        this.onFocus=onFocus||(()=>{});this.onPropose=onPropose||(()=>{});
         this.gpu=null;this.page=null;this.view=null;this.focus={};this.contentFocus={};this.key=null;this.pressed=null;
         this.hold=null;
         this.sliderPreview=null;this.drag=null;this.nudge=null;this.nudgeTimer=null;this.lastCcu=null;this.placement=null;this.blocked=false;this.dirty=false;this.front=false;this.confirmedFront=false;
@@ -210,6 +236,7 @@ class Stage {
             const step=Number(command.split(':')[2]);
             this.focus[this.page]=local.focusKey||local.command;
             this.sliderPreview={source:local.source,step};
+            this.onPropose(local.source,step);
             if(phase===3){
                 this.cancelTouch(false);
                 if(step!==local.step)this.invoke(command);
@@ -261,6 +288,7 @@ class Stage {
         const proposed=Number(command.split(':')[2]);
         this.nudge={page:this.page,source:item.source,step:proposed,command};
         this.sliderPreview={source:item.source,step:proposed};
+        this.onPropose(item.source,proposed);
         clearTimeout(this.nudgeTimer);
         this.nudgeTimer=setTimeout(()=>this.finishNudge(true),90);
         this.present();

@@ -224,7 +224,9 @@ class WazeClusterApp extends OnlineApp {
         // from <app>/rhmiData/resources, shared with its RHMI resource bundle.
         this._atlasResources = path.resolve(__dirname, '..', '..', 'rhmiData', 'resources');
         this._atlasStage = new atlasStage.Stage(logger, name => this._atlasAction(name), () => this._renderAtlas(), null,
-            command => this._focusAtlasDirection(command));
+            command => this._focusAtlasDirection(command), (source,step) => {
+                if(source==='cameraCardScale')this._setAtlasPreviewScale(step);
+            });
         this._sawForeground = false;
         this._shutdownPromise = null;
         this._shuttingDown = false;
@@ -239,7 +241,7 @@ class WazeClusterApp extends OnlineApp {
         this._cameraState = null;
         this._cameraInfoMode = null;
         this._cameras = new CameraControl();
-        this._cameras.on('change', () => { this._refreshCameraFeedback(); this._renderCameras(); this._renderHudOpacity(); this._handleAudioRequest(); });
+        this._cameras.on('change', () => { this._refreshCameraFeedback(); this._refreshAtlasPreview(); this._renderCameras(); this._renderHudOpacity(); this._handleAudioRequest(); });
         this._gpsBridge = new BmwGpsBridge({ builders: someipBuilders });
         this._gongPlayer = new BmwGongPlayer({ builders: someipBuilders });
         this._lastAudioSeq = null;
@@ -813,7 +815,7 @@ class WazeClusterApp extends OnlineApp {
         if(page==='position'&&!visible||visible&&page!=='position')this._cancelCameraHold('PAGE_CHANGED');
         if(page==='calibration'&&!visible&&this._cameraPending)this._cameraPending.returnOnSaved=false;
         this._syncCameraHold();
-        if (visible) {this._shownPage = page;this._syncCameraHold();}
+        if (visible) {if(page!=='cameraDetail')this._stopAtlasPreview(true);this._shownPage = page;this._syncCameraHold();}
         if (page === 'main' && visible) this._profiles.refresh();
         if (page === 'logs') {
             if (visible) {
@@ -1044,7 +1046,7 @@ class WazeClusterApp extends OnlineApp {
         const requestId=this._cameraClientId+'-'+(++this._cameraCommandSequence).toString(36);
         const commandName={'regional-list':'проверка списка регионов','regional-download':'обновление пакета',
             'regional-rollback':'откат пакета','display-test':'тест предупреждения','calibration-test':'проверка границ',
-            'display-test-stop':'сохранение и остановка теста','card-layout':'настройка предупреждения',
+            'layout-preview-start':'предпросмотр на трёх экранах','layout-preview-save':'сохранение размера','display-test-stop':'сохранение и остановка теста','card-layout':'настройка предупреждения',
             'card-layout-reset':'сброс настроек предупреждения','card-move':'положение предупреждения',
             'alert-preferences':'настройки предупреждений','overspeed-preferences':'настройки превышения',
             'gps-reset':'сброс истории GPS; ожидайте свежие координаты'}[message.cmd]||message.cmd;
@@ -1064,6 +1066,7 @@ class WazeClusterApp extends OnlineApp {
                     if(pending.command==='card-move'){
                         this._cameraPending=null;this._cancelCameraHold('MOVE_ACK_TIMEOUT');
                     }
+                    this._refreshAtlasPreview();
                     this._renderCameras();
                 }
             },6000);
@@ -1598,12 +1601,84 @@ class WazeClusterApp extends OnlineApp {
         this._pageVisible(page,visible);
     }
 
+    _startAtlasPreview() {
+        const local={id:this._cameraClientId+'-layout-'+(++this._cameraCommandSequence).toString(36),
+            revision:0,scale:null,starting:true,message:''};
+        this._atlasLayoutEditor=local;
+        local.requestId=this._cameraCommand({cmd:'layout-preview-start',session:local.id});
+        if(!local.requestId){local.starting=false;local.id=null;local.message=this._cameras.diagnostic();return;}
+        local.lease=setInterval(()=>{
+            const state=this._cameras.state||{}, live=state.layoutPreview;
+            if (this._atlasLayoutEditor!==local || !live || live.session!==local.id) return;
+            this._cameras.send({cmd:'layout-preview-keep',session:local.id});
+        },2000);
+        if(local.lease.unref)local.lease.unref();
+    }
+
+    _stopAtlasPreview(cancel) {
+        const local=this._atlasLayoutEditor;
+        if(!local)return;
+        this._atlasLayoutEditor=null;
+        clearInterval(local.lease);
+        clearTimeout(local.scaleTimer);
+        if(cancel&&local.id)this._cameras.send({cmd:'layout-preview-cancel',session:local.id});
+    }
+
+    _sendAtlasPreviewScale(local) {
+        clearTimeout(local.scaleTimer);
+        local.scaleTimer=null;
+        if(this._atlasLayoutEditor!==local||!local.id||local.sentRevision===local.revision)return;
+        local.sentRevision=local.revision;
+        this._cameras.send({cmd:'layout-preview',session:local.id,scalePct:local.scale,revision:local.revision});
+    }
+
+    _setAtlasPreviewScale(step) {
+        const local=this._atlasLayoutEditor;
+        const live=(this._cameras.state||{}).layoutPreview;
+        if(!local||!live||live.session!==local.id||local.saving||!Number.isInteger(step)||step<0||step>10)return;
+        const scale=75+5*step;
+        if(local.scale===scale)return;
+        local.scale=scale;local.revision++;local.message='';
+        if(!local.scaleTimer) {
+            local.scaleTimer=setTimeout(()=>{this._sendAtlasPreviewScale(local);},120);
+        }
+        this._renderAtlas();
+    }
+
+    _refreshAtlasPreview() {
+        const local=this._atlasLayoutEditor;
+        if(!local||!local.id)return;
+        const state=this._cameras.state||{}, live=state.layoutPreview, result=state.commandResult||{};
+        const own=live&&live.session===local.id;
+        const timedOut=this._cameraPending&&this._cameraPending.requestId===local.requestId&&this._cameraPending.awaiting;
+        if(own)local.starting=false;
+        if(result.requestId===local.requestId&&result.phase==='error'){
+            local.message=result.message;
+            local.starting=false;
+            local.saving=false;
+        }else if(local.saving&&result.requestId===local.requestId&&result.phase==='finished'){
+            this._stopAtlasPreview(false);
+            this._atlasLayoutEditor={message:'Размер уведомлений сохранён'};
+            return;
+        }
+        if(timedOut||!this._cameras.state){
+            local.message=this._cameraFeedback&&timedOut?this._cameraFeedback.message:this._cameras.diagnostic();
+            local.starting=false;
+            local.saving=false;
+        }
+        if(!timedOut&&(local.starting||local.saving||own)&&this._cameras.state)return;
+        const reason=local.message||'Тест остановлен. Включите предпросмотр снова.';
+        this._stopAtlasPreview(true);
+        this._atlasLayoutEditor={message:reason};
+    }
+
     _flushAtlasInput() {
         this._atlasStage.finishNudge(true);
         Object.values(this._atlasProposals).forEach(proposal=>proposal.send());
     }
 
     _hideAtlas() {
+        this._stopAtlasPreview(true);
         Object.values(this._atlasProposals).forEach(proposal=>clearTimeout(proposal.timer));
         this._atlasProposals={};
         this._atlasStage.set(null, null, null);
@@ -1632,46 +1707,41 @@ class WazeClusterApp extends OnlineApp {
         const item=atlasStage.actionTarget(page,stage.view,name);
         if(!item)return;
         if(name==='atlasCameraOpen'){
-            this._atlasPanels.cameraDetail={sheet:0,edit:null,cameraOutput:'center',cameraFrom:page};
-            stage.focus.cameraDetail='atlasCameraOutput:center';
+            this._atlasPanels.cameraDetail={sheet:0,edit:null,cameraOutput:'all',cameraFrom:page};
+            stage.focus.cameraDetail='atlasPreviewStart';
             if(page==='cameraDetail'){this._renderAtlas();return;}
             return this._openCameraPage('cameraDetail');
         }
         const cameraPanel=page==='cameraDetail'&&this._atlasPanels.cameraDetail;
         if(cameraPanel && cameraPanel.cameraOutput){
             if(name==='atlasCameraClose'||name==='atlasBack'){
+                this._stopAtlasPreview(true);
                 const previous=cameraPanel.cameraFrom;
                 this._atlasPanels.cameraDetail={sheet:0,edit:null};
                 stage.focus[previous]='atlasCameraOpen';
                 if(previous==='cameraDetail'){this._renderAtlas();return;}
                 return this._openCameraPage('trip');
             }
-            if(name.startsWith('atlasCameraOutput:')){
-                const target=name.slice('atlasCameraOutput:'.length);
-                if(!['center','hud','map'].includes(target))return;
-                stage.cancelTouch(false);
-                cameraPanel.cameraOutput=target;
-                cameraPanel.cameraAdjust=false;
-                if(target!=='center'){
-                    this._cancelCameraHold('TARGET_CHANGED');
-                    this._cameraCardTarget=target;
-                    this._cameraCardSelectionReason=null;
-                    this._renderCameraCard();
-                }
+            if(name==='atlasPreviewStart'){
+                this._startAtlasPreview();this._renderAtlas();return;
+            }
+            if(name==='atlasPreviewSave'){
+                const local=this._atlasLayoutEditor;
+                if(!local||local.saving)return;
+                if(local.revision>0)this._sendAtlasPreviewScale(local);
+                local.saving=true;local.message='';
+                local.requestId=this._cameraCommand({cmd:'layout-preview-save',session:local.id,revision:local.revision});
+                if(!local.requestId){local.saving=false;local.message=this._cameras.diagnostic();}
                 this._renderAtlas();return;
             }
-            const scale=/^atlasValue:(atlasCenterCameraScale|cameraCardScale):([0-9]+)$/.exec(name);
-            if(scale){
-                const slider=stage.view.buttons.find(b=>b.kind==='slider'&&b.source===scale[1]);
-                const step=Number(scale[2]);
-                if(!slider||!slider.enabled||step>slider.max)return;
-                if(cameraPanel.cameraOutput==='center'&&scale[1]==='atlasCenterCameraScale'){
-                    try{this._atlasScale.set(scale[1],step);}catch(err){logger.warn('Atlas camera size: '+err.message);}
-                }else if(scale[1]==='cameraCardScale'&&this._cameraCardTarget===cameraPanel.cameraOutput){
-                    this._cameraAction('cardLayout','card-layout',{target:this._cameraCardTarget,scalePct:75+5*step});
-                }
-                this._renderAtlas();return;
+            if(name==='atlasPreviewHud'||name==='atlasPreviewMap'){
+                this._stopAtlasPreview(true);
+                this._atlasReturns.calibration={page,panel:Object.assign({},cameraPanel),target:this._cameraCardTarget,
+                    focus:'atlasPreviewStart'};
+                return this._openCalibration(name==='atlasPreviewHud'?'hud':'map');
             }
+            const scale=/^atlasValue:cameraCardScale:([0-9]+)$/.exec(name);
+            if(scale){this._setAtlasPreviewScale(Number(scale[1]));return;}
             if(name==='atlasCameraSlider'){
                 cameraPanel.cameraAdjust=!cameraPanel.cameraAdjust;
                 this._renderAtlas();return;
@@ -1807,11 +1877,12 @@ class WazeClusterApp extends OnlineApp {
         const name='atlasFrame'+stem;
         if (!this._components[name]) return;
         const state = this._cameras.link === 'up' ? this._cameras.state : null;
-        const view = home ? atlasHome.model(state, this._packageJson.version, this._atlasScale.get('atlasCenterCameraScale')) : atlasDetail.model(page, {
+        const centralScale=state&&state.centerCameraScalePct||this._atlasScale.get('atlasCenterCameraScale');
+        const view = home ? atlasHome.model(state, this._packageJson.version, centralScale) : atlasDetail.model(page, {
             state, version:this._packageJson.version, written:this._written, serviceReady:!!state, atlasPanel:this._atlasPanels[page],
             phoneMaps:page==='main' ? phoneMaps.status(this._control,this._atlasScale) : null,
             mapInteractive:page==='main' && this._atlasStage.front && this._atlasStage.owns(),
-            centralCameraScalePct:this._atlasScale.get('atlasCenterCameraScale'),centralScaleError:this._atlasScale.error,
+            centralCameraScalePct:centralScale,layoutEditor:this._atlasLayoutEditor,
             region:page === 'regions' ? this._regionView() : null, snapshot:this._diagnosticSnapshot,
             diagnosticService:this._diagServiceTab,
             target:this._cameraCardTarget, testGuard:this._cameraTestGuard(this._cameraCardTarget), diagnosticState:page === 'diagnostics' ? this._cameraDiagnosticState() : null
