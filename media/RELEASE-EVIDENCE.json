@@ -47,22 +47,22 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "87e5592fd33279d7e601733d9bf0ede966fd8039b05cb0ca45105b6cb94bd891"
+      "sha256": "8b7a94feb2a85e8d8a3bba963bc920a55c89f380a6b0b339fc3086466dc9df8b"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
     }
   },
   "catalog_update": {
-    "date": "2026-11-23",
-    "reason": "Release the selected Cartographer interface for cameras, phone maps and on-screen diagnostics.",
-    "previous_sha256": "d64bb04791faa8314d032bf38fb2f999839dd2f7f0fac2eed1dff21b7c3807e3",
-    "package_commit": "f5a52c2088de3574f6c43fd939b854956c92c3f1",
+    "date": "2026-11-27",
+    "reason": "Restore factory BMW music menu priority over the phone map on the HUD.",
+    "previous_sha256": "87e5592fd33279d7e601733d9bf0ede966fd8039b05cb0ca45105b6cb94bd891",
+    "package_commit": "c41327c6c2c41177ae039cdb41d97bf97ab9f650",
     "updated_components": {
-      "marku-kaluga-cameras": "0.12.0",
-      "marku_kaluga_cameras": "0.12.0"
+      "marku-kaluga-cameras": "0.12.1",
+      "marku_kaluga_cameras": "0.12.1"
     },
-    "hardware_scope": "BMW iDrive 7. Physical X3 and X6 M restart and phone reconnect verification pending."
+    "hardware_scope": "BMW iDrive 7. Physical steering-wheel track selection and HUD map restoration are pending."
   },
   "vk_playback_update": {
     "date": "2026-11-23",
