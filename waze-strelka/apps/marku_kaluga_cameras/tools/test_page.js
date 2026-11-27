@@ -769,6 +769,7 @@ async function main() {
         byName.wocHudLeft.emit('action');
         await until('moved', () => byName.wocHudPos.text === 'Position: 10 px left' && byName.wocHudCentre.enabled === true);
         assert(!byName.wocHudKeep, 'The HUD cannot be set to cover BMW pop-ups');
+        await sleep(450); // allow the display selection guard to expire
         showOn.pick(2);
         await until('both', () => render.cluster === 1 && showOn.shown() === 'Show on: Cluster and HUD (experimental)' &&
             byName.wocGuide.enabled === true);
