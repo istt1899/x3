@@ -47,7 +47,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "7d75225c97264a1457be5da619ea936ea5e5645241bf538a9178bd27ab98a793"
+      "sha256": "f6ee9e4d647fad1569ca90d500ce3eea7691e2344b0bc90f05e8cf92e60459ec"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -124,6 +124,24 @@
       "matched_moscow_approaches": 35,
       "matched_moscow_map_limits": 19
     },
+    "physical_bmw_live_preview_verified": false
+  },
+  "strelka_atlas_0131_update": {
+    "date": "2026-11-27",
+    "reason": "Show the service-generated HUD card in calibration and isolate live preview sessions.",
+    "previous_catalog_sha256": "7d75225c97264a1457be5da619ea936ea5e5645241bf538a9178bd27ab98a793",
+    "package_commit": "9f1e5f1ba4ae99744d738af8e86eacbe0cae97f4",
+    "updated_components": {
+      "marku_kaluga_cameras": "0.13.1",
+      "marku-kaluga-cameras": "0.13.1"
+    },
+    "checks": {
+      "project_tests": true,
+      "node8_native_socket_and_profiles": true,
+      "reproducible_packages": true,
+      "offline_live_preview": true
+    },
+    "renderer_frame_ack_supported": false,
     "physical_bmw_live_preview_verified": false
   }
 }
