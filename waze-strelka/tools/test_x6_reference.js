@@ -305,7 +305,7 @@ async function main() {
         assert.strictEqual(state().gpsFix.speedKmh, 0);
         assert.strictEqual(state().actions.displayTest.code, 'READY');
         command('display-test', {target:'hud'});
-        assert.strictEqual(state().displayTest.result.phase, 'shown');
+        assert.strictEqual(state().displayTest.result.phase, 'unconfirmed');
         assert.strictEqual(shown().test, true);
 
         tick(second);
