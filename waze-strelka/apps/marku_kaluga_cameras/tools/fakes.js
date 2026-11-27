@@ -309,9 +309,17 @@ class FakePatch extends LineServer {
         const MAP = { cluster: ['cluster'], hud: ['hud'], 'hud-size': ['hud_width_pct'], 'hud-pos': ['hud_offset_x', 'hud_offset_y'],
             'hud-keep-shown': ['hud_keep_shown'] };
         if (MAP[msg.cmd]) {
+            if (msg.cmd === 'hud-keep-shown' && 'profile' in msg &&
+                    (msg.profile !== this.current || msg.own !== Number(!!this.active))) {
+                this._send(socket, { ev: 'hud-keep-shown-reply', ok: false, reason: 'not the profile settings in effect' });
+                return;
+            }
             const v = msg.cmd === 'hud-pos' ? [msg.hud_x, msg.hud_y] : [msg.cmd === 'hud-size' ? msg.hud_width_pct : msg.on];
             this.map = Object.assign({}, this.map);
             MAP[msg.cmd].forEach((k, i) => { this.map[k] = v[i]; });
+            if (msg.cmd === 'hud-keep-shown') {
+                this._send(socket, { ev: 'hud-keep-shown-reply', ok: true, settings: this.map });
+            }
             return;
         }
         if (msg.cmd === 'reboot') {

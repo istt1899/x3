@@ -10,7 +10,7 @@ const props={cameraVisualFlash:'visualFlash',cameraSoundEnabled:'soundEnabled',c
 const allTypes=()=>Object.fromEntries(camera.ALERT_TYPES.map(t=>[t.key,true]));
 const defaults=()=>({centralCameraScalePct:100,enabled:true,outputs:{hud:true,cluster:true},cardLayout:layout.defaultLayouts(),cardComposition:composition.normalize(),
     alertPreferences:{warningDistanceM:1000,cameraTypes:allTypes()},overspeedPreferences:{...camera.OVERSPEED_RECOMMENDED},
-    phone:{wocProfile:false,wocGuide:false,wocHudKeep:false,wocAaCard:false,cluster:false,hud:false,centerScale:100,wocHudSize:5,wocHudOpacity:0,zoom:0,x:0,y:0},
+    phone:{wocProfile:false,wocGuide:false,wocAaCard:false,cluster:false,hud:false,centerScale:100,wocHudSize:5,wocHudOpacity:0,zoom:0,x:0,y:0},
     packs:{'RU-KLU':{current:'Учебная 1',previous:null}},opticsStyle:'beam'});
 let saved=defaults(), storageAvailable=true;
 try {
@@ -480,7 +480,7 @@ function execute(command){
     }
     const s=lastState,o=saved.overspeedPreferences,p=saved.cardLayout[target];
     if(Object.hasOwn(props,command)){o[props[command]]=!o[props[command]];persist();return;}
-    if(['wocProfile','wocGuide','wocHudKeep','wocAaCard'].includes(command)){
+    if(['wocProfile','wocGuide','wocAaCard'].includes(command)){
         saved.phone[command]=!saved.phone[command];say('Изменён учебный профиль телефона.');persist();return;}
     if(['wocAaZoomIn','wocAaZoomOut'].includes(command)){
         saved.phone.zoom=Math.min(10,Math.max(-10,saved.phone.zoom+(command.endsWith('In')?1:-1)));say('Масштаб учебной карты: '+saved.phone.zoom);persist();return;}

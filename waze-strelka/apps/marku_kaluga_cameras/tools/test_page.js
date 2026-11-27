@@ -29,8 +29,7 @@
  * Off greys the turn box and HUD controls, and a render on neither reads as
  * Off; Own settings for this driver greyed without a detected profile;
  * the HUD off by default, its size slider and position buttons greyed (a
- * greyed slider turned goes back), Keep HUD map over BMW's pop-ups ticked as
- * the render reports and saved by patchd, the slider a 5 % step a turn,
+ * greyed slider turned goes back), the slider a 5 % step a turn,
  * Disabled after errors with the HUD controls greyed; no label greyed (the
  * HMI's labels have no setEnabled, its
  * drop-downs and sliders only the property);
@@ -324,7 +323,7 @@ async function main() {
     assert.deepStrictEqual(main.map(([id, type, name, text]) => (type === 'title' ? name : `${name} ${text}`)), [
         'wocTitle',
         'wocHeadGeneral General', 'wocShowOn Show on: Cluster', 'wocProfile Own settings for this driver', 'wocMap Cluster map: Off', "wocGuide Hide BMW's turn box", 'wocLogs Logs',
-        'wocHeadHud HUD', 'wocHud HUD map: \u2014', "wocHudKeep Keep HUD map over BMW's pop-ups", 'wocHudSize Size: \u2014', 'wocHudPos Position: \u2014', 'wocHudLeft Move left',
+        'wocHeadHud HUD', 'wocHud HUD map: \u2014', 'wocHudSize Size: \u2014', 'wocHudPos Position: \u2014', 'wocHudLeft Move left',
         'wocHudRight Move right', 'wocHudUp Move up', 'wocHudDown Move down', 'wocHudCentre Centre',
         'wocHeadCarPlay CarPlay', 'wocStatus Status: Connecting…', 'wocEnable Patch', 'wocDisable Remove patch', 'wocWifi ', 'wocWifiHint ',
         'wocHeadAa Android Auto', 'wocAaStatus Status: Connecting…', 'wocAaEnable Patch', 'wocAaDisable Remove patch',
@@ -345,7 +344,7 @@ async function main() {
         .find((id) => components[id].name === n)].properties.Focusable.value]), Array(4).fill(['0', 0]), 'the section headers take no focus');
     assert.strictEqual(main.find(([, , name]) => focus[name] === '3')[2], 'wocShowOn', 'the first row the controller stops on: Show on');
     assert(!main.some(([, , name]) => /^wocRow|^wocSetup|^wocCapture/.test(name)), 'no log rows, setup line or capture on the main page');
-    assert.deepStrictEqual(['wocAaCard', 'wocGuide', 'wocProfile', 'wocHudKeep'].map((n) => widgets[n]), Array(4).fill('LT_CheckBox_1Row'),
+    assert.deepStrictEqual(['wocAaCard', 'wocGuide', 'wocProfile'].map((n) => widgets[n]), Array(3).fill('LT_CheckBox_1Row'),
         'the on/off settings are checkboxes');
     assert.deepStrictEqual([widgets.wocShowOn, widgets.wocHudSize], ['LT_DropDownMenu_1Row_2Col3070', 'LT_Slider_LeftJustified_Fill_Steps'],
         'where the map shows: a drop-down of four; the HUD\'s size: a slider');
@@ -483,7 +482,7 @@ async function main() {
         assert.deepStrictEqual(bound, ['atlasMenuCamera', 'atlasMenuMaps', 'atlasMenuOpen', 'tripAbout', 'tripAboutLogs', 'tripCamera', 'tripCameraDiagnostics',
             'tripDatabase', 'tripDiagnostics', 'tripLegacyDatabase', 'tripMaps', 'tripRegionDownload', 'tripRegionPage',
             'tripRegionRefresh', 'tripRegionRollback', 'tripSettings', 'wocAaCard', 'wocAaDisable', 'wocAaEnable', 'wocAaZoomIn', 'wocAaZoomOut', 'wocCapture', 'wocDisable', 'wocEnable',
-            'wocGuide', 'wocHudCentre', 'wocHudDown', 'wocHudKeep', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocLogs', 'wocLogsSave', 'wocProfile', 'wocRestart'],
+            'wocGuide', 'wocHudCentre', 'wocHudDown', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocLogs', 'wocLogsSave', 'wocProfile', 'wocRestart'],
             'bound buttons and checkboxes');
         assert.strictEqual(byName.wocRestart.visible, false, 'restart button hidden while the map shows');
         console.log('ok   a page opened while the map is up shows it');
@@ -746,7 +745,7 @@ async function main() {
         /* ---- where the map shows, and the HUD ---- */
         const showOn = byName.wocShowOn;
         const size = byName.wocHudSize;
-        const hudRows = () => ['wocHudKeep', 'wocHudSize', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocHudDown'].map((n) => byName[n].enabled);
+        const hudRows = () => ['wocHudSize', 'wocHudLeft', 'wocHudRight', 'wocHudUp', 'wocHudDown'].map((n) => byName[n].enabled);
         await until('the cluster, the HUD off', () => showOn.shown() === 'Show on: Cluster' && showOn.enabled === true &&
             byName.wocHud.text === 'HUD map: Off' && size.text === 'Size: Standard' && size.cells['0:Value'] === 5 &&
             byName.wocHudPos.text === 'Position: Centre');
@@ -769,15 +768,7 @@ async function main() {
         await until('smaller', () => size.text === 'Size: 50 %' && render.hudWidth === 50);
         byName.wocHudLeft.emit('action');
         await until('moved', () => byName.wocHudPos.text === 'Position: 10 px left' && byName.wocHudCentre.enabled === true);
-        assert.strictEqual(byName.wocHudKeep.enabled, true, 'the pop-up checkbox follows the HUD controls');
-        byName.wocHudKeep.press();
-        await until('kept over BMW pop-ups', () => render.hudKeep === 1 && byName.wocHudKeep.selected === true);
-        await until('the choice saved', () => patch.map.hud_keep_shown === 1);
-        assert.deepStrictEqual(render.received.filter((m) => m.hud_keep_shown !== undefined), [{ cmd: 'hud', hud_keep_shown: '1' }]);
-        await sleep(450);
-        byName.wocHudKeep.press();
-        await until('gives way again', () => render.hudKeep === 0 && byName.wocHudKeep.selected === false);
-        await sleep(450);
+        assert(!byName.wocHudKeep, 'The HUD cannot be set to cover BMW pop-ups');
         showOn.pick(2);
         await until('both', () => render.cluster === 1 && showOn.shown() === 'Show on: Cluster and HUD (experimental)' &&
             byName.wocGuide.enabled === true);
@@ -816,7 +807,7 @@ async function main() {
         assert.strictEqual(byName.wocProfile.enabled, false, 'no driver profile in the fake HMI: the checkbox stays greyed');
         console.log('ok   where the map shows: a drop-down of four, Cluster by default, each choice through the render and patchd, the HUD on first; ' +
             'Off for neither greys the turn box and HUD controls; a render on neither reads as Off; the HUD: off by default with its size and position greyed; ' +
-            'Keep HUD map over BMW pop-ups follows the render and patchd; Disabled after errors greys the HUD controls');
+            'Disabled after errors greys the HUD controls');
 
         byName.ST_OnlineApps_WazeCluster.emit('visible', { visible: false });
         await until('sockets closed', () => render._clients.size === 0 && patch._clients.size === 0);
@@ -900,7 +891,7 @@ async function main() {
             'camera visibility changes are limited to overflow reading rows; no old menu controls are hidden');
         nativeRows('1').map(([id]) => components[id]).filter((d) => !/^(wocRestart|wocWifi)/.test(d.name) && d.type !== 'title')
             .forEach((d) => assert.strictEqual(byName[d.name].visible, true, `${d.name} stays on the page`));
-        ['wocEnable', 'wocDisable', 'wocAaEnable', 'wocAaDisable', 'wocAaZoomOut', 'wocAaZoomIn', 'wocAaCard', 'wocGuide', 'wocShowOn', 'wocHudKeep', 'wocHudSize',
+        ['wocEnable', 'wocDisable', 'wocAaEnable', 'wocAaDisable', 'wocAaZoomOut', 'wocAaZoomIn', 'wocAaCard', 'wocGuide', 'wocShowOn', 'wocHudSize',
             'wocHudLeft', 'wocHudCentre']
             .forEach((n) => assert.deepStrictEqual([...byName[n].enabledSeen].sort(), [false, true], `${n} greyed and enabled in place`));
         const valueRow = /^[A-Z][A-Za-z ]+: [A-Z0-9\u2014]/;

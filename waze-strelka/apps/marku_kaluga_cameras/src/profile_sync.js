@@ -295,10 +295,20 @@ class ProfileSync extends EventEmitter {
                         this.profile = r.id;
                         this.own = r.own === true;
                         this._log.info(`driver profile: ${r.own ? 'its own' : 'the shared'} map settings${r.changed ? ', applied' : ''}`);
-                        if (r.changed && r.settings) {
-                            this._toRender(r.settings);
-                        } else if (this._checkOutputs && msg.cmd === 'profile') {
-                            this._checkOutputs = !(await this._restoreOutputs(r.settings));
+                        const settings = r.settings;
+                        if (r.changed && settings) {
+                            this._toRender(settings);
+                        } else if ((this._checkOutputs || (settings && settings.hud_keep_shown === 1)) && msg.cmd === 'profile') {
+                            this._checkOutputs = !(await this._restoreOutputs(settings));
+                        }
+                        if (!this._stopped && r.id === msg.id && settings && settings.hud_keep_shown === 1) {
+                            const repair = { cmd: 'hud-keep-shown', on: 0, profile: r.id, own: Number(this.own) };
+                            const saved = await askOnce(this._patchPath, repair, (m) => m.ev === 'hud-keep-shown-reply', this._replyMs);
+                            if (!saved || !saved.ok) {
+                                this._log.warn('patchd did not save BMW HUD pop-up priority; will retry');
+                                this._checkOutputs = true;
+                                this._retryAt = Date.now() + this._retryMs;
+                            }
                         }
                     } else {
                         /* not taken: asked again (patchd not running: at the
@@ -327,19 +337,21 @@ class ProfileSync extends EventEmitter {
      * A renderer that starts late is checked on the next regular poll. */
     async _restoreOutputs(settings) {
         const control = this._control;
-        const superseded = () => this._stopped || (control && control.outputRevision !== this._startupRevision);
+        const outputsSuperseded = () => control && control.outputRevision !== this._startupRevision;
         const known = (s) => s && [s.cluster, s.hud].every((v) => v === 0 || v === 1);
-        if (!known(settings) || superseded()) return true;
+        if (this._stopped || !settings) return true;
         const order = settings.hud && !settings.cluster ? ['hud', 'cluster'] : ['cluster', 'hud'];
         let sent = false;
         const reconcile = (status, send) => {
-            if (superseded()) return true;
+            if (this._stopped) return true;
             if (!status || status.ev !== 'status') return false;
-            if (!known(status)) return true; // older renderer without output selection
-            const changes = order.filter((display) => status[display] !== settings[display]);
-            if (!changes.length) return true;
+            const changes = !outputsSuperseded() && known(settings) && known(status)
+                ? order.filter((display) => status[display] !== settings[display]) : [];
+            const hudCoversStock = status.hud_keep_shown === 1;
+            if (!changes.length && !hudCoversStock) return true;
             if (!sent) {
                 sent = true;
+                if (hudCoversStock) send({ cmd: 'hud', hud_keep_shown: '0' });
                 for (const display of changes) send({ cmd: display, on: String(settings[display]) });
             }
             return false; // wait for the renderer to report the requested state
@@ -359,14 +371,13 @@ class ProfileSync extends EventEmitter {
 
     /* The render to the settings in effect: a display turned on first, so a
      * switch from one display to the other never passes through neither,
-     * then the HUD's size, place and whether it stays shown over BMW's
-     * pop-ups (from a patchd that has it). */
+     * then the HUD's size and place. Let BMW's pop-ups take priority. */
     _toRender(s) {
         const on = (v) => (v ? '1' : '0');
         const shows = ['cluster', 'hud'].sort((a, b) => s[b] - s[a]);
         const hud = { cmd: 'hud', hud_width_pct: String(s.hud_width_pct), hud_x: String(s.hud_offset_x), hud_y: String(s.hud_offset_y) };
         if (s.hud_keep_shown === 0 || s.hud_keep_shown === 1) {
-            hud.hud_keep_shown = on(s.hud_keep_shown);
+            hud.hud_keep_shown = '0';
         }
         const cmds = shows.map((d) => ({ cmd: d, on: on(s[d]) })).concat([hud]);
         const c = this._control;

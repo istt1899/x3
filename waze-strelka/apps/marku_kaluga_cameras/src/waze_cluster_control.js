@@ -573,26 +573,6 @@ class WazeClusterControl extends EventEmitter {
         this.patch.send({ cmd: 'hud-pos', hud_x: x, hud_y: y });
         this.emit('change');
     }
-    /* ---- the HUD map over BMW's pop-ups ---- */
-    /* True while the HUD map stays shown over them, false while it gives way;
-     * null while the render has not said. */
-    hudKeepShown() {
-        const v = this.renderStatus && this.renderStatus.hud_keep_shown;
-        return v === 0 || v === 1 ? v === 1 : null;
-    }
-    /* Changes as the size and place do. */
-    canKeepHud() {
-        return this.canChangeHudSize() && this.hudKeepShown() !== null;
-    }
-    /* Flips it: the render at once, patchd saves it; the render's next status shows it. */
-    toggleHudKeep() {
-        if (this.canKeepHud()) {
-            const keep = !this.hudKeepShown();
-            this.render.send({ cmd: 'hud', hud_keep_shown: keep ? '1' : '0' });
-            this.patch.send({ cmd: 'hud-keep-shown', on: keep ? 1 : 0 });
-        }
-    }
-
     hudPositionText() {
         const at = this.hudOffset();
         if (!at) {

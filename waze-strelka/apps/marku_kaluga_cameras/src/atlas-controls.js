@@ -52,7 +52,7 @@ const labels = {
     atlasMenuCamera:'Камера', atlasMenuMaps:'Карты телефона', tripDatabase:'Базы и регионы', tripDiagnostics:'Диагностика',
     tripSettings:'Настройки', tripAbout:'О приложении', tripCameraDiagnostics:'Диагностика камеры',
     wocShowOn:'Куда вывести карту', wocGuide:'Скрывать подсказки BMW', wocProfile:'Настройки водителя',
-    wocHudKeep:'Сохранять карту на HUD', wocAaCard:'Скрывать карточку Android Auto', wocHudSize:'Размер карты на HUD',
+    wocAaCard:'Скрывать карточку Android Auto', wocHudSize:'Размер карты на HUD',
     wocHudOpacity:'Прозрачность карты', wocAaZoomOut:'Отдалить карту', wocAaZoomIn:'Приблизить карту',
     wocHudLeft:'Сместить влево', wocHudRight:'Сместить вправо', wocHudUp:'Сместить вверх', wocHudDown:'Сместить вниз',
     wocHudCentre:'По центру', wocCameras:'Настройки камер', wocLogs:'Журнал приложения', wocCapture:'Запись журнала', wocLogsSave:'Сохранить журнал',
@@ -74,7 +74,7 @@ const labels = {
     tripRegionRefresh:'Обновить список', tripRegionDownload:'Загрузить пакет', tripRegionRollback:'Откатить пакет',
     tripLegacyDatabase:'База автомобиля', tripAboutLogs:'Журнал приложения'
 };
-const checks = ['cameraEnable','wocGuide','wocProfile','wocHudKeep','wocAaCard','cameraCardOutput','cameraVisualFlash','cameraSoundEnabled','cameraSoundAppear'];
+const checks = ['cameraEnable','wocGuide','wocProfile','wocAaCard','cameraCardOutput','cameraVisualFlash','cameraSoundEnabled','cameraSoundAppear'];
 const groups = {
     atlasMenu:[['Разделы',['atlasMenuCamera','atlasMenuMaps','tripDatabase','tripDiagnostics','tripSettings','tripAbout']]],
     logs:[['Запись и сохранение',['wocCapture','wocLogsSave']]],

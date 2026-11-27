@@ -45,7 +45,7 @@ function groups(v, regular) {
         }else if(!m.offset) item.enabled=false;
     });
     const sets=[outputs,centerButtons,hud,regular(['wocAaZoomOut','wocAaZoomIn']),
-        regular(['wocGuide','wocProfile','wocHudKeep','wocAaCard','wocHudOpacity']),regular(['wocCameras','wocLogs'])];
+        regular(['wocGuide','wocProfile','wocAaCard','wocHudOpacity']),regular(['wocCameras','wocLogs'])];
     return sets.map((items,index)=>[layouts[index],items.filter(Boolean)]);
 }
 function stepFor(command,scale) {

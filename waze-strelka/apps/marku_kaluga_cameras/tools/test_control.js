@@ -33,8 +33,7 @@
  * while closed or with a render that has no switch, nothing sent while the
  * cluster renderer holds the box shown. Where the map shows (the cluster,
  * the HUD, both or Off, from the cluster and from both, the HUD's size and
- * place refused while Off) and the HUD's size slider, place, Keep HUD map
- * over BMW's pop-ups and guard; an asked HUD size the render does not show goes after a moment,
+ * place refused while Off); an asked HUD size the render does not show goes after a moment,
  * on a failed save and on a render reconnect. CarPlay Wi-Fi: the band patchd reports, 5 GHz or 2.4 GHz, the
  * line under it on 2.4 GHz only, nothing while the band is unknown, from a
  * patchd before it, or with patchd gone.
@@ -457,32 +456,6 @@ test('the HUD map size as a slider: 5 % steps from 30 to 85 %, Standard at the s
     await until('each one saved', () => patch.received.filter((m) => m.cmd === 'hud-size').map((m) => m.hud_width_pct).join() === '60,85,30');
     c.close();
     assert.deepStrictEqual([c.hudSizeText(), c.hudSizeStep()], ['Size: —', null], 'nothing known while closed');
-});
-
-test('the HUD map over BMW\'s pop-ups: gives way by default; a flip goes to the render and patchd, the render\'s status shows it; ' +
-    'greyed while the HUD is off and for a render without it', async (render, patch) => {
-    const c = control();
-    c.open();
-    await until('connected', () => c.connectedRender() && c.connectedPatch());
-    render.stream(true);
-    await until('the HUD off', () => c.renderStatus && c.hudOn() === false);
-    assert.deepStrictEqual([c.hudKeepShown(), c.canKeepHud()], [false, false], 'giving way, greyed while the HUD is off');
-    c.toggleHudKeep();
-    render.hud = 1;
-    render.announce(render.state, render.reason);
-    await until('on', () => c.canKeepHud());
-    assert.strictEqual(render.received.filter((m) => m.hud_keep_shown !== undefined).length, 0, 'nothing sent while greyed');
-    c.toggleHudKeep();
-    await until('kept shown', () => c.hudKeepShown() === true && render.hudKeep === 1);
-    await until('saved', () => patch.map.hud_keep_shown === 1);
-    c.toggleHudKeep();
-    await until('gives way again', () => c.hudKeepShown() === false && patch.map.hud_keep_shown === 0);
-    assert.deepStrictEqual(render.received.filter((m) => m.hud_keep_shown !== undefined), [{ cmd: 'hud', hud_keep_shown: '1' }, { cmd: 'hud', hud_keep_shown: '0' }]);
-    assert.deepStrictEqual(patch.received.filter((m) => m.cmd === 'hud-keep-shown'), [{ cmd: 'hud-keep-shown', on: 1 }, { cmd: 'hud-keep-shown', on: 0 }]);
-    render.hudKeep = null;
-    render.announce(render.state, render.reason);
-    await until('a render without it', () => c.hudKeepShown() === null && !c.canKeepHud());
-    c.close();
 });
 
 test('an asked HUD size the render does not show: the render\'s own after a moment, at once on a render reconnect; ' +

@@ -206,11 +206,16 @@ async function main() {
     await check('back to A: its own settings on the render, the HUD turned on before the cluster off', async () => {
         await until('A in effect', () => sync.profile === 'driverA' && sync.own === true);
         await until('render moved', () => render.hud === 1 && render.cluster === 0 && render.hudWidth === 60 && render.hudX === -40 &&
-            render.hudKeep === 1);
+            render.hudKeep === 0);
+        await until('only the active profile was repaired', () => patch.map.hud_keep_shown === 0);
+        assert.strictEqual(patch.shared.hud_keep_shown, 0);
+        assert.deepStrictEqual(patch.received.filter((m) => m.cmd === 'hud-keep-shown'), [
+            { cmd: 'hud-keep-shown', on: 0, profile: 'driverA', own: 1 }
+        ]);
         assert.deepStrictEqual(render.received.map((m) => m.cmd + (m.on || '')), ['hud1', 'cluster0', 'hud']);
     });
     /* driver A picks Off (the page turns the render to neither, patchd saves it as A's own) */
-    patch.map = settings(0, 0, 60, -40, 0, 1);
+    patch.map = settings(0, 0, 60, -40, 0, 0);
     render.hud = 0;
     render.received.length = 0;
     id = 'driverB';
@@ -343,11 +348,12 @@ async function main() {
     });
 
     await render.close();
-    await check('cold start: restores cluster only when the renderer starts late and keeps it on phone reconnect', async () => {
+    await check('cold start: restores cluster only and BMW HUD priority with a late renderer and phone reconnect', async () => {
         const saved = new FakePatch(PSOCK);
         const late = new FakeRender(RSOCK);
         late.cluster = 0;
         late.hud = 1;
+        late.hudKeep = 1;
         await saved.listen();
         const boot = new ProfileSync({ readProfile: () => Promise.resolve('driverB'), patchPath: PSOCK, renderPath: RSOCK, pollMs: POLL });
         boot.start();
@@ -355,7 +361,7 @@ async function main() {
         await sleep(POLL * 2);
         await late.listen();
         try {
-            await until('stored outputs restored in background', () => late.cluster === 1 && late.hud === 0);
+            await until('stored outputs restored in background', () => late.cluster === 1 && late.hud === 0 && late.hudKeep === 0);
             late.stream(true);
             await until('first map', () => late.state === 'showing');
             late.stream(false);
@@ -365,7 +371,7 @@ async function main() {
             const polls = saved.count('profile');
             await sleep(POLL * 3);
             assert.strictEqual(saved.count('profile'), polls, 'startup reconciliation finished');
-            assert.deepStrictEqual(late.received, [{ cmd: 'cluster', on: '1' }, { cmd: 'hud', on: '0' }]);
+            assert.deepStrictEqual(late.received, [{ cmd: 'hud', hud_keep_shown: '0' }, { cmd: 'cluster', on: '1' }, { cmd: 'hud', on: '0' }]);
             assert.deepStrictEqual([late.cluster, late.hud], [1, 0]);
         } finally {
             boot.stop();
