@@ -37,15 +37,18 @@ async function main(){
   expect('render-checking','requested');
   details.map={state:'shown',target:'shown',rendering:'verified'};
   app.tick();
-  const verified=expect('render-checking','shown');
-  assert(!/renderer подтвердил показ/i.test(verified.message),'a subscription must not be described as physical display');
+  const observed=expect('render-checking','unconfirmed');
+  assert(observed.message.includes('кадр не подтверждён'));
+  start('render-second-session');
+  assert(expect('render-second-session','unconfirmed').message.includes('кадр не подтверждён'),
+   'the unchanged subscription from the first test cannot confirm a frame from the second test');
 
   details.map={state:'shown',target:'waiting',rendering:'verified'};
   start('render-target-waiting');
   expect('render-target-waiting','requested');
   details.map={state:'shown',target:'shown',rendering:'verified'};
   app.tick();
-  expect('render-target-waiting','shown');
+  expect('render-target-waiting','unconfirmed');
 
   details.map={state:'shown',target:'shown',rendering:'unobservable'};
   start('render-unobservable');
@@ -103,7 +106,13 @@ async function main(){
   expect('render-both','requested');
   details.hud={state:'shown',target:'shown',rendering:'verified'};
   app.tick();
-  expect('render-both','shown');
+  expect('render-both','unconfirmed');
+  app.command({cmd:'display-test-stop'});
+  details.hud={state:'отказ',target:'unavailable',targetReason:'HUD_LOCKED',rendering:'none'};
+  app.command({cmd:'display-test',requestId:'one-output-refused'});
+  const partial=expect('one-output-refused','unconfirmed');
+  assert(partial.message.includes('HUD_LOCKED')&&partial.message.includes('Приборы — кадр не подтверждён'));
+  assert(app.state().displayTest.active,'one refusal does not disable the other output');
   console.log('PASS renderer confirmation: checking, verified, target waiting, unobservable, absent, none, refusal, both targets and requestId');
  }finally{
   if(app)app.close();

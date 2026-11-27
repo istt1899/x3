@@ -81,12 +81,14 @@ function clipped(c,a,b,box,width,color){
 function map(c,v,x,y,w,h){
     c.roundRect(x,y,w,h,12,C.map);
     const right=x+w,bottom=y+h, geo=!!(v.origin&&(v.roads.length||v.active&&v.camera));
-    const title=geo?(v.street||v.region||'Окрестности'):'Схема расстояния';
+    const title=geo?(v.street||v.region||'Окрестности'):v.active?'Схема расстояния':'Данные по маршруту';
     text(c,title,x+20,y+34,24,w-(v.speed===null?44:196),C.dim,true);
     if(v.speed!==null)text(c,v.speed+' км/ч',right-18,y+34,23,146,C.text,true,'right');
     if(!geo){
         if(!v.active || v.distance===null){
-            text(c,v.phase==='gps'?'Ожидание координат GPS':'Нет дорожной схемы',x+w/2,y+h*.56,26,w-62,C.dim,false,'center');
+            const status={waiting:'Связь с сервисом недоступна',gps:'Ожидание актуальных координат GPS',
+                disabled:'Предупреждения выключены',idle:'Активных камер нет'};
+            text(c,status[v.phase]||'Данные о расстоянии недоступны',x+w/2,y+h*.56,26,w-62,C.dim,false,'center');
             return;
         }
         const x0=x+40,x1=right-44,gy=y+h*.62, span=Math.max(250,Math.ceil(v.distance/250)*250);
@@ -212,23 +214,31 @@ function preview(c,v,target,x,y,w,h,scaleOverride) {
 }
 function editor(v,context){
     const state=context.state||{}, local=context.layoutEditor||{}, incoming=state.layoutPreview;
-    const live=incoming&&incoming.session===local.id?incoming:null;
-    const guard=diagnostics.action(context.state,'cardLayout');
+    const live=local.live||(incoming&&incoming.session===local.id?incoming:null);
+    const guard=diagnostics.action(context.state,'displayTest');
+    const editGuard=diagnostics.action(context.state,'cardLayout');
     const connected=!!(state.capabilities&&state.capabilities.layoutPreview===true);
+    const samples=state.atlasSamples||{};
     const idle=Number.isInteger(state.centerCameraScalePct)?state.centerCameraScalePct:v.ride.centralScale;
     const pct=local.scale||live&&live.scalePct||Math.max(75,idle);
-    const step=(pct-75)/5, max=10, enabled=!!live&&guard.allowed&&!local.saving;
+    const step=(pct-75)/5, max=10, enabled=!!live&&editGuard.allowed&&guard.allowed&&!local.saving;
     v.cameraOutput='all';v.title='Настроить уведомление';v.edit=null;v.sheet=0;v.sheets=1;
-    v.sample=live?model(Object.assign({},state,{alert:live.alert,enabled:true,gpsMotion:{state:'moving',speedKmh:48},
-        vehicleMotion:{}}),context.version,pct):null;
-    v.previewOverride=local.scale||null; v.previewCards=live&&live.cards; v.previewProfiles=live&&live.profiles; v.previewDetails=state.rendererDetails||{};
-    if(context.atlasPanel.cameraAdjust&&enabled)v.edit={name:'cameraCardScale',label:'Размер',value:pct+' %',step,max};
-    v.feedback=local.message||(!connected?'Для живого теста нужен сервис Атласа 0.13.0.':!guard.allowed?guard.reason:
-        local.saving?'Сохраняю размер…':live&&local.revision>live.revision?'Обновляю тест…':'');
+    const example=live&&live.alert||samples.alert||{controls:['speed','redlight'],distanceM:180,distance:180,
+        roadConfirmed:true,limitKmh:60,speedKmh:48,captureDirectionVerified:true,captureDirection:'front'};
+    v.sample=model(Object.assign({},state,{alert:example,enabled:true,gpsMotion:{state:'moving',speedKmh:48},
+        vehicleMotion:{}}),context.version,pct);
+    v.previewActive=!!live;v.previewStarting=!!local.starting;
+    v.previewOverride=local.scale||null;v.previewCards=samples.cards||live&&live.cards||{};
+    v.previewNeutral=!!samples.cards;v.previewProfiles=live&&live.profiles||state.cardLayout||{};
+    v.previewDetails=state.rendererDetails||{};
+    v.previewOutputs=state.layoutPreviewResult&&state.layoutPreviewResult.session===local.id?state.layoutPreviewResult.outputs:null;
+    if(context.atlasPanel.cameraAdjust&&enabled)v.edit={name:'cameraCardScale',label:'Размер уведомления',value:pct+' %',step,max};
+    v.feedback=local.message||(!connected?'Сервис предпросмотра недоступен.':!guard.allowed?guard.reason:
+        local.starting?'Запускаю тест…':local.saving?'Сохраняю размер…':live&&local.revision>live.revision?'Обновляю тест…':'');
     const btn=(command,label,x,y,w,extra)=>Object.assign({command,label,enabled:true,x,y,w,h:52},extra);
     v.buttons=[
-        btn('atlasCameraSlider','Размер',24,335,1540,{kind:'slider',source:'cameraCardScale',step,max,enabled,value:pct+' %',
-            track:{x:224,y:359,w:1145,h:8,wide:true}}),
+        btn('atlasCameraSlider','Размер уведомления на трёх экранах',24,335,1540,{kind:'slider',source:'cameraCardScale',step,max,enabled,value:pct+' %',
+            track:{x:575,y:359,w:794,h:8,wide:true}}),
         btn(live?'atlasPreviewSave':'atlasPreviewStart',live?'Сохранить':'Показать тест',24,438,300,
             {enabled:live?enabled&&local.revision>0:connected&&guard.allowed&&!local.starting}),
         btn('atlasValue:cameraCardScale:'+(step-1),'-',337,438,105,{enabled:enabled&&step>0}),
@@ -258,52 +268,57 @@ function button(c,b,focus) {
 function physicalStatus(v,target){
     const name=v.ride.outputProfiles[target], d=v.previewDetails[target]||{};
     if(name.enabled!==true)return name.enabled===false?'Выключен':'Выход неизвестен';
-    if(!v.previewCards)return 'Готов к тесту';
+    if(v.previewStarting)return 'Ожидание запуска';
+    if(!v.previewActive)return 'Готов к тесту';
+    const outcome=v.previewOutputs&&v.previewOutputs[target];
+    if(outcome)return {disabled:'Выключен',connecting:'Подключение рендерера',unavailable:'Недоступен',
+        unconfirmed:'Кадр не подтверждён',waiting:'Ожидание вывода'}[outcome.frame]||'Ожидание вывода';
     if(d.disabled||d.target==='unavailable'||d.state==='отказ'||d.reason==='CANVAS_TOO_SMALL')return 'Недоступен';
-    if(d.state==='shown'&&d.target==='shown')return d.rendering==='verified'?'Слой подключён':'Проверьте на экране';
+    if(d.state==='shown'&&(d.target==='shown'||d.target==='lingering'))return 'Кадр не подтверждён';
     return 'Ожидание вывода';
 }
+function sampleFrame(c,options,x,y,w,h){
+    const {target,card,profile,canvas}=options;
+    const known=canvas&&Number.isFinite(canvas.width)&&canvas.width>0&&Number.isFinite(canvas.height)&&canvas.height>0;
+    const cw=known?canvas.width:1000,ch=known?canvas.height:360;
+    const sy=Math.min(w*(c.scaleX||1)/cw,h/ch),sx=sy/(c.scaleX||1);
+    const left=x+(w-cw*sx)/2,top=y+(h-ch*sy)/2;
+    c.roundRect(left,top,cw*sx,ch*sy,3,C.bg);
+    if(!profile||![profile.x,profile.y,profile.scalePct,profile.brightnessPct,profile.opacityPct].every(Number.isFinite))
+        return 'Профиль экрана недоступен';
+    if(!card||!c.raster)return 'Образец экрана недоступен';
+    const margin=Math.max(8,Math.min(20,Math.round(Math.min(cw,ch)*.035)));
+    const k=Math.min(profile.scalePct/100,(cw-2*margin)/320,(ch-2*margin)/96);
+    if(k<.75)return 'Экран меньше минимального размера';
+    const width=Math.floor(320*k),height=Math.floor(96*k);
+    const px=margin+Math.round((cw-2*margin-width)*profile.x/1000);
+    const py=margin+Math.round((ch-2*margin-height)*profile.y/1000);
+    c.raster(target,card,320,96,left+px*sx,top+py*sy,width*sx,height*sy,options.neutral?profile:null);
+    return known?'':'Размер экрана неизвестен';
+}
 function drawPhysical(c,v,target,x,y,w,h,pct){
-    const background='#102622', d=v.previewDetails[target]||{}, frame=d.layout&&d.layout.canvas;
-    const profile=(v.previewProfiles||{})[target], card=(v.previewCards||{})[target];
-    const sy=Math.min((w-24)*(c.scaleX||1)/(frame?frame.width:1000),(h-65)/(frame?frame.height:360));
-    const sx=sy/(c.scaleX||1), cw=frame?frame.width:1000,ch=frame?frame.height:360;
-    const left=x+(w-cw*sx)/2, top=y+35+(h-55-ch*sy)/2;
+    const d=v.previewDetails[target]||{}, profile=v.previewProfiles[target], card=v.previewCards[target];
     c.roundRect(x,y,w,h,12,C.panel);
     text(c,screens[target],x+16,y+27,24,w-28,C.text,true);
-    c.roundRect(left,top,cw*sx,ch*sy,3,background);
-    if(card&&profile&&c.raster){
-        const actual=d.layout&&d.layout.card;
-        if(actual&&(!pct||pct===profile.scalePct)){
-            c.raster(target,card,320,96,left+actual.x*sx,top+actual.y*sy,actual.width*sx,actual.height*sy);
-        }else{
-            const scale=pct||profile.scalePct;
-            const margin=Math.max(8,Math.min(20,Math.round(Math.min(cw,ch)*.035)));
-            const k=Math.min(scale/100,(cw-2*margin)/320,(ch-2*margin)/96);
-            if(k>=.75){
-                const width=Math.floor(320*k), height=Math.floor(96*k);
-                const px=margin+Math.round((cw-2*margin-width)*profile.x/1000);
-                const py=margin+Math.round((ch-2*margin-height)*profile.y/1000);
-                c.raster(target,card,320,96,left+px*sx,top+py*sy,width*sx,height*sy);
-            }
-        }
-    }
-    const status=physicalStatus(v,target);
-    text(c,status+(card&&!frame?' · размер экрана неизвестен':''),x+16,y+h-10,18,w-28,C.dim);
+    const note=sampleFrame(c,{target,card,profile:pct&&profile?Object.assign({},profile,{scalePct:pct}):profile,
+        canvas:d.layout&&d.layout.canvas,neutral:v.previewNeutral},x+12,y+35,w-24,h-61);
+    const status=physicalStatus(v,target), outcome=v.previewOutputs&&v.previewOutputs[target];
+    const reason=outcome&&outcome.frame==='unavailable'&&outcome.reason;
+    text(c,[status,reason||note].filter(Boolean).join(' · '),x+16,y+h-10,18,w-28,C.dim);
 }
 function editorDraw(c,v,focus) {
     const slider=v.buttons.find(b=>b.kind==='slider');
     const draft=v.sliderPreview&&v.sliderPreview.source===slider.source?v.sliderPreview.step:null;
     const pct=draft===null?parseInt(slider.value,10):75+5*draft;
     text(c,v.title,28,55,39,1190,C.text,true);
-    text(c,'Тест на стоянке',1556,55,22,325,C.dim,false,'right');
+    text(c,'Образцы · физический тест на стоянке',1556,55,22,590,C.dim,false,'right');
     const x=24,y=85,w=497,h=221;
     c.roundRect(x,y,w,h,12,C.panel);
     text(c,screens.center,x+16,y+27,24,w-28,C.text,true);
     if(v.sample&&c.subscene){
         c.subscene(x+18,y+36,Math.min((w-36)/548,(h-45)/316),
             cc=>hero(cc,Object.assign({},v.sample,{centralScale:pct}),0,0,548,316));
-    }else text(c,'Включите тест, чтобы увидеть карточку',x+18,y+128,23,w-32,C.dim);
+    }
     const mirrorScale=draft===null?v.previewOverride:pct;
     drawPhysical(c,v,'map',x+518,y,w,h,mirrorScale);
     drawPhysical(c,v,'hud',x+1036,y,w,h,mirrorScale);
@@ -313,7 +328,7 @@ function editorDraw(c,v,focus) {
         if(b.kind==='slider'){
             const current=draft===null?b.step:draft, bar=b.track, travel=bar.w*current/b.max;
             c.roundRect(b.x,b.y,b.w,b.h,8,b.enabled?C.panel:C.bg);
-            text(c,b.label,b.x+20,b.y+34,24,164,C.text,true);
+            text(c,b.label,b.x+20,b.y+34,24,505,C.text,true);
             c.roundRect(bar.x,bar.y,bar.w,8,4,C.road);
             if(travel>0)c.roundRect(bar.x,bar.y,travel,8,Math.min(4,travel/2),C.accent);
             c.circle(bar.x+travel,bar.y+4,9,C.accent);
@@ -321,4 +336,4 @@ function editorDraw(c,v,focus) {
         }else button(c,b,focus);
     });
 }
-module.exports={C,open,openLabel,phases,faces,screens,confirmedDirection,model,distance,text,hero,map,profileText,preview,editor,editorDraw,button,cameraIcon};
+module.exports={C,open,openLabel,phases,faces,screens,confirmedDirection,model,distance,text,hero,map,profileText,preview,editor,editorDraw,button,cameraIcon,sampleFrame};

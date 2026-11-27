@@ -7,14 +7,22 @@ const composition=require('../src/atlas-card-composition.js');
 const manifest=require('../mgu-app.json');
 const {Canvas}=require('../'+manifest.tree+'/javascript/atlas-kit/canvas.js');
 const {defaultLayouts}=require('../../../native/marku-kaluga-cameras/files/card-layout.js');
+const layers=require('../../../native/marku-kaluga-cameras/files/camera-layers.js');
+const zlib=require('zlib');
 const harness=require('./ui_harness.js');
 
 const allowed={allowed:true,code:'READY',reason:'Остановка подтверждена'};
 function service() {
     const fields=()=>composition.OPTIONS.reduce((o,v)=>{o[v.key]=true;return o;},{});
+    const calibrationCards={};
+    for(const target of ['hud','map']){
+        calibrationCards[target]=zlib.deflateSync(layers.styledPixels(layers.displaySample(false),target,null,fields())).toString('base64');
+    }
     return {serviceVersion:'test',outputs:{hud:true,cluster:true},cardLayout:defaultLayouts(),
         capabilities:{outputs:true,cardComposition:true},
         cardComposition:{hud:fields(),map:fields()},
+        atlasSamples:{calibrationCards},
+        rendererDetails:{map:{layout:{canvas:{width:1088,height:480}}},hud:{layout:{canvas:{width:800,height:400}}}},
         actions:{cardLayout:allowed,displayTest:allowed,displayTestStop:allowed},
         displayTest:{active:false},storage:{persistent:true,settingsSaved:false}};
 }
@@ -62,12 +70,12 @@ function checkModel() {
             assert(editorText.includes(minText));assert(editorText.includes(maxText));
             const drag=Object.assign({},v,{sliderPreview:{source:name,step:b.step===0?max:0}});
             const after=frame(drag).cv.d;
-            // Left-hand output diagram must change independently of the right-hand thumb.
+            // Verify the sample itself, independently of the slider thumb.
             let changed=0;
             for(let y=139;y<247;y++)for(let x=348;x<780;x++){
                 const i=(1600*y+x)*4;if(before[i]!==after[i])changed++;
             }
-            assert(changed>15,'No live diagram change for '+name+' on '+target);
+            assert(changed>15,'No live sample change for '+name+' on '+target);
             assert.strictEqual(profile(target).buttons.find(t=>t.source===name).step,b.step);
         }
         const choice=profile(target,{sheet:2});

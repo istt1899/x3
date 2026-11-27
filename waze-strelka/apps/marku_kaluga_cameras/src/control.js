@@ -14,6 +14,7 @@ class CameraControl extends EventEmitter {
         this.state = null; this.link = 'down'; this.sock = null; this.lastError = null;
         this.opened = false; this.buffer = ''; this.timer = null;
         this.statusTimer = null;
+        this.samples = null; this.samplesRequested = null;
         this.commandError = null; this.commandErrorRequestId = null;
     }
     open() {
@@ -34,6 +35,7 @@ class CameraControl extends EventEmitter {
         if (!this.opened || this.sock) return;
         const sock = net.connect(this.path);
         this.sock = sock; this.buffer = '';
+        this.samples = null; this.samplesRequested = null;
         sock.setEncoding('utf8');
         sock.on('error', (err) => {
             if (this.sock !== sock) return;
@@ -62,7 +64,20 @@ class CameraControl extends EventEmitter {
                 try { msg = JSON.parse(line); } catch (err) { continue; }
                 if (msg.ev === 'status' && msg.state && typeof msg.state === 'object') {
                     clearTimeout(this.statusTimer); this.statusTimer = null;
-                    this.state = msg.state; this.emit('change');
+                    this.state = msg.state;
+                    const revision = this.state.atlasSamplesRevision;
+                    if (this.samples && this.samples.revision === revision) this.state.atlasSamples = this.samples.value;
+                    else if (Number.isSafeInteger(revision) && revision > 0 && revision !== this.samplesRequested) {
+                        this.samplesRequested = revision;
+                        this.send({ cmd: 'atlas-samples' });
+                    }
+                    this.emit('change');
+                }
+                if (msg.ev === 'atlas-samples' && this.state && this.state.atlasSamplesRevision === msg.revision &&
+                    msg.samples && typeof msg.samples === 'object') {
+                    this.samples = { revision: msg.revision, value: msg.samples };
+                    this.state.atlasSamples = msg.samples;
+                    this.emit('change');
                 }
                 if (msg.ev === 'error' && typeof msg.error === 'string') {
                     this.commandError = msg.error.replace(/[\r\n\t]/g, ' ').slice(0,1024);
@@ -81,7 +96,9 @@ class CameraControl extends EventEmitter {
     }
     send(message) {
         if (!this.sock || this.link !== 'up') return false;
-        if (message.cmd !== 'status') { this.commandError = null; this.commandErrorRequestId = null; }
+        if (message.cmd !== 'status' && message.cmd !== 'atlas-samples') {
+            this.commandError = null; this.commandErrorRequestId = null;
+        }
         this.sock.write(JSON.stringify(message) + '\n');
         return true;
     }

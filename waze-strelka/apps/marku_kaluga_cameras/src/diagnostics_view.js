@@ -76,7 +76,13 @@ const PAGE_KEYS = ['stamp','versions','page','command','commandMore'].concat(Arr
 let snapshotSequence = 0;
 function capture(state, version, now) {
     const at = Number.isFinite(now) ? now : Date.now();
-    const captured=JSON.parse(JSON.stringify(state||{}));
+    const publicState=Object.assign({},state);
+    delete publicState.atlasSamples;
+    if(publicState.layoutPreview){
+        publicState.layoutPreview=Object.assign({},publicState.layoutPreview);
+        delete publicState.layoutPreview.cards;
+    }
+    const captured=JSON.parse(JSON.stringify(publicState));
     if(!captured.appClock){
         const wallMs=Date.now();captured.appClock={wallMs,wallUtc:utc(wallMs),clockDiscontinuity:null,lastRollback:null};
     }

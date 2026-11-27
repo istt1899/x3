@@ -157,7 +157,8 @@ function model(page, input) {
         v.calibration=c;
         const renderer=(live.rendererDetails||{})[target]||{};
         v.preview={x:profile.x,y:profile.y,size:profile.scalePct,brightness:profile.brightnessPct,opacity:profile.opacityPct,
-            canvas:renderer.layout&&renderer.layout.canvas};
+            canvas:renderer.layout&&renderer.layout.canvas,target,
+            card:((live.atlasSamples||{}).calibrationCards||{})[target]};
         set(display,c.testActive?'Тест включён':outputText(c.output),[
             ['X · Горизонталь',unit(Number.isFinite(profile.x)?profile.x/10:null,'%')],['Y · Вертикаль',unit(Number.isFinite(profile.y)?profile.y/10:null,'%')],
             ['Размер',unit(profile.scalePct,'%')],['Яркость',unit(profile.brightnessPct,'%')],['Прозрачность',unit(Number.isFinite(profile.opacityPct)?100-profile.opacityPct:null,'%')]]);
@@ -364,36 +365,14 @@ function calibrationPreview(v) {
 }
 function profileDrawing(cv,profile,x,y,w,h) {
     cv.roundRect(x,y,w,h,9,P.line);cv.roundRect(x+2,y+2,w-4,h-4,8,P.bg);
-    if(![profile.x,profile.y,profile.size,profile.brightness,profile.opacity].every(Number.isFinite)){
-        words(cv,'Профиль экрана недоступен',x+w/2,y+h*.58,23,w-28,P.dim,false,'center');return;
-    }
-    const canvas=profile.canvas, known=canvas&&Number.isFinite(canvas.width)&&canvas.width>0&&Number.isFinite(canvas.height)&&canvas.height>0;
-    const width=known?canvas.width:1000,height=known?canvas.height:260;
-    const margin=Math.max(8,Math.min(20,Math.round(Math.min(width,height)*.035)));
-    const factor=Math.min(profile.size/100,(width-2*margin)/320,(height-2*margin)/96);
-    if(factor<.75){words(cv,'Выход меньше минимального размера',x+w/2,y+h*.58,22,w-24,P.dim,false,'center');return;}
-    const sx=Number.isFinite(cv.scaleX)&&cv.scaleX>0?cv.scaleX:1;
-    const px=Math.min((w-12)*sx/width,(h-12)/height), dw=width*px/sx,dh=height*px;
-    const left=x+(w-dw)/2, top=y+(h-dh)/2;
-    cv.roundRect(left,top,dw,dh,3,'#182b2b');
-    const cardW=320*factor,cardH=96*factor, point=(val,length,card)=>margin+(length-2*margin-card)*val/1000;
-    const cardX=left+px*point(profile.x,width,cardW)/sx,cardY=top+px*point(profile.y,height,cardH);
-    const paintedW=cardW*px/sx,paintedH=cardH*px;
-    const bright=profile.brightness/100,alpha=profile.opacity/100;
-    const tint=rgb=>'#'+rgb.map((n,i)=>Math.round([24,43,43][i]*(1-alpha)+n*bright*alpha))
-        .map(n=>('0'+n.toString(16)).slice(-2)).join('');
-    cv.roundRect(cardX,cardY,paintedW,paintedH,3,tint([198,244,165]));
-    if(paintedH>=14){
-        const ink=tint([40,65,56]),cx=cardX+paintedW*.18,cy=cardY+paintedH*.52;
-        symbol(cv,'camera',cx,cy,ink,Math.min(paintedW*.22,paintedH*.68));
-        cv.roundRect(cardX+paintedW*.36,cardY+paintedH*.35,paintedW*.47,Math.max(1,paintedH*.09),1,ink);
-        cv.roundRect(cardX+paintedW*.36,cardY+paintedH*.58,paintedW*.30,Math.max(1,paintedH*.09),1,ink);
-    }
+    const note=cameraScene.sampleFrame(cv,{target:profile.target,card:profile.card,canvas:profile.canvas,neutral:true,
+        profile:{x:profile.x,y:profile.y,scalePct:profile.size,brightnessPct:profile.brightness,opacityPct:profile.opacity}},x+6,y+6,w-12,h-12);
+    if(note&&w>=400)words(cv,note,x+9,y+22,16,w-18,P.dim);
 }
 function calibrationInfo(cv,v) {
     const c=v.calibration, left=46, width=548;
     cv.roundRect(24,89,592,360,13,P.surface);
-    words(cv,'Схема положения',left,124,27,340,P.text,true);
+    words(cv,'Образец уведомления',left,124,27,340,P.text,true);
     words(cv,v.side,593,123,22,225,P.focus,false,'right');
     profileDrawing(cv,calibrationPreview(v),left,137,width,113);
     const messages=[];

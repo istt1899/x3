@@ -3,6 +3,14 @@ const {ClusterRender}=require('./cluster_render_client');
 const card=require('./alert-card'), width=card.width, height=card.height;
 const {normalizeLayouts}=require('./card-layout');
 const composition=require('./card-composition');
+const layoutSample={id:'__atlas_preview__',title:'Камера скорости',controls:['speed','redlight'],
+    distanceM:180,distance:180,roadConfirmed:true,limitKmh:60,speedKmh:48,
+    captureDirectionVerified:true,captureDirection:'front'};
+function displaySample(calibration) {
+    return {id:'__display_test__',test:true,title:'ТЕСТ УВЕДОМЛЕНИЯ',description:'Проверка приборов и HUD',
+        controls:['redlight','speed'],distanceM:180,roadConfirmed:true,limitKmh:40,speedKmh:0,
+        confidence:'test',calibration:!!calibration};
+}
 function parseTargets(value) {
     const result={},seen={};
     if(typeof value!=='string'||value.length>512)return result;
@@ -164,4 +172,4 @@ function createDisplay(options){
         lastReconnectAt: client && client.lastReadyAt || null
     });},close:function(){release(false);}};
 }
-module.exports={createDisplay,parseTargets,layoutFor,styledPixels};
+module.exports={createDisplay,parseTargets,layoutFor,styledPixels,layoutSample,displaySample};

@@ -6,6 +6,7 @@ var composition = require(path.join(base, 'card-composition'));
 var compositionUi = require('../apps/marku_kaluga_cameras/src/atlas-card-composition');
 var cards = require(path.join(base, 'card-layout')), service = require(path.join(base, 'marku-kaluga-cameras'));
 var renderer = require(path.join(base, 'camera-layers')), policy = require(path.join(base, 'action-policy'));
+var CameraControl = require('../apps/marku_kaluga_cameras/src/control').CameraControl;
 var tempBase = fs.realpathSync(os.tmpdir()), root = fs.mkdtempSync(path.join(tempBase, 'strelka-card-settings-'));
 var apps = [], children = [], sequence = 0, originalNow = Date.now;
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -102,7 +103,7 @@ async function main() {
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'))), legacy, 'Reading old settings must not rewrite the file');
   app.command({ cmd: 'display-test', target: 'hud', requestId: 'pinned-hud' });
   assert(app.state().displayTest.active && app.state().displayTest.pinned); assert.strictEqual(app.state().displayTest.untilMs, 0);
-  assert.deepStrictEqual(run.latest().outputs, { cluster: false, hud: true }); assert.strictEqual(app.state().commandResult.phase, 'shown');
+  assert.deepStrictEqual(run.latest().outputs, { cluster: false, hud: true }); assert.strictEqual(app.state().commandResult.phase, 'unconfirmed');
   const stationaryCard = require('../native/marku-kaluga-cameras/files/alert-card').presentation(run.latest().alert);
   assert.deepStrictEqual([stationaryCard.test, stationaryCard.distance, stationaryCard.limit, stationaryCard.speedText], [true, 180, 40, '0']);
   time += 6500; run.refresh(); assert(app.state().displayTest.active, 'Pinned test survives the former five-second timeout');
@@ -172,9 +173,24 @@ async function main() {
   preview.command({ cmd:'card-layout', target:'hud', brightnessPct:35, opacityPct:45, x:600 });
   baseLayouts = clone(preview.state().cardLayout);
   var editor = connect(live.socket), other = connect(live.socket);
+  var nativeClient = new CameraControl({ path: live.socket });
+  nativeClient.open();
+  try {
+    await until(function () { return nativeClient.state && nativeClient.state.atlasSamples; });
+    var receivedSamples = nativeClient.state.atlasSamples;
+    var originalRevision = nativeClient.state.atlasSamplesRevision;
+    preview.command({ cmd:'card-composition', target:'map', key:'types', value:false });
+    await until(function () { return nativeClient.state.atlasSamplesRevision > originalRevision &&
+      nativeClient.state.atlasSamples && nativeClient.state.atlasSamples !== receivedSamples; });
+    receivedSamples = nativeClient.state.atlasSamples;
+  } finally { nativeClient.close(); }
   var send = function(msg) { editor.sock.write(JSON.stringify(Object.assign({session:'sample'},msg)) + '\n'); };
   var snapshot = await editor.command({cmd:'layout-preview-start',session:'sample'});
   assert.strictEqual(snapshot.layoutPreview.revision, 0);
+  assert(snapshot.layoutPreviewTrace.some(function(entry) {
+    return entry.session === 'sample' && entry.event === 'outputs' &&
+      entry.outputs.map.frame === 'unconfirmed' && entry.outputs.hud.frame === 'unconfirmed';
+  }));
   assert.deepStrictEqual(live.latest().outputs, {cluster:true,hud:true});
   assert.strictEqual((await other.command({cmd:'layout-preview-start',session:'elsewhere'})).commandResult.phase,'error');
   send({cmd:'layout-preview',scalePct:120,revision:2});
@@ -188,11 +204,17 @@ async function main() {
     var rgba = require('zlib').inflateSync(Buffer.from(snapshot.layoutPreview.cards[target],'base64'));
     var wire = live.latest();
     assert.deepStrictEqual(rgba,renderer.styledPixels(wire.alert,target,wire.layouts[target],wire.contents[target]));
+    var sample = require('zlib').inflateSync(Buffer.from(receivedSamples.cards[target],'base64'));
+    assert.deepStrictEqual(sample,renderer.styledPixels(wire.alert,target,null,wire.contents[target]));
   });
   assert.strictEqual(snapshot.alert,null);
   assert.strictEqual(snapshot.speedWarning.overspeed,false);
   send({cmd:'layout-preview-cancel'});
   await until(function () { return preview.state().layoutPreview === null; });
+  assert.strictEqual(preview.state().layoutPreviewResult.code,'CANCELLED');
+  assert(preview.state().layoutPreviewTrace.some(function(entry) {
+    return entry.session === 'sample' && entry.event === 'stopped' && entry.code === 'CANCELLED' && entry.revision === 2;
+  }));
   assert.deepStrictEqual(preview.state().cardLayout,baseLayouts);
 
   await editor.command({cmd:'layout-preview-start',session:'sample'});

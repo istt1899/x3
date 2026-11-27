@@ -112,8 +112,9 @@ function start(options) {
   var settingsPath = path.join(dataDir, 'settings.json'), settings;
   try { settings = readSettings(settingsPath); }
   catch (e) { storageError = e.message; settings = { enabled: true, outputs: { cluster: false, hud: false }, hudOpacityPct: 100, cardLayout: cardLayout.defaultLayouts(), cardComposition: cardComposition.normalize(), alertPreferences: alertPreferences.normalize(), overspeedPreferences: warningPolicy.normalize() }; }
-  var state = { serviceVersion: '0.13.0', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
-    cardLayout: settings.cardLayout, centerCameraScalePct: settings.centerCameraScalePct || null, layoutPreview: null,
+  var state = { serviceVersion: '0.13.1', enabled: settings.enabled, outputs: settings.outputs, hudOpacityPct: settings.hudOpacityPct,
+    cardLayout: settings.cardLayout, centerCameraScalePct: settings.centerCameraScalePct || null,
+    layoutPreview: null, layoutPreviewResult: null, layoutPreviewTrace: [], atlasSamplesRevision: 0,
     cardComposition: settings.cardComposition,
     alertPreferences: settings.alertPreferences,
     overspeedPreferences: settings.overspeedPreferences,
@@ -211,7 +212,7 @@ function start(options) {
     state.alert = null;
     state.atlasMap = { origin: null, roads: [], camera: null };
     if (state.displayTest.active || previewRequest) stopDisplayTest('GPS_RESET');
-    closeLayoutPreview();
+    closeLayoutPreview('GPS_RESET', 'Сброс данных GPS');
   }
   function motionFixes(now) {
     if (typeof gps.motionFixes !== 'function') return null; // older injected GPS providers
@@ -382,10 +383,40 @@ function start(options) {
   var previewRequest = null;
   var monotonicNow = options.monotonicNow || function() { return process.uptime() * 1000; };
   var layoutSession = null;
-  var layoutSample = { id: '__atlas_preview__', title: 'Камера скорости', controls: ['speed', 'redlight'],
-    distanceM: 180, distance: 180, roadConfirmed: true, limitKmh: 60, speedKmh: 48,
-    captureDirectionVerified: true, captureDirection: 'front' };
-  function closeLayoutPreview() {
+  var layoutSample = cameraLayers.layoutSample;
+  var sampleKey, atlasSamples;
+  function traceLayout(session, event, code, details) {
+    var trace = state.layoutPreviewTrace;
+    trace.push(Object.assign({
+      session: session.id, requestId: session.requestId, revision: session.revision,
+      timeMs: Date.now(), event: event, code: code
+    }, details));
+    if (trace.length > 24) trace.shift();
+  }
+  function updateAtlasSamples() {
+    var calibration = state.displayTest.active && state.displayTest.calibration;
+    var key = JSON.stringify([settings.cardComposition, calibration]);
+    if (key === sampleKey) return;
+    var cards = {}, calibrationCards = {};
+    ['map', 'hud'].forEach(function (target) {
+      function image(sample) {
+        return zlib.deflateSync(cameraLayers.styledPixels(sample, target, null,
+          settings.cardComposition[target])).toString('base64');
+      }
+      cards[target] = image(layoutSample);
+      calibrationCards[target] = image(cameraLayers.displaySample(calibration));
+    });
+    atlasSamples = { alert: layoutSample, cards: cards, calibrationCards: calibrationCards };
+    state.atlasSamplesRevision++;
+    sampleKey = key;
+  }
+  function closeLayoutPreview(code, message) {
+    if (!layoutSession) return;
+    traceLayout(layoutSession, 'stopped', code);
+    state.layoutPreviewResult = Object.assign({}, state.layoutPreviewResult, {
+      session: layoutSession.id, requestId: layoutSession.requestId, revision: layoutSession.revision,
+      phase: 'stopped', code: code, message: message, stoppedAtMs: Date.now()
+    });
     layoutSession = null;
     state.layoutPreview = null;
   }
@@ -396,8 +427,10 @@ function start(options) {
   }
   function updateLayoutPreview() {
     if (!layoutSession) return null;
-    if (!state.actions.cardLayout.allowed || monotonicNow() >= layoutSession.deadline) {
-      closeLayoutPreview();
+    var policy = state.actions.displayTest;
+    if (!policy.allowed || monotonicNow() >= layoutSession.deadline) {
+      if (!policy.allowed) closeLayoutPreview(policy.code, policy.reason);
+      else closeLayoutPreview('LEASE_EXPIRED', 'Связь с редактором прервана: время сеанса истекло');
       return null;
     }
     var layouts = editLayouts(layoutSession.scale);
@@ -421,17 +454,37 @@ function start(options) {
         Object.keys(msg).some(function (key) { return allowed.indexOf(key) < 0; })) throw new Error('Сеанс предпросмотра недействителен');
     var own = layoutSession && layoutSession.id === msg.session && layoutSession.socket === sock;
     if (msg.cmd === 'layout-preview-cancel') {
-      if (own) { closeLayoutPreview(); tick(); }
+      if (own) { closeLayoutPreview('CANCELLED', 'Редактор закрыт'); tick(); }
       return;
     }
-    var now = gpsNow(), policy = actionsAt(now, gps.current(now)).cardLayout;
-    if (!policy.allowed) { if (own) { closeLayoutPreview(); tick(); } throw new Error(policy.reason); }
-    if (msg.cmd === 'layout-preview-start') {
-      if (layoutSession && monotonicNow() >= layoutSession.deadline) closeLayoutPreview();
-      if (layoutSession && !own && layoutSession.socket !== sock) throw new Error('Уже открыт другой сеанс предпросмотра');
-      if (!display) throw new Error('Рендерер предупреждений недоступен');
+    var now = gpsNow(), policy = actionsAt(now, gps.current(now)).displayTest;
+    var starting = msg.cmd === 'layout-preview-start';
+    var requested = { id: msg.session, requestId: requestToken(msg), revision: 0 };
+    if (starting && !own) traceLayout(requested, 'start-requested', policy.code);
+    if (!policy.allowed) {
+      if (starting && !own) traceLayout(requested, 'start-denied', policy.code);
+      if (own) { closeLayoutPreview(policy.code, policy.reason); tick(); }
+      throw new Error(policy.reason);
+    }
+    if (starting) {
+      if (layoutSession && monotonicNow() >= layoutSession.deadline)
+        closeLayoutPreview('LEASE_EXPIRED', 'Связь с редактором прервана: время сеанса истекло');
+      if (layoutSession && !own && layoutSession.socket !== sock) {
+        traceLayout(requested, 'start-denied', 'EDITOR_BUSY');
+        throw new Error('Уже открыт другой сеанс предпросмотра');
+      }
+      if (!display) {
+        traceLayout(requested, 'start-denied', 'RENDERER_UNAVAILABLE');
+        throw new Error('Рендерер предупреждений недоступен');
+      }
       if (state.displayTest.active) stopDisplayTest('ATLAS_PREVIEW');
-      if (!layoutSession || !own) layoutSession = { id: msg.session, socket: sock, scale: null, revision: 0 };
+      if (!layoutSession || !own) {
+        if (layoutSession) closeLayoutPreview('REPLACED', 'Открыт новый сеанс');
+        layoutSession = Object.assign(requested, { socket: sock, scale: null });
+        state.layoutPreviewResult = { session: msg.session, requestId: layoutSession.requestId,
+          phase: 'active', code: policy.code, startedAtMs: Date.now() };
+        traceLayout(layoutSession, 'started', policy.code);
+      }
     } else if (!own || monotonicNow() >= layoutSession.deadline) throw new Error('Тест завершён. Включите предпросмотр снова');
     if (msg.cmd === 'layout-preview') {
       if (!previewScale(msg.scalePct) || !Number.isSafeInteger(msg.revision) || msg.revision < 1)
@@ -449,7 +502,7 @@ function start(options) {
         next.centerCameraScalePct = layoutSession.scale;
         save(next, true);
       }
-      closeLayoutPreview();
+      closeLayoutPreview('SAVED', 'Размер уведомлений сохранён');
       tick();
       commandResult(msg.cmd, 'finished', 'Размер уведомлений сохранён', state.commandResult.id);
       return;
@@ -494,22 +547,20 @@ function start(options) {
         return { refused: true, message: label + ' — ' + (reason || 'вывод недоступен') };
       }
       var showing = item && item.state === 'shown' && (item.target === 'shown' || item.target === 'lingering');
-      if (showing && item.rendering === 'verified')
-        return { verified: true, message: label + ' — renderer подписан на сцену. Проверьте изображение' };
-      if (showing && item.rendering === 'unobservable')
-        return { message: label + ' — подписку renderer нельзя проверить. Проверьте изображение' };
+      if (showing && (item.rendering === 'verified' || item.rendering === 'unobservable'))
+        return { message: label + ' — кадр не подтверждён. Проверьте изображение' };
       return { pending: true, message: label + ' — ' + (reason || item && item.target || 'ожидание подтверждения') };
     });
     var failed = results.some(function(result) { return result.refused; });
     var pending = !results.length || results.some(function(result) { return result.pending; });
-    if (pending && !failed && monotonicNow() < previewRequest.deadline) return false;
+    if (pending && monotonicNow() < previewRequest.deadline) return false;
     var message = results.map(function(result) { return result.message; }).join(' • ');
-    if (failed || pending) {
+    if (results.every(function(result) { return result.refused || result.pending; })) {
       finishPreview(failed ? 'error' : 'unconfirmed', failed ? message : 'Время ожидания истекло. ' + message);
       stopDisplayTest(failed ? 'RENDERER_REFUSED' : 'RENDERER_TIMEOUT');
       return true;
     }
-    finishPreview(results.every(function(result) { return result.verified; }) ? 'shown' : 'unconfirmed', message);
+    finishPreview('unconfirmed', message);
     return false;
   }
   function movedProfile(target, direction) {
@@ -647,13 +698,34 @@ function start(options) {
     if (state.alert) { state.alert.speedKmh = warningFix ? warningFix.speedKmh : null; state.alert.overspeed = state.speedWarning.overspeed; state.alert.speedWarning = state.speedWarning;
       if (warningFix && Number.isFinite(warningFix.headingDeg)) state.alert.captureClass = captureData.classify(state.alert.capture, warningFix.headingDeg, state.alert.cameraFacing); }
     if (state.displayTest.active && (!state.actions.displayTest.allowed || !testTargetEnabled(state.displayTest.target))) stopDisplayTest(!state.actions.displayTest.allowed ? state.actions.displayTest.code : 'OUTPUTS_OFF');
-    var displayAlert = state.displayTest.active ? { id: '__display_test__', test: true, title: 'ТЕСТ УВЕДОМЛЕНИЯ',
-      description: 'Проверка приборов и HUD', controls: ['redlight','speed'], distanceM: 180, roadConfirmed: true, limitKmh: 40, speedKmh: 0, confidence: 'test', calibration: !!state.displayTest.calibration } : state.alert;
+    var displayAlert = state.displayTest.active ? cameraLayers.displaySample(state.displayTest.calibration) : state.alert;
     var displayOutputs = state.displayTest.active && state.displayTest.target ? {
       cluster: state.displayTest.target === 'map' && settings.outputs.cluster, hud: state.displayTest.target === 'hud' && settings.outputs.hud
     } : settings.outputs;
     var previewLayouts = updateLayoutPreview();
+    updateAtlasSamples();
     updateDisplay(previewLayouts ? layoutSample : displayAlert, displayOutputs, previewLayouts);
+    if (layoutSession) {
+      var result = state.layoutPreviewResult;
+      result.revision = layoutSession.revision;
+      var outputsSnapshot = {};
+      ['map', 'hud'].forEach(function(target) {
+        var item = state.rendererDetails[target] || {};
+        var enabled = testTargetEnabled(target), connected = state.rendererDetails.connection === 'ready';
+        var unavailable = item.disabled || item.target === 'unavailable' || item.state === 'отказ' ||
+          item.state === 'error' || item.reason === 'CANVAS_TOO_SMALL';
+        var subscribed = item.state === 'shown' && (item.target === 'shown' || item.target === 'lingering');
+        outputsSnapshot[target] = { enabled: enabled, connected: connected, reason: item.targetReason || item.reason || null,
+          frame: !enabled ? 'disabled' : !connected ? 'connecting' : unavailable ? 'unavailable' :
+            subscribed ? 'unconfirmed' : 'waiting' };
+      });
+      var outputKey = JSON.stringify([result.revision, outputsSnapshot]);
+      if (layoutSession.outputKey !== outputKey) {
+        layoutSession.outputKey = outputKey;
+        result.outputs = outputsSnapshot;
+        traceLayout(layoutSession, 'outputs', 'FRAME_ACK_UNAVAILABLE', { outputs: outputsSnapshot });
+      }
+    }
     if (previewRequest && state.displayTest.active && settlePreview()) updateDisplay(state.alert, settings.outputs);
     if (audio) { audio.configure(settings.overspeedPreferences); audio.update(state.alert, warningFix, now, holding || guidanceHeld); var audioState = audio.status();
       if(state.audio && state.audio.probeState)audioState.probeState=state.audio.probeState;
@@ -689,7 +761,7 @@ function start(options) {
       if(!policy.allowed)throw Object.assign(new Error(policy.reason), { code: policy.code });
       var target = msg.target === undefined ? null : cardLayout.validateTarget(msg.target);
       if(!testTargetEnabled(target))throw new Error('Включите выход «' + (target === 'hud' ? 'HUD' : 'Приборы') + '» для камер');
-      closeLayoutPreview();
+      closeLayoutPreview('OTHER_TEST', 'Открыт тест отдельного экрана');
       previewRequest = { result: state.commandResult, deadline: monotonicNow() + 10000 };
       state.displayTest.result = state.commandResult;
       state.displayTest.calibration = msg.cmd === 'calibration-test';
@@ -846,7 +918,7 @@ function start(options) {
     function drop() {
       clients = clients.filter(function (c) { return c !== sock; });
       var previewLost = layoutSession && layoutSession.socket === sock;
-      if (previewLost) closeLayoutPreview();
+      if (previewLost) closeLayoutPreview('APP_DISCONNECTED', 'Прервалась связь с приложением');
       if (vehicleSpeedSocket !== sock) { if (previewLost) tick(); return; }
       vehicleSpeedSocket = null;
       vehicleSpeedSample = null;
@@ -864,7 +936,14 @@ function start(options) {
         if (Buffer.byteLength(line, 'utf8') > 8192) { sock.destroy(); return; }
         if (!line.trim()) continue;
         var message = null;
-        try { message = JSON.parse(line); command(message, sock); }
+        try {
+          message = JSON.parse(line);
+          if (message && message.cmd === 'atlas-samples') {
+            sock.write(JSON.stringify({ ev: 'atlas-samples', revision: state.atlasSamplesRevision, samples: atlasSamples }) + '\n');
+            continue;
+          }
+          command(message, sock);
+        }
         catch (e) { sock.write(JSON.stringify({ ev: 'error', error: e.message, requestId: requestToken(message) }) + '\n'); }
         send(sock);
       }
@@ -918,7 +997,7 @@ function start(options) {
   try { gps.start(); } catch (e) { state.error = 'GPS start: ' + e.message; }
   var timer = setInterval(tick, 500); tick();
   function close() {
-    if (closed) return; closeLayoutPreview(); stopDisplayTest('SERVICE_CLOSED'); closed = true; clearInterval(timer); if (speedcamInstaller) speedcamInstaller.close(); gps.close(); if (display) display.close(); if (dimmer) dimmer.close(); if(store)store.close(); if(regionalStore)regionalStore.close(); if(audio)audio.close();
+    if (closed) return; closeLayoutPreview('SERVICE_CLOSED', 'Сервис остановлен'); stopDisplayTest('SERVICE_CLOSED'); closed = true; clearInterval(timer); if (speedcamInstaller) speedcamInstaller.close(); gps.close(); if (display) display.close(); if (dimmer) dimmer.close(); if(store)store.close(); if(regionalStore)regionalStore.close(); if(audio)audio.close();
     if(typeof gps.removeListener==='function'){gps.removeListener('fix',tick);gps.removeListener('status',onGpsStatus);}
     clients.forEach(function (c) { c.destroy(); }); try { server.close(); } catch (e) {}
     if (ownsSocket) { try { fs.unlinkSync(socketPath); } catch (e) {} }

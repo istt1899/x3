@@ -8,7 +8,7 @@ async function main(){
     const action=name=>app._atlasAction(name);
     const hud={scalePct:80,brightnessPct:80,opacityPct:100,x:500,y:700};
     const state={enabled:true,outputs:{hud:true,cluster:true},cardLayout:{hud,map:Object.assign({},hud,{scalePct:105})},
-        capabilities:{layoutPreview:true},actions:{cardLayout:{allowed:true}},gpsFix:{headingDeg:0},
+        capabilities:{layoutPreview:true},actions:{cardLayout:{allowed:true},displayTest:{allowed:true}},gpsFix:{headingDeg:0},
         alert:{id:'test',type:'speed',roadConfirmed:true,limitKmh:40,distanceM:120,captureDirectionVerified:true,captureDirection:'front'}};
     try{
         await app._setupRhmi();
@@ -19,6 +19,7 @@ async function main(){
         await action('atlasCameraOpen');
         assert.strictEqual(stage.view.cameraOutput,'all');
         assert.strictEqual(stage.view.buttons[0].enabled,false);
+        assert(stage.view.sample);
         await action('atlasPreviewStart');
         const start=h.commands.find(c=>c.cmd==='layout-preview-start');
         assert(start&&start.session);
@@ -45,11 +46,43 @@ async function main(){
         assert.strictEqual(stage.view.centralScale,125);
         await action('tripCamera');
         await action('atlasCameraOpen');
+        state.atlasSamples={alert:state.alert,cards:{hud:'abc',map:'def'}};
+        h.setState(state);
+        await action('atlasPreviewStart');
+        const a=h.commands.filter(c=>c.cmd==='layout-preview-start').pop();
+        state.layoutPreview={session:a.session,revision:0,scalePct:null};
+        state.layoutPreviewResult={session:a.session,requestId:a.requestId,phase:'active'};
+        h.setState(state);
         await h.back();
         assert.strictEqual(stage.page,'cameraDetail');
         assert(!stage.view.cameraOutput);
+        assert(h.commands.some(c=>c.cmd==='layout-preview-cancel'&&c.session===a.session));
         await action('atlasCameraOpen');
+        const before=h.commands.filter(c=>c.cmd==='layout-preview-start').length;
+        await action('atlasPreviewStart');
+        await action('atlasPreviewStart');
+        const starts=h.commands.filter(c=>c.cmd==='layout-preview-start'), b=starts[starts.length-1];
+        assert.strictEqual(starts.length,before+1);
+        assert.notStrictEqual(a.session,b.session);
+        state.layoutPreview=null;
+        state.layoutPreviewResult={session:a.session,requestId:a.requestId,phase:'stopped',message:'Редактор закрыт'};
+        h.setState(state);
+        assert.strictEqual(app._atlasLayoutEditor.id,b.session);
+        state.layoutPreview={session:b.session,revision:0,scalePct:null};
+        state.layoutPreviewResult={session:b.session,requestId:b.requestId,phase:'active'};
+        h.setState(state);
+        assert.strictEqual(stage.view.previewActive,true);
+        state.layoutPreview=null;
+        state.layoutPreviewResult={session:a.session,requestId:a.requestId,phase:'stopped'};
+        h.setState(state);
+        assert.strictEqual(stage.view.previewActive,true);
+        state.layoutPreviewResult={session:b.session,requestId:b.requestId,phase:'stopped',message:'Время сеанса истекло'};
+        h.setState(state);
+        assert.strictEqual(stage.view.previewActive,false);
+        assert.strictEqual(stage.view.feedback,'Время сеанса истекло');
+        assert.deepStrictEqual(stage.view.previewCards,state.atlasSamples.cards);
         state.actions.cardLayout={allowed:false,reason:'На стоянке'};
+        state.actions.displayTest=state.actions.cardLayout;
         h.setState(state);
         const count=h.commands.length;
         await action('atlasPreviewStart');

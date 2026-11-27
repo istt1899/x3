@@ -124,6 +124,18 @@ function catalog() {
             status:pack?.current===item.availableVersion?'installed':'available'};
     });
 }
+let sampleKey, samples;
+function atlasSamples(contents, calibration) {
+    const key=JSON.stringify([contents,calibration]);
+    if(key===sampleKey)return samples;
+    samples={alert:layers.layoutSample,cards:{},calibrationCards:{}};
+    for(const target of ['map','hud']){
+        samples.cards[target]=layers.styledPixels(layers.layoutSample,target,null,contents[target]);
+        samples.calibrationCards[target]=layers.styledPixels(layers.displaySample(calibration),target,null,contents[target]);
+    }
+    sampleKey=key;
+    return samples;
+}
 function stateNow() {
     const phase=el('phase').value,distance=Number(el('distance').value),now=Date.now();
     const speed=phase==='stop'?0:phase==='gps'?null:47, held=phase==='gps';
@@ -144,19 +156,21 @@ function stateNow() {
         displayTest:test?{active:true,target:test,pinned:true}:{active:false}};
     state.actions=policy.policies(state,state.gpsFix,now,null,speed);
     state.centerCameraScalePct=saved.centralCameraScalePct;
-    if(atlasDraft&&!state.actions.cardLayout.allowed)atlasDraft=null;
+    if(atlasDraft&&!state.actions.displayTest.allowed)atlasDraft=null;
+    state.atlasSamples=atlasSamples(state.cardComposition,false);
+    for(const out of ['map','hud']){
+        const node=el(out);
+        state.rendererDetails[out]={layout:layers.layoutFor(out,{width:node.width,height:node.height},'simulator',state.cardLayout[out])};
+    }
     if(atlasDraft){
-        const sample={id:'__atlas_preview__',title:'Камера скорости',controls:['speed','redlight'],distanceM:180,
-            roadConfirmed:true,limitKmh:60,speedKmh:48,captureDirectionVerified:true,captureDirection:'front'};
-        const profiles=layout.normalizeLayouts(state.cardLayout), cards={};
+        const profiles=layout.normalizeLayouts(state.cardLayout);
         for(const out of ['map','hud']){
             if(atlasDraft.scale)profiles[out].scalePct=atlasDraft.scale;
             const node=el(out);
-            cards[out]=atlasDraft.cards[out]||(atlasDraft.cards[out]=layers.styledPixels(sample,out,profiles[out],state.cardComposition[out]));
             state.rendererDetails[out]={state:'shown',target:'shown',rendering:'verified',
                 layout:layers.layoutFor(out,{width:node.width,height:node.height},'simulator',profiles[out])};
         }
-        state.layoutPreview={session:atlasDraft.id,scalePct:atlasDraft.scale,revision:atlasDraft.revision,alert:sample,cards,profiles};
+        state.layoutPreview={session:atlasDraft.id,scalePct:atlasDraft.scale,revision:atlasDraft.revision,alert:layers.layoutSample,profiles};
     }
     return state;
 }
@@ -308,7 +322,7 @@ function renderOutputs(s) {
         if(preview&&s.layoutPreview&&preview.source==='cameraCardScale')profile.scalePct=75+5*preview.step;
         else if(preview&&out===target&&page==='calibration')setProfileStep(profile,preview.source,preview.step);
         const activeTest=test===out&&s.actions.cardLayout.allowed;
-        const visibleAlert=activeTest?{...makeWarning(150,0,false),test:true,calibration:true}:s.layoutPreview?s.layoutPreview.alert:s.alert;
+        const visibleAlert=activeTest?layers.displaySample(false):s.layoutPreview?s.layoutPreview.alert:s.alert;
         const info=layers.layoutFor(out,{width:node.width,height:node.height},'simulator',profile);
         ctx.clearRect(0,0,node.width,node.height);
         const show=enabled&&visibleAlert&&info.withinBounds&&(activeTest||composition.hasContent(fields));
@@ -381,7 +395,8 @@ function drawStage(){
         node.width=width;node.height=height;
     }
     const shown=inputStage.sliderPreview||inputStage.hold?{...view,sliderPreview:inputStage.sliderPreview,holding:inputStage.hold?.command}:view;
-    const key=JSON.stringify([width,height,page,shown.previewCards?{...shown,previewCards:Object.keys(shown.previewCards)}:shown,sceneFocus]);
+    const {previewCards,preview,...rest}=shown;
+    const key=JSON.stringify([width,height,page,rest,preview&&{...preview,card:!!preview.card},saved.cardComposition,sceneFocus]);
     if(key===lastBitmap)return;
     stage.sceneAtSize(screenRaster,page,shown,sceneFocus,width,height);
     bitmap(node,screenRaster.d,width,height);lastBitmap=key;

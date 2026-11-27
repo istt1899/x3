@@ -224,9 +224,7 @@ class WazeClusterApp extends OnlineApp {
         // from <app>/rhmiData/resources, shared with its RHMI resource bundle.
         this._atlasResources = path.resolve(__dirname, '..', '..', 'rhmiData', 'resources');
         this._atlasStage = new atlasStage.Stage(logger, name => this._atlasAction(name), () => this._renderAtlas(), null,
-            command => this._focusAtlasDirection(command), (source,step) => {
-                if(source==='cameraCardScale')this._setAtlasPreviewScale(step);
-            });
+            command => this._focusAtlasDirection(command));
         this._sawForeground = false;
         this._shutdownPromise = null;
         this._shuttingDown = false;
@@ -1602,14 +1600,14 @@ class WazeClusterApp extends OnlineApp {
     }
 
     _startAtlasPreview() {
+        if(this._atlasLayoutEditor&&this._atlasLayoutEditor.id)return;
         const local={id:this._cameraClientId+'-layout-'+(++this._cameraCommandSequence).toString(36),
             revision:0,scale:null,starting:true,message:''};
         this._atlasLayoutEditor=local;
         local.requestId=this._cameraCommand({cmd:'layout-preview-start',session:local.id});
         if(!local.requestId){local.starting=false;local.id=null;local.message=this._cameras.diagnostic();return;}
         local.lease=setInterval(()=>{
-            const state=this._cameras.state||{}, live=state.layoutPreview;
-            if (this._atlasLayoutEditor!==local || !live || live.session!==local.id) return;
+            if (this._atlasLayoutEditor!==local || !local.live) return;
             this._cameras.send({cmd:'layout-preview-keep',session:local.id});
         },2000);
         if(local.lease.unref)local.lease.unref();
@@ -1634,8 +1632,7 @@ class WazeClusterApp extends OnlineApp {
 
     _setAtlasPreviewScale(step) {
         const local=this._atlasLayoutEditor;
-        const live=(this._cameras.state||{}).layoutPreview;
-        if(!local||!live||live.session!==local.id||local.saving||!Number.isInteger(step)||step<0||step>10)return;
+        if(!local||!local.live||local.saving||!Number.isInteger(step)||step<0||step>10)return;
         const scale=75+5*step;
         if(local.scale===scale)return;
         local.scale=scale;local.revision++;local.message='';
@@ -1649,9 +1646,13 @@ class WazeClusterApp extends OnlineApp {
         const local=this._atlasLayoutEditor;
         if(!local||!local.id)return;
         const state=this._cameras.state||{}, live=state.layoutPreview, result=state.commandResult||{};
+        const outcome=state.layoutPreviewResult;
         const own=live&&live.session===local.id;
         const timedOut=this._cameraPending&&this._cameraPending.requestId===local.requestId&&this._cameraPending.awaiting;
-        if(own)local.starting=false;
+        if(own){
+            local.starting=false;
+            if(!local.live||live.revision>=local.live.revision)local.live=live;
+        }
         if(result.requestId===local.requestId&&result.phase==='error'){
             local.message=result.message;
             local.starting=false;
@@ -1661,13 +1662,20 @@ class WazeClusterApp extends OnlineApp {
             this._atlasLayoutEditor={message:'Размер уведомлений сохранён'};
             return;
         }
+        if(outcome&&outcome.session===local.id&&outcome.phase==='stopped'&&outcome.code!=='SAVED'){
+            this._stopAtlasPreview(false);
+            this._atlasLayoutEditor={message:outcome.message||'Тест остановлен · '+outcome.session};
+            return;
+        }
         if(timedOut||!this._cameras.state){
             local.message=this._cameraFeedback&&timedOut?this._cameraFeedback.message:this._cameras.diagnostic();
             local.starting=false;
             local.saving=false;
         }
+        if(!timedOut&&this._cameras.state&&(state.atlasSamplesRevision||state.atlasSamples)&&local.live&&!own&&
+            result.requestId!==local.requestId)return;
         if(!timedOut&&(local.starting||local.saving||own)&&this._cameras.state)return;
-        const reason=local.message||'Тест остановлен. Включите предпросмотр снова.';
+        const reason=local.message||'Тест остановлен · '+local.id;
         this._stopAtlasPreview(true);
         this._atlasLayoutEditor={message:reason};
     }

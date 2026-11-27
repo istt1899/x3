@@ -47,22 +47,24 @@ function actionTarget(page,view,command){
 // Layout coordinates stretch to the viewport. Glyphs, circular signs and QR
 // modules keep square pixels, including inside the narrower detail pane.
 const rasterCache={};
-function paintRaster(canvas,target,encoded,sw,sh,x,y,w,h){
+const sampleBackground=[16,38,34];
+function paintRaster(canvas,target,encoded,sw,sh,x,y,w,h,style){
+    const brightness=style?style.brightnessPct/100:1,opacity=style?style.opacityPct/100:1;
     let picture=rasterCache[target];
-    if(!picture||picture.encoded!==encoded){
+    if(!picture||picture.encoded!==encoded||picture.brightness!==brightness||picture.opacity!==opacity){
         let pixels;
         try{
-            const raw=typeof encoded==='string'&&encoded.length<=16384?
+            const raw=picture&&picture.encoded===encoded?picture.raw:typeof encoded==='string'&&encoded.length<=16384?
                 zlib.inflateSync(Buffer.from(encoded,'base64')):encoded;
             if(!raw||raw.length!==sw*sh*4)return;
             pixels=Buffer.alloc(raw.length);
             for(let i=0;i<raw.length;i+=4){
-                const alpha=raw[i+3]/255;
-                for(let c=0;c<3;c++)pixels[i+c]=Math.round(raw[i+c]*alpha+[16,38,34][c]*(1-alpha));
+                const alpha=Math.round(raw[i+3]*opacity)/255;
+                for(let c=0;c<3;c++)pixels[i+c]=Math.round(Math.round(raw[i+c]*brightness)*alpha+sampleBackground[c]*(1-alpha));
                 pixels[i+3]=255;
             }
+            picture={encoded,raw,pixels,brightness,opacity,id:target==='map'?811:812};
         }catch(error){return;}
-        picture={encoded,pixels,id:target==='map'?811:812};
         rasterCache[target]=picture;
         if(setImage)setImage(picture.id,sw,sh,pixels);
     }
@@ -75,7 +77,7 @@ function paneCanvas(canvas,left,sx,sy,offsetY) {
     return {
         scaleX:sx/sy,
         subscene:(a,b,scale,draw)=>draw(paneCanvas(canvas,x(a),sx*scale,sy*scale,y(b))),
-        raster:(target,encoded,sw,sh,a,b,w,h)=>paintRaster(canvas,target,encoded,sw,sh,x(a),y(b),w*sx,h*sy),
+        raster:(target,encoded,sw,sh,a,b,w,h,style)=>paintRaster(canvas,target,encoded,sw,sh,x(a),y(b),w*sx,h*sy,style),
         square:(a,b,size)=>({canvas,x:Math.round(x(a)),y:Math.round(y(b)),size:Math.floor(size*unit)}),
         fillRect:(a,b,w,h,color)=>{
             const leftEdge=Math.round(x(a)),topEdge=Math.round(y(b));
@@ -103,7 +105,10 @@ function sceneAtSize(canvas,page,view,focus,screenWidth,screenHeight) {
 function scene(canvas,page,view,focus,interactive) {
     if(interactive)sceneAtSize(canvas,page,view,focus,width,height);
     else if(page==='trip')home.drawSummary(canvas,view);
-    else detail.drawSummary(canvas,page,view);
+    else {
+        canvas.raster=(target,encoded,sw,sh,x,y,w,h,style)=>paintRaster(canvas,target,encoded,sw,sh,x,y,w,h,style);
+        detail.drawSummary(canvas,page,view);
+    }
 }
 function sameSize(placement,screen) {
     return !!(placement && screen && placement.w===screen.w && placement.h===screen.h);
@@ -230,7 +235,7 @@ class Stage {
         if(this.drag){
             const origin=this.drag, local=(this.view.buttons||[]).find(b=>b.kind==='slider'&&b.source===origin.source&&b.enabled!==false);
             if(!local||origin.page!==this.page){this.cancelTouch();return;}
-            if(phase!==1&&phase!==2&&phase!==3)return;
+            if(phase!==1&&phase!==2&&phase!==3){this.cancelTouch();return;}
             const command=detail.sliderCommand(local,localX(x));
             if(!command){this.cancelTouch();return;}
             const step=Number(command.split(':')[2]);

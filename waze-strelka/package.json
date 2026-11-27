@@ -1,6 +1,6 @@
 {
   "name": "bmw-kaluga-cameras",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "private": true,
   "license": "GPL-3.0-or-later",
   "description": "Waze on Cluster fork with camera warnings for BMW iDrive 7",
