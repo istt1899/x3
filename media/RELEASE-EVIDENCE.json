@@ -47,7 +47,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "8b7a94feb2a85e8d8a3bba963bc920a55c89f380a6b0b339fc3086466dc9df8b"
+      "sha256": "7d75225c97264a1457be5da619ea936ea5e5645241bf538a9178bd27ab98a793"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -100,5 +100,30 @@
       "packaged_runtime_check_with_production_ffmpeg": true
     },
     "physical_id7_playback_verified": false
+  },
+  "strelka_atlas_013_update": {
+    "date": "2026-11-27",
+    "reason": "Add live camera alert editing on three displays and improve Moscow camera evidence.",
+    "previous_catalog_sha256": "8b7a94feb2a85e8d8a3bba963bc920a55c89f380a6b0b339fc3086466dc9df8b",
+    "package_commit": "840f1237db3d26ea28f96da38e7b45378ac8657b",
+    "updated_components": {
+      "marku_kaluga_cameras": "0.13.0",
+      "marku-kaluga-cameras": "0.13.0"
+    },
+    "camera_database": {
+      "version": "2026.11.27.1",
+      "url": "https://raw.githubusercontent.com/istt1899/x3/840f1237db3d26ea28f96da38e7b45378ac8657b/waze-strelka/data/camera-database-2026.11.27.1.json",
+      "size": 9629270,
+      "sha256": "92ad07119f305cb703d870c3b528f0624d932801e843fea59f2f6552c7601d5b"
+    },
+    "checks": {
+      "project_tests": true,
+      "node8_native_socket_and_profiles": true,
+      "reproducible_packages": true,
+      "offline_live_preview": true,
+      "matched_moscow_approaches": 35,
+      "matched_moscow_map_limits": 19
+    },
+    "physical_bmw_live_preview_verified": false
   }
 }
