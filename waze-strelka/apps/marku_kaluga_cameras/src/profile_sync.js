@@ -34,8 +34,8 @@ const { RENDER_PATH, PATCH_PATH, renderMapSettings } = require('./waze_cluster_c
 
 const POLL_MS = 5000;
 const RENDER_STATUS_PATH = '/run/waze-on-cluster/status.json';
-/* The native service replaces its snapshot about once a second. */
-const RENDER_STATUS_MAX_AGE_MS = 5000;
+/* Without a snapshot, leave the renderer's single control socket free between probes. */
+const RENDER_PROBE_MS = 30000;
 const READ_MS = 3000;
 /* a proxy that failed to start: set up again after this, then less often */
 const SETUP_RETRY_MS = 10000;
@@ -195,6 +195,8 @@ class ProfileSync extends EventEmitter {
         this._patchPath = o.patchPath || PATCH_PATH;
         this._renderPath = o.renderPath || RENDER_PATH;
         this._renderStatusPath = o.renderStatusPath || RENDER_STATUS_PATH;
+        this._renderProbeMs = o.renderProbeMs || RENDER_PROBE_MS;
+        this._nextRenderProbe = 0;
         this._pollMs = o.pollMs || POLL_MS;
         this._replyMs = o.replyMs || REPLY_MS;
         this._retryMs = o.retryMs || RETRY_MS;
@@ -249,7 +251,9 @@ class ProfileSync extends EventEmitter {
     }
 
     mapWriteTarget() {
-        if (this._stopped || !this.canChooseOwn() || this._askedOwn !== null) return null;
+        if (this._stopped || this._askedOwn !== null || this._differs ||
+            this.profile === undefined || this.profile !== this._confirmed || this.own === null) return null;
+        // patchd accepts an explicitly confirmed null profile for the shared settings.
         return { profile: this.profile, own: Number(this.own) };
     }
 
@@ -282,7 +286,7 @@ class ProfileSync extends EventEmitter {
 
     _poll() {
         Promise.resolve().then(async () => {
-            if (!this._stockHudHasPriority()) await this._restoreOutputs();
+            if (this._shouldCheckHudPriority()) await this._restoreOutputs();
             return this._read();
         }).then((id) => {
             const agreed = id === NONE || id === this._seen;
@@ -371,22 +375,24 @@ class ProfileSync extends EventEmitter {
         return p;
     }
 
-    /* A fresh snapshot can confirm normal operation without claiming the
-     * renderer's single control socket. Probe live after restart or if the
-     * snapshot cannot confirm BMW's priority. */
-    _stockHudHasPriority() {
+    /* The native renderer writes a status on start and at each change, so
+     * the same status can stay on disk while the renderer is working. */
+    _shouldCheckHudPriority() {
         const control = this._control;
         if (control && control.render.connected()) {
-            return !!control.renderStatus && control.renderStatus.hud_keep_shown === 0;
+            return !!control.renderStatus && control.renderStatus.hud_keep_shown === 1;
         }
         try {
-            const age = Date.now() - fs.statSync(this._renderStatusPath).mtimeMs;
-            if (age < 0 || age > RENDER_STATUS_MAX_AGE_MS) return false;
             const status = JSON.parse(fs.readFileSync(this._renderStatusPath, 'utf8'));
-            return status.ev === 'status' && status.hud_keep_shown === 0;
-        } catch (e) {
-            return false;
-        }
+            if (status.ev === 'status' && (status.hud_keep_shown === 0 || status.hud_keep_shown === 1)) {
+                this._nextRenderProbe = 0;
+                return status.hud_keep_shown === 1;
+            }
+        } catch (e) { /* Older renderers can run without a readable snapshot. */ }
+        const now = Date.now();
+        if (now < this._nextRenderProbe) return false;
+        this._nextRenderProbe = now + this._renderProbeMs;
+        return true;
     }
 
     /* A missing settings argument checks only the priority flag. Saved

@@ -144,7 +144,7 @@ async function main() {
             assert.strictEqual(b.built.length, 2);
             await sleep(100);
             await assert.rejects(read(), /set up again later/, 'the backoff doubled');
-            await sleep(360);
+            await sleep(500);
             assert.strictEqual(await read(), 'driverA', `${JSON.stringify(opts)}: set up at the third try`);
             assert.strictEqual(b.built.length, 3);
         }
@@ -396,7 +396,7 @@ async function main() {
         const control = new WazeClusterControl({ patchPath: PSOCK, renderPath: RSOCK, retryMs: POLL });
         const sync = new ProfileSync({
             control, readProfile: () => Promise.resolve('driverB'), patchPath: PSOCK, renderPath: RSOCK,
-            renderStatusPath: statusFile, pollMs: POLL, replyMs: 150
+            renderStatusPath: statusFile, pollMs: POLL, replyMs: 150, renderProbeMs: 100
         });
         control.open();
         sync.start();
@@ -413,12 +413,13 @@ async function main() {
                 } else if (snapshot === 'missing') {
                     fs.unlinkSync(statusFile);
                 } else {
-                    fs.writeFileSync(statusFile, JSON.stringify(Object.assign({}, renderer._status(), { hud_keep_shown: 0 })));
+                    fs.writeFileSync(statusFile, JSON.stringify(renderer._status()));
                     fs.utimesSync(statusFile, new Date(0), new Date(0));
                 }
                 await renderer.listen();
                 await until('BMW priority after renderer restart (' + snapshot + ')',
                     () => renderer.hudKeep === 0);
+                fs.writeFileSync(statusFile, JSON.stringify(renderer._status()));
                 await sleep(POLL * 4);
                 assert.deepStrictEqual(renderer.received, [{ cmd: 'hud', hud_keep_shown: '0' }]);
                 assert.deepStrictEqual([renderer.cluster, renderer.hud], [1, 1]);
@@ -442,7 +443,7 @@ async function main() {
         let profileAvailable = true;
         const sync = new ProfileSync({
             readProfile: () => profileAvailable ? Promise.resolve('driverB') : Promise.reject(new Error('profile unavailable')),
-            patchPath: PSOCK, renderPath: RSOCK, pollMs: POLL, replyMs: 150
+            patchPath: PSOCK, renderPath: RSOCK, pollMs: POLL, replyMs: 150, renderProbeMs: 100
         });
         sync.start();
         try {
@@ -518,6 +519,72 @@ async function main() {
             control.close();
             await renderer.close();
             await patch.close();
+        }
+    });
+    await check('shared map controls work without a driver account and quick toggles preserve each output', async () => {
+        const patch = new FakePatch(PSOCK);
+        patch.profileWriteGuards = true;
+        patch.own.driverB = settings(1, 0, 60, -40, 0, 0);
+        patch.shared = settings(0, 0, 0, 0, 0, 0);
+        patch.map = patch.shared;
+        const renderer = new FakeRender(RSOCK);
+        renderer.cluster = 0;
+        const control = new WazeClusterControl({ patchPath: PSOCK, renderPath: RSOCK, retryMs: POLL,
+            mapWriteTarget: () => sync.mapWriteTarget(), confirmMapWrite: (target) => sync.confirmMapWrite(target) });
+        const sync = new ProfileSync({ control, readProfile: () => Promise.resolve(null),
+            patchPath: PSOCK, renderPath: RSOCK, pollMs: POLL });
+        await patch.listen();
+        await renderer.listen();
+        control.open();
+        sync.start();
+        try {
+            await until('shared profile and renderer connected', () => sync.profile === null && control.clusterOn() === false);
+            assert(!sync.canChooseOwn(), 'the absence of an account cannot create a personal profile');
+            assert(control.canChooseShownOn(), 'shared output must remain editable');
+            await Promise.all([control.setMapOutput('cluster', true), control.setMapOutput('hud', true)]);
+            await until('both displays live and saved', () => renderer.cluster === 1 && renderer.hud === 1 && patch.map.cluster === 1 && patch.map.hud === 1);
+            const clusterCommands = renderer.received.filter((m) => m.cmd === 'cluster');
+            assert.deepStrictEqual(clusterCommands, [{ cmd: 'cluster', on: '1' }]);
+            const write = patch.received.find((m) => m.cmd === 'cluster');
+            assert.strictEqual(write.profile, null);
+            assert.strictEqual(write.own, 0);
+            assert.deepStrictEqual(patch.own.driverB, settings(1, 0, 60, -40, 0, 0));
+        } finally {
+            sync.stop();
+            control.close();
+            await renderer.close();
+            await patch.close();
+        }
+    });
+    await check('a quiet renderer status does not take the control socket from Maps on Cluster', async () => {
+        const patch = new FakePatch(PSOCK);
+        patch.map = settings(1, 0, 0, 0, 0, 0);
+        const renderer = new FakeRender(RSOCK);
+        let connections = 0;
+        const sendStatus = renderer._onConnect.bind(renderer);
+        renderer._onConnect = (socket) => { connections++; sendStatus(socket); };
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'strelka-quiet-map-'));
+        const statusFile = path.join(dir, 'status.json');
+        fs.writeFileSync(statusFile, JSON.stringify(renderer._status()));
+        fs.utimesSync(statusFile, new Date(0), new Date(0));
+        await patch.listen();
+        await renderer.listen();
+        const sync = new ProfileSync({ readProfile: () => Promise.resolve('driverB'), patchPath: PSOCK,
+            renderPath: RSOCK, renderStatusPath: statusFile, pollMs: POLL, replyMs: 150 });
+        sync.start();
+        try {
+            await until('initial outputs checked', () => sync.profile === 'driverB' && sync._checkOutputs === false);
+            const initial = connections;
+            await sleep(POLL * 6);
+            assert.strictEqual(connections, initial, 'unchanged status is valid even when mtime is old');
+            assert.deepStrictEqual(renderer.received, []);
+            assert.deepStrictEqual([renderer.cluster, renderer.hud], [1, 0]);
+        } finally {
+            sync.stop();
+            await renderer.close();
+            await patch.close();
+            fs.unlinkSync(statusFile);
+            fs.rmdirSync(dir);
         }
     });
     await check('busy renderer is retried after Maps on Cluster releases the control socket', async () => {

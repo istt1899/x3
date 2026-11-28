@@ -91,6 +91,14 @@ async function main() {
                 assert(!view.buttons.slice(i+1).some(c=>overlaps(button,c)),view.page+' overlapping actions');
             });
         }
+        for (const label of ['Карта на приборке: ожидание телефона', 'Карта на приборке: показывается']) {
+            const view=detail.model('main',Object.assign({},input,{phoneMaps:{cluster:true,hud:false,available:true,
+                width:35,offset:[0,0],centerScale:100,clusterStatus:label}}));
+            const art=stage();
+            detail.drawDetail(art.cv,'main',view,view.buttons[0].command);
+            assert(art.words.includes(label), 'the default map page shows the current state of the live stream');
+            assert.strictEqual(view.buttons.find(b=>b.focusKey==='atlasSwitch:cluster').selected,true);
+        }
         const nativeBackings=new Set();
         Object.keys(detail.names).forEach(page=>{
             const baseId=detail.pageIds[page];

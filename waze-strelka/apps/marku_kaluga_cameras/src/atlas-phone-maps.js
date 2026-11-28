@@ -10,6 +10,7 @@ function status(control, scale) {
     return {
         cluster:control.clusterOn(), hud:control.hudOn(), available:control.canChooseShownOn(),
         hudDisabled:control.hudDisabled(), width:control.hudWidth(), offset:control.hudOffset(),
+        clusterStatus:control.mapText(), hudStatus:control.hudText(),
         error:control.mapSaveError || '', centerScale:scale.get(center), centerError:scale.error || ''
     };
 }
@@ -89,7 +90,7 @@ function draw(cv,v,words,P,compact) {
     if(sheet===0){
         const summary=m.cluster===null||m.hud===null?'Состояние выходов неизвестно':
             m.cluster&&m.hud?'Приборы и HUD':m.cluster?'Приборная панель':m.hud?'Проекция HUD':'Оба выхода выключены';
-        line=summary;
+        line=(m.cluster && m.clusterStatus) || (m.hud && m.hudStatus) || summary;
         note=v.mapConfirm?'Подтверждение · '+names[v.mapConfirm.split(':')[1]]:
             !m.available?'Ожидание данных службы вывода':v.holding?'Удерживайте до переключения':
             v.interactive?'Удерживайте нужный выход 0,7 с':'Выберите выход и подтвердите изменение';

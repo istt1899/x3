@@ -445,11 +445,13 @@ class WazeClusterControl extends EventEmitter {
     }
 
     setMapOutput(display, on) {
-        if (!['cluster','hud'].includes(display) || typeof on !== 'boolean' || !this.canChooseShownOn() ||
-            this._shows(display) === on || (display === 'hud' && on && this.hudDisabled())) return;
-        const cluster = display === 'cluster' ? on : this.clusterOn();
-        const hud = display === 'hud' ? on : this.hudOn();
-        this.showOn(cluster && hud ? 'both' : cluster ? 'cluster' : hud ? 'hud' : 'off');
+        if (!['cluster', 'hud'].includes(display) || typeof on !== 'boolean' || !this.canChooseShownOn()) return;
+        return this._withMapWrite((target) => {
+            if (this._shows(display) === on || (display === 'hud' && on && this.hudDisabled())) return;
+            const cluster = display === 'cluster' ? on : this.clusterOn();
+            const hud = display === 'hud' ? on : this.hudOn();
+            this._showOn(cluster && hud ? 'both' : cluster ? 'cluster' : hud ? 'hud' : 'off', target);
+        });
     }
 
     /* Shows the map on the cluster, the HUD, both or neither ('off': BMW's
