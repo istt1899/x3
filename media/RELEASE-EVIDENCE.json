@@ -47,7 +47,7 @@
   },
   "store_catalogs": {
     "istt1899/x3": {
-      "sha256": "f6ee9e4d647fad1569ca90d500ce3eea7691e2344b0bc90f05e8cf92e60459ec"
+      "sha256": "cbab88a1a0c557424966eab9067889c5f48fe5509e15600dc2e86c2542415868"
     },
     "istt1899/ridetube": {
       "sha256": "0a398ba82736ac674782a2781e75c5fe59b7dc060ea010786e72e90f3b93deb4"
@@ -143,5 +143,26 @@
     },
     "renderer_frame_ack_supported": false,
     "physical_bmw_live_preview_verified": false
+  },
+  "strelka_atlas_0132_update": {
+    "date": "2026-11-28",
+    "reason": "Restore BMW HUD media menu priority after a navigation renderer restart or a busy control socket.",
+    "previous_catalog_sha256": "f6ee9e4d647fad1569ca90d500ce3eea7691e2344b0bc90f05e8cf92e60459ec",
+    "package_commit": "83df82dec5a1bbe83a737f4cab1078be6f3a2925",
+    "updated_components": {
+      "marku_kaluga_cameras": "0.13.2",
+      "marku-kaluga-cameras": "0.13.2"
+    },
+    "upstream_sources_reviewed": {
+      "Maps on Cluster": "0.6.19",
+      "waze-on-cluster": "0.14.21",
+      "cluster-render": "0.8.15"
+    },
+    "checks": {
+      "foreground_and_background_recovery": true,
+      "busy_control_socket_recovery": true,
+      "reproducible_packages": true
+    },
+    "physical_bmw_steering_wheel_verified": false
   }
 }
