@@ -146,13 +146,13 @@
     {
       "id": "marku_kaluga_cameras",
       "kind": "app",
-      "version": "0.13.3",
+      "version": "0.13.4",
       "title": "Яндекс Стрелка",
       "description": "Независимое приложение для BMW ID7. Поездка в режиме Атлас, камеры, ограничения скорости, HUD и приборная панель.",
       "build": "unit",
       "requires": {
         "waze-on-cluster": "0.9.14",
-        "marku-kaluga-cameras": "0.13.3",
+        "marku-kaluga-cameras": "0.13.4",
         "mgu-deploy": "0.7.11",
         "cluster-render": "0.8.5"
       },
@@ -161,18 +161,18 @@
         "ID7"
       ],
       "artifact": {
-        "name": "marku_kaluga_cameras@0.13.3.tgz",
-        "size": 738226,
-        "sha256": "36dc44a3745a4c2395981d9d63037f22a022d4286ac8068e0975028cd675585e",
-        "url": "https://raw.githubusercontent.com/istt1899/x3/e11b70f3a296d1049b655f9c3c1005d135751a64/marku_kaluga_cameras%400.13.3.tgz"
+        "name": "marku_kaluga_cameras@0.13.4.tgz",
+        "size": 738536,
+        "sha256": "36aa3bcd57882547821d4d378bc25865de4f0269402352a3e173c771426c5766",
+        "url": "https://raw.githubusercontent.com/istt1899/x3/751f413ae97c93e63ebb73f3429f554ee7586fad/marku_kaluga_cameras%400.13.4.tgz"
       },
-      "icon": "https://raw.githubusercontent.com/istt1899/x3/e11b70f3a296d1049b655f9c3c1005d135751a64/marku_kaluga_cameras%400.13.3.png",
+      "icon": "https://raw.githubusercontent.com/istt1899/x3/751f413ae97c93e63ebb73f3429f554ee7586fad/marku_kaluga_cameras%400.13.4.png",
       "iconSha256": "f759b8bb2e2ca180eaa65955d527bfcd87a3a269fed86aa9cdbd4fdc8319cad8"
     },
     {
       "id": "marku-kaluga-cameras",
       "kind": "tool",
-      "version": "0.13.3",
+      "version": "0.13.4",
       "title": "Сервис камер Атлас",
       "description": "Офлайн-база камер, предупреждения на приборной панели и проекции BMW ID7",
       "optional": true,
@@ -188,10 +188,10 @@
         5000
       ],
       "artifact": {
-        "name": "marku-kaluga-cameras@0.13.3.tgz",
-        "size": 1846532,
-        "sha256": "3d2c2e8fd2aa35d665463a08f0521c102b112a3fa2185a7e5f6515101512e581",
-        "url": "https://raw.githubusercontent.com/istt1899/x3/e11b70f3a296d1049b655f9c3c1005d135751a64/marku-kaluga-cameras%400.13.3.tgz"
+        "name": "marku-kaluga-cameras@0.13.4.tgz",
+        "size": 1846533,
+        "sha256": "1460a4f10304491e658eccdd84362c356748a641e6c109e2a24d494fa794f442",
+        "url": "https://raw.githubusercontent.com/istt1899/x3/751f413ae97c93e63ebb73f3429f554ee7586fad/marku-kaluga-cameras%400.13.4.tgz"
       }
     },
     {
