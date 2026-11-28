@@ -28,6 +28,9 @@ function create(hasRhmi) {
         destroyBundles() { return Promise.resolve(); }
     }
     class Control extends EventEmitter { close() {} }
+    class ClusterControl extends Control {
+        constructor() { super(); this.patch = new EventEmitter(); }
+    }
     class GpsBridge extends EventEmitter {
         constructor() { super(); this.running = false; this.enabled = true; }
         start() { this.running = true; this.emit('change'); }
@@ -40,7 +43,7 @@ function create(hasRhmi) {
         'oap-sdk/src/logging/logging': { getSDKLogger: () => logger },
         'oap-sdk/src/someip/someipBuilders': {},
         './i18n.js': { t: (key) => key },
-        './waze_cluster_control.js': { WazeClusterControl: Control },
+        './waze_cluster_control.js': { WazeClusterControl: ClusterControl },
         './logs_control.js': { LogsControl: Control, ROWS: 5 },
         './qr.js': {}, './control.js': { CameraControl: Control }, './view_model.js': require('../src/view_model.js'),
         './bmw_gps_bridge.js': { BmwGpsBridge: GpsBridge },
