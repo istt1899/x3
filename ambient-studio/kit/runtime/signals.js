@@ -67,6 +67,9 @@ function loadConfig(iface) {
  * show up without waiting for the next change.
  * opts.pollMs: also re-read those fields that often while the provider is available - for
  * fields a car may not notify (BMW's x_call only ever reads TPMS, it never subscribes).
+ * opts.onAvailability: discard cached values on provider loss. In this mode, deliver
+ * samples only while the provider is available, and discard reads across reconnections.
+ * Handlers receive the value and sample timestamp (request time for getters).
  */
 async function watch(iface, instance, handlers, log, opts) {
     const res = { iface, available: false, proxy: null, error: null, shutdown: () => Promise.resolve() };
@@ -77,22 +80,57 @@ async function watch(iface, instance, handlers, log, opts) {
         res.proxy = p;
         res.shutdown = () => Promise.resolve().then(() => p.shutdown && p.shutdown()).catch(() => {});
         const fields = Object.keys(handlers || {});
-        const fetchAll = () => fields.forEach((f) => {
-            if (cfg.fields && cfg.fields[f] && cfg.fields[f].getter) {
-                p.getValue(f, 3000).then((v) => handlers[f](v)).catch(() => {});
+        const onAvailability = opts && opts.onAvailability;
+        let generation = 0, sequence = 0;
+        const delivered = new Map();
+        const fetchAll = () => {
+            if (onAvailability && !res.available) return;
+            const requested = generation;
+            fields.forEach((f) => {
+                if (cfg.fields && cfg.fields[f] && cfg.fields[f].getter) {
+                    const read = ++sequence, requestedAt = Date.now();
+                    p.getValue(f, 3000).then((v) => {
+                        if (onAvailability && (!res.available || generation !== requested ||
+                            (delivered.get(f) || 0) > read)) return;
+                        delivered.set(f, read);
+                        handlers[f](v, requestedAt);
+                    }).catch(() => {});
+                }
+            });
+        };
+        const availability = (a) => {
+            const changed = res.available !== !!a;
+            res.available = !!a;
+            if (changed) {
+                generation++;
+                if (onAvailability) onAvailability(res.available);
+            }
+            if (a) setImmediate(fetchAll);
+        };
+        const monitoring = await nativeTick(async () => {
+            try { await p.subscribeToAvailability(availability); return true; }
+            catch (e) {
+                if (onAvailability && log) log.warn('availability ' + iface + ': ' + e);
+                return false;
             }
         });
-        await nativeTick(() => {
-            try { return p.subscribeToAvailability((a) => { res.available = !!a; if (a) setImmediate(fetchAll); }); } catch (e) { return null; /* older binding */ }
-        });
+        if (onAvailability && !monitoring) {
+            availability(false);
+            return res;
+        }
+        if (onAvailability && p.isAvailable && p.isAvailable()) availability(true);
         for (const f of fields) {
             try {
-                await nativeTick(() => p.subscribe({ name: f, onReceive: (v) => { try { handlers[f](v); } catch (e) { if (log) log.warn(iface + '.' + f + ': ' + e); } } }));
+                await nativeTick(() => p.subscribe({ name: f, onReceive: (v) => {
+                    if (onAvailability && !res.available) return;
+                    delivered.set(f, ++sequence);
+                    try { handlers[f](v, Date.now()); } catch (e) { if (log) log.warn(iface + '.' + f + ': ' + e); }
+                } }));
             } catch (e) {
                 if (log) log.warn('subscribe ' + iface + '.' + f + ': ' + e);
             }
         }
-        if (p.isAvailable && p.isAvailable()) { res.available = true; fetchAll(); }
+        if (!onAvailability && p.isAvailable && p.isAvailable()) { res.available = true; fetchAll(); }
         if (opts && opts.pollMs) setInterval(() => { if (res.available) setImmediate(fetchAll); }, opts.pollMs);
     } catch (e) {
         res.error = String(e);
@@ -108,9 +146,14 @@ async function proxy(iface, instance) {
     return nativeTick(() => someip.buildProxy(cfg, String(instance)).then((p) => p.init().then(() => p)), true);
 }
 
-/** Call a method on a proxy from proxy(); params = the method's argument struct. */
-function call(p, method, params, timeoutMs) {
-    return nativeTick(() => p.callMethod(method, params || {}, timeoutMs || 5000), true);
+/** Call a method on a proxy from proxy(); params = the method's argument struct.
+ * beforeSend may throw to cancel a request that became unsafe while queued.
+ */
+function call(p, method, params, timeoutMs, beforeSend) {
+    return nativeTick(() => {
+        if (beforeSend) beforeSend();
+        return p.callMethod(method, params || {}, timeoutMs || 5000);
+    }, true);
 }
 
 /**

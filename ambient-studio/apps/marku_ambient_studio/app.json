@@ -1,8 +1,8 @@
 {
   "id": "marku_ambient_studio",
   "title": "Студия света",
-  "description": "Подсветка салона, стробоскоп и световые эффекты на экране iDrive, диагностический тест дальнего света BMW.",
-  "version": "1.0.3",
+  "description": "Подсветка салона, стробоскоп фар BMW на стоянке и световые эффекты на экране iDrive.",
+  "version": "1.0.4",
   "vendor": "custom",
   "loggingId": "OASR",
   "iconGlyph": "ambient",
@@ -52,12 +52,12 @@
       "CentralLockingSystemAndPanelStatus": "s"
     },
     "de.bmw.infrastructure.VehicleInformation": {
-      "_optional": "selector position for the stationary headlight test",
+      "_optional": "selector position for the stationary headlight strobe",
       "statusGearboxDrive": "s",
       "DataPowerTrain2": "s"
     },
     "de.bmw.infotainment.vehicle.Vehicle2": {
-      "_optional": "the car's speed: driven (for a car that does not say it is locked and left), and the stationary headlight test",
+      "_optional": "the car's speed: driven (for a car that does not say it is locked and left), and the stationary headlight strobe",
       "statusCarSpeed2": "rs"
     }
   },

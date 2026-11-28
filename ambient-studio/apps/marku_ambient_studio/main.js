@@ -3,7 +3,7 @@
  * Ambient config - any colour on the car's ambient light, animations, and a look for each driving mode.
  *
  * Tabs:
- *   Свет           cabin presets, a headlight test and storyboard, and a local model self-check
+ *   Свет           cabin presets, a headlight strobe and storyboard, and a local model self-check
  *   Colour         the colour ring (and white) for the whole car, the upper lights or the lower ones, the
  *                  brightness, and the car from above lit as the car is; Original colour gives the light back
  *   Animations     Solid, Breathing, Rainbow, Smooth fade, Colour wave, how fast, shown moving on the car picture;
@@ -124,18 +124,6 @@ async function background(bg) {
         if (p === 0 || p === 'KEINE_KOMMUNIKATION') return 1;
         return Car.conditionOf(typeof p === 'string' ? p.replace(/^KOM_/, '') : p);
     };
-    const sources = new Set();
-    const onCondition = (field) => (v) => {
-        const n = conditionFrom(v);
-        if (n === undefined) return;
-        if (!sources.has(field)) { sources.add(field); log.info('vehicle state: from ' + field + ' (' + n + ')'); }
-        stateSeen = true;
-        control.away(n <= 3);
-    };
-    signals.watch('de.bmw.infrastructure.VehicleCondition', '1', {
-        VehicleCondition: onCondition('VehicleCondition'),
-        vehicleConditionNoCrc: onCondition('vehicleConditionNoCrc'),
-    }, log).catch((e) => log.warn('vehicle state: ' + (e && e.message || e)));
     const others = new Others({ log }).start();
     const headlights = headlightTest({
         diag, log,
@@ -148,28 +136,46 @@ async function background(bg) {
             return '';
         },
     });
+    const vehicleAway = (away) => {
+        control.away(away);
+        if (away) headlights.clearGear();
+    };
+    const sources = new Set();
+    const onCondition = (field) => (v) => {
+        const n = conditionFrom(v);
+        if (n === undefined) return;
+        if (!sources.has(field)) { sources.add(field); log.info('vehicle state: from ' + field + ' (' + n + ')'); }
+        stateSeen = true;
+        vehicleAway(n <= 3);
+    };
+    signals.watch('de.bmw.infrastructure.VehicleCondition', '1', {
+        VehicleCondition: onCondition('VehicleCondition'),
+        vehicleConditionNoCrc: onCondition('vehicleConditionNoCrc'),
+    }, log).catch((e) => log.warn('vehicle state: ' + (e && e.message || e)));
     signals.watch('de.bmw.infrastructure.VehicleInformation', '1', {
         statusGearboxDrive: (value) => {
             const stage = value && value.statusActualStageDrive;
-            headlights.updateGear('gearbox', Car.stageOf(stage));
+            if (!control._away) headlights.updateGear('gearbox', Car.stageOf(stage));
         },
         DataPowerTrain2: (value) => {
             const selected = Car.selectionOf(value && value.statusGearSelectionDrive);
-            headlights.updateGear('powertrain', selected && selected.stage);
+            if (!control._away) headlights.updateGear('powertrain', selected && selected.stage);
         },
-    }, log, { pollMs: 1000 }).catch((e) => log.warn('headlight test gear: ' + e));
+    }, log, { onAvailability: (online) => { if (!online) headlights.clearGear(); } })
+        .catch((e) => log.warn('headlight selector: ' + e));
     // the speed
     signals.watch('de.bmw.infotainment.vehicle.Vehicle2', '1', {
-        statusCarSpeed2: (v) => {
+        statusCarSpeed2: (v, sampledAt) => {
             const k = v && v.speedVehicleCentreOfGravity;
-            headlights.updateSpeed(k);
+            headlights.updateSpeed(k, sampledAt);
             if (typeof k === 'number' && k !== 65535 && k * 0.015625 > 1 && k * 0.015625 < 400) active();
         },
-    }, log, { pollMs: 1000 }).catch((e) => log.warn('speed: ' + (e && e.message || e)));
+    }, log, { pollMs: 1000, onAvailability: (online) => { if (!online) headlights.updateSpeed(null); } })
+        .catch((e) => log.warn('speed: ' + (e && e.message || e)));
     setInterval(() => {
         if (stateSeen || control._away || Date.now() - activeT <= IDLE_MS) return;
         log.info('vehicle state: none from the car, not driven or used for ' + IDLE_MS / 60000 + ' min: parked');
-        control.away(true);
+        vehicleAway(true);
     }, 30000);
     // the turn signals: that side's door lines blink green; an open door: its line red (settings turnGlow, doorRed, both off
     // until switched on)

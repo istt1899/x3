@@ -19,14 +19,14 @@ function lampLabel(mask) {
 }
 
 function strobeFrames(mode, burst, order, flashMs, every, allLights) {
-    const phases = mode === 2 ? orders[order] : modes[mode].phases;
+    const phases = mode === 2 ? orders[order] : mode === 0 && allLights ? [3, 4] : modes[mode].phases;
     const repeats = mode === 3 ? 1 : 2;
     const steps = [];
     for (let cycle = 0; cycle < repeats; cycle++) {
         for (const phase of phases) {
             const pulses = mode === 2 ? burst : 1;
             for (let pulse = 0; pulse < pulses; pulse++) {
-                steps.push({ mask: allLights && mode !== 3 ? phase | 4 : phase, ms: flashMs });
+                steps.push({ mask: phase, ms: flashMs });
                 steps.push({ mask: 0, ms: every - flashMs });
             }
         }

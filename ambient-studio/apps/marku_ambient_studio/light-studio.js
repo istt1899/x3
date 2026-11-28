@@ -38,7 +38,7 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
     const { settings } = ctx;
     let section = 0, frame = 0, report = null, saved = false, zone = null;
     let lastEdit = null, lastCabin = null, elapsed = 0, started = null;
-    let armed = false, confirmation = 0, testPreview = null, previewFinished = false;
+    let showStrobe = false, confirmation = 0, testPreview = null, previewFinished = false;
     const { headlights } = vehicle;
     const strobe = { mode: 0, flash: 1, rate: 1, burst: 2, order: 0, fog: false };
     const hardwareStatus = () => headlights ? headlights.status() :
@@ -49,11 +49,11 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
         previewFinished = false;
         confirmation = 0;
     }
-    function setArmed(value) {
+    function openStrobe(value) {
         resetPreview();
         timing(true);
         if (!value && headlights) headlights.stop();
-        armed = value;
+        showStrobe = value;
     }
     function configure(key, value) {
         resetPreview();
@@ -64,7 +64,7 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
         confirmation = 0;
         previewFinished = false;
         const steps = strobeFrames(strobe.mode, strobe.burst, strobe.order, flashLengths[strobe.flash],
-            intervals[strobe.rate], strobe.fog);
+            intervals[strobe.rate], strobe.mode === 0 && strobe.fog);
         testPreview = { steps, started: Date.now() };
     }
     function previewMask() {
@@ -75,13 +75,16 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
         previewFinished = true;
         return 0;
     }
-    function testBMW() {
+    function runBMW() {
         const status = hardwareStatus();
         if (status.busy) { headlights.stop(); return; }
-        if (!headlights || status.blocked) { confirmation = 0; return; }
+        if (!headlights || status.blocked || strobe.mode === 3) { confirmation = 0; return; }
         if (confirmation > Date.now()) {
             confirmation = 0;
-            void headlights.start(flashLengths[strobe.flash]);
+            void headlights.start({
+                mode: strobe.mode, flashMs: flashLengths[strobe.flash], every: intervals[strobe.rate],
+                burst: strobe.burst, fog: strobe.fog,
+            });
         } else {
             resetPreview();
             confirmation = Date.now() + 10000;
@@ -124,7 +127,7 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
     }
     function setSection(value) {
         if (section !== value) {
-            setArmed(false);
+            openStrobe(false);
             zone = null;
             saved = false;
         }
@@ -234,25 +237,33 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
             const xs = frames(), times = durations(), length = total(times), point = timing();
             const frameIndex = point > 0 || started !== null
                 ? frameAt(times.map((ms) => ({ ms })), point) : frame;
-            const hardware = armed ? hardwareStatus() : null;
-            const mask = armed ? previewMask() : (xs[frameIndex] || 0);
+            const hardware = showStrobe ? hardwareStatus() : null;
+            const mask = showStrobe ? previewMask() : (xs[frameIndex] || 0);
             title('Фары BMW', 48, 158);
             label('Экранный предпросмотр', 575, 158, 22, C.accent, 'right');
             cv.roundRect(48, 177, 531, 220, 10, C.stage);
             drawHeadlights(cv, mask);
             label(lampLabel(mask), 48, 424, 24, C.text, 'left', true);
-            if (!armed) {
+            if (!showStrobe) {
                 label(frameIndex < 0 ? 'Тест завершён' : 'Кадр ' + (frameIndex + 1) + ' из 4',
                     575, 424, 21, C.dim, 'right');
             } else if (mask & 48) label('Вид сзади', 575, 424, 21, C.dim, 'right');
-            button(48, 435, 531, 43, armed ? 'Выключить стробоскоп' : 'Включить стробоскоп',
-                'strobe-toggle', () => setArmed(!armed), { primary: !armed, selected: armed });
+            button(48, 435, 531, 43, showStrobe ? 'К редактору кадров' : 'Стробоскоп',
+                'strobe-toggle', () => openStrobe(!showStrobe), { primary: !showStrobe });
 
-            if (armed) {
-                const rateNames = ['1 Гц', '2 Гц', '3 Гц', '4 Гц'];
-                const confirming = confirmation > Date.now() && !hardware.blocked;
+            if (showStrobe) {
+                const rateNames = ['до 1 Гц', 'до 2 Гц', 'до 3 Гц', 'до 4 Гц'];
+                const screenOnly = strobe.mode === 3;
+                if (hardware.blocked) confirmation = 0;
+                const confirming = confirmation > Date.now() && !hardware.blocked && !screenOnly;
                 title('Стробоскоп', 641, 158);
-                label('Включён', 1542, 158, 22, C.ok, 'right');
+                const state = hardware.stopping ? 'Остановка…' : hardware.busy ? 'Цикл BMW' :
+                    screenOnly ? 'Экранный режим' : hardware.blocked ? 'Ожидание' :
+                        hardware.fault ? 'Проверьте режим' : 'Готово к запуску';
+                label(state, 1542, 158, 22, hardware.busy || confirming ? C.warm : C.dim, 'right');
+                if (hardware.note && hardware.blocked.startsWith('Повтор') && !screenOnly && !hardware.busy) {
+                    label(hardware.blocked, 1542, 408, 20, C.dim, 'right');
+                }
                 modes.forEach(({ name }, i) => {
                     button(641 + i * 229, 176, 216, 49, name, 'strobe-mode' + i,
                         () => configure('mode', i), { selected: strobe.mode === i, enabled: !hardware.busy });
@@ -261,26 +272,32 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
                     () => configure('flash', (strobe.flash + 1) % flashLengths.length), { enabled: !hardware.busy });
                 button(946, 241, 290, 50, 'Частота · ' + rateNames[strobe.rate], 'strobe-rate',
                     () => configure('rate', (strobe.rate + 1) % intervals.length), { enabled: !hardware.busy });
-                const lampChoice = strobe.mode === 3 ? 'Все огни' : strobe.fog ? 'Дальний + ПТФ' : 'Дальний свет';
+                const lampChoice = screenOnly ? 'Все огни' : strobe.mode === 0 && strobe.fog ? 'Дальний / ПТФ' : 'Дальний свет';
                 button(1251, 241, 291, 50, lampChoice, 'strobe-lamps', () => configure('fog', !strobe.fog),
-                    { enabled: strobe.mode !== 3 && !hardware.busy, selected: strobe.mode === 3 || strobe.fog });
+                    { enabled: strobe.mode === 0 && !hardware.busy, selected: screenOnly || strobe.mode === 0 && strobe.fog });
                 if (strobe.mode === 2) {
                     button(641, 302, 290, 45, 'Вспышек в серии · ' + strobe.burst, 'strobe-burst',
                         () => configure('burst', strobe.burst % 3 + 1), { enabled: !hardware.busy });
-                    button(946, 302, 290, 45, orderNames[strobe.order], 'strobe-order',
+                    button(946, 302, 362, 45, 'На экране · ' + orderNames[strobe.order], 'strobe-order',
                         () => configure('order', (strobe.order + 1) % orderNames.length), { enabled: !hardware.busy });
                 }
                 const previewNote = testPreview ? 'Идёт экранный тест · замедлен в 4 раза' : previewFinished
-                    ? 'Экранный тест завершён' : 'Левая и правая фары указаны по ходу движения';
-                label(previewNote, 641, 375, 22, C.dim);
-                const carNote = confirming ? 'На закрытой площадке · 3 вспышки дальнего света' :
-                    hardware.note || hardware.blocked || 'BMW · тест обеих фар на стоянке';
-                label(carNote, 641, 408, 22, confirming ? C.warm : C.dim);
-                button(641, 424, 420, 53, testPreview ? 'Остановить экранный тест' : 'Тест на экране',
-                    'strobe-play', playStrobe, { primary: true, enabled: !hardware.busy });
-                const carAction = hardware.busy ? 'Остановить тест BMW' : confirming ? 'Подтвердить тест фар' : 'Тест фар BMW';
-                button(1073, 424, 469, 53, carAction, 'strobe-bmw', testBMW,
-                    { enabled: hardware.busy || (!hardware.blocked && !testPreview), selected: confirming });
+                    ? 'Экранный тест завершён' : strobe.mode === 2 ? 'На BMW обе фары вспыхивают сериями с паузами' :
+                        strobe.mode === 1 ? 'На BMW нужен блок с раздельным управлением фарами' : '';
+                if (previewNote) label(previewNote, 641, 375, 22, C.dim);
+                const carNote = confirming ? 'Только на закрытой площадке · P и 0 км/ч' :
+                    screenOnly ? 'Световое шоу доступно на экране' :
+                        (hardware.busy || hardware.blocked.startsWith('Повтор') ? hardware.note :
+                            hardware.blocked || hardware.note) || 'Автоостановка примерно через 8 секунд';
+                if (carNote) label(carNote, 641, 408, 22, confirming ? C.warm : hardware.fault ? C.fault : C.dim);
+                const carAction = hardware.stopping ? 'Останавливаю…' : hardware.busy ? 'Остановить фары' :
+                    confirming ? 'Подтвердить запуск' : 'Запустить фары';
+                button(641, 424, 469, 53, carAction, 'strobe-bmw', runBMW, {
+                    primary: true, enabled: !hardware.stopping && (hardware.busy || (!screenOnly && !hardware.blocked)),
+                    selected: confirming,
+                });
+                button(1122, 424, 420, 53, testPreview ? 'Остановить предпросмотр' : 'Предпросмотр',
+                    'strobe-play', playStrobe, { enabled: !hardware.busy });
                 return;
             }
 
@@ -400,7 +417,7 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
             });
             label('Внешние фары', 48, 395, 24, C.text, 'left', true);
             const car = hardwareStatus();
-            label(car.blocked || car.note || 'Готово к тесту на стоянке', 48, 434, 22, C.dim);
+            label(car.blocked || 'Можно запустить на стоянке', 48, 434, 22, C.dim);
 
             title('Самопроверка', 641, 158);
             label('Проверка формата кадров и расчёта цвета', 641, 193, 22, C.dim);
@@ -419,8 +436,8 @@ function lightStudio(ctx, control, lights, redraw, go, vehicle = {}) {
         }
     }
 
-    draw.moving = () => section === 0 && (started !== null || armed);
-    draw.leave = () => { setArmed(false); zone = null; saved = false; };
+    draw.moving = () => section === 0 && (started !== null || showStrobe);
+    draw.leave = () => { openStrobe(false); zone = null; saved = false; };
     return draw;
 }
 
