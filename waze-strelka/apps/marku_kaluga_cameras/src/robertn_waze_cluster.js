@@ -229,11 +229,17 @@ class WazeClusterApp extends OnlineApp {
         this._shutdownPromise = null;
         this._shuttingDown = false;
         this._activityReported = null;
-        this._control = new WazeClusterControl({ log: logger });
+        this._control = new WazeClusterControl({
+            log: logger,
+            mapWriteTarget: () => this._profiles.mapWriteTarget(),
+            confirmMapWrite: (target) => this._profiles.confirmMapWrite(target)
+        });
         this._control.on('change', () => this._render());
         /* the map settings per driver profile, page shown or not */
         this._profiles = new ProfileSync({ control: this._control, log: logger, readProfile: sessionReader(someipBuilders, logger) });
         this._profiles.on('change', () => this._render());
+        this._control.patch.on('connect', () => this._profiles.invalidatePatchProfile());
+        this._control.on('profile-map-write-refused', () => this._profiles.invalidatePatchProfile());
         this._logs = new LogsControl({ log: logger });
         this._logs.on('change', () => this._renderLogs());
         this._cameraState = null;

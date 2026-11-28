@@ -30,10 +30,12 @@
 const EventEmitter = require('events');
 const fs = require('fs');
 const net = require('net');
-const { RENDER_PATH, PATCH_PATH } = require('./waze_cluster_control.js');
+const { RENDER_PATH, PATCH_PATH, renderMapSettings } = require('./waze_cluster_control.js');
 
 const POLL_MS = 5000;
 const RENDER_STATUS_PATH = '/run/waze-on-cluster/status.json';
+/* The native service replaces its snapshot about once a second. */
+const RENDER_STATUS_MAX_AGE_MS = 5000;
 const READ_MS = 3000;
 /* a proxy that failed to start: set up again after this, then less often */
 const SETUP_RETRY_MS = 10000;
@@ -97,8 +99,9 @@ function sessionReader(someipBuilders, log, options) {
                 }
                 return p.init().then(() => p);
             }, (e) => {
+                if (!e || !/no interface configuration/i.test(e.message)) throw e;
                 none = true;
-                warn('none', `no ${IFACE} proxy (${e && e.message}); the map settings are shared`);
+                warn('none', `no ${IFACE} proxy (${e.message}); the map settings are shared`);
                 return null;
             }), readMs, `${IFACE} proxy`)
             .then((p) => {
@@ -204,6 +207,7 @@ class ProfileSync extends EventEmitter {
         this._confirmed = undefined; /* the profile that counts: two reads agreed, or NONE for good */
         this._differs = false;      /* the last read was another profile than the one that counts */
         this._retryAt = 0;
+        this._priorityNeedsSave = false;
         this._chain = Promise.resolve();
         this._timer = null;
         this._stopped = true;
@@ -244,6 +248,30 @@ class ProfileSync extends EventEmitter {
         return this._ask({ cmd: 'profile-own', id: this.profile, on: on ? 1 : 0 });
     }
 
+    mapWriteTarget() {
+        if (this._stopped || !this.canChooseOwn() || this._askedOwn !== null) return null;
+        return { profile: this.profile, own: Number(this.own) };
+    }
+
+    async confirmMapWrite(target) {
+        try {
+            const id = await this._read();
+            const current = this.mapWriteTarget();
+            return current && id === target.profile && current.profile === target.profile && current.own === target.own;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /* A restarted patch daemon no longer knows which driver was selected. */
+    invalidatePatchProfile() {
+        if (this._stopped || (this.profile === undefined && this._retryAt === 0)) return;
+        this.profile = undefined;
+        this.own = null;
+        this._retryAt = 0;
+        this.emit('change');
+    }
+
     /* Tells patchd the profile that counts again (the page opened): the
      * checkbox shows what patchd has. */
     refresh() {
@@ -254,10 +282,9 @@ class ProfileSync extends EventEmitter {
 
     _poll() {
         Promise.resolve().then(async () => {
-            const priorityLost = this._hudPriorityLost();
-            if (priorityLost) await this._restoreOutputs();
-            return { id: await this._read(), priorityLost };
-        }).then(({ id, priorityLost }) => {
+            if (!this._stockHudHasPriority()) await this._restoreOutputs();
+            return this._read();
+        }).then((id) => {
             const agreed = id === NONE || id === this._seen;
             this._seen = id === NONE ? undefined : id;
             const differs = !agreed && id !== this._confirmed;
@@ -267,7 +294,7 @@ class ProfileSync extends EventEmitter {
             }
             if (agreed) {
                 this._confirmed = id;
-                if ((id !== this.profile || this._checkOutputs || priorityLost) && Date.now() >= this._retryAt) {
+                if ((id !== this.profile || this._checkOutputs || this._priorityNeedsSave) && Date.now() >= this._retryAt) {
                     return this._ask({ cmd: 'profile', id });
                 }
             }
@@ -301,6 +328,7 @@ class ProfileSync extends EventEmitter {
                         this._retryAt = 0;
                         this.profile = r.id;
                         this.own = r.own === true;
+                        if (this._control) this._control.setProfileMapWrites(r.own_settings);
                         this._log.info(`driver profile: ${r.own ? 'its own' : 'the shared'} map settings${r.changed ? ', applied' : ''}`);
                         const settings = r.settings;
                         if (r.changed && settings) {
@@ -308,13 +336,17 @@ class ProfileSync extends EventEmitter {
                         } else if ((this._checkOutputs || (settings && settings.hud_keep_shown === 1)) && msg.cmd === 'profile') {
                             this._checkOutputs = !(await this._restoreOutputs(settings));
                         }
-                        if (!this._stopped && r.id === msg.id && settings && settings.hud_keep_shown === 1) {
-                            const repair = { cmd: 'hud-keep-shown', on: 0, profile: r.id, own: Number(this.own) };
-                            const saved = await askOnce(this._patchPath, repair, (m) => m.ev === 'hud-keep-shown-reply', this._replyMs);
-                            if (!saved || !saved.ok) {
-                                this._log.warn('patchd did not save BMW HUD pop-up priority; will retry');
-                                this._checkOutputs = true;
-                                this._retryAt = Date.now() + this._retryMs;
+                        if (!this._stopped && r.id === msg.id && settings) {
+                            if (settings.hud_keep_shown === 1) {
+                                const repair = { cmd: 'hud-keep-shown', on: 0, profile: r.id, own: Number(this.own) };
+                                const saved = await askOnce(this._patchPath, repair, (m) => m.ev === 'hud-keep-shown-reply', this._replyMs);
+                                this._priorityNeedsSave = !saved || !saved.ok || saved.hud_keep_shown !== 0;
+                                if (this._priorityNeedsSave) {
+                                    this._log.warn('patchd did not save BMW HUD pop-up priority; will retry');
+                                    this._retryAt = Date.now() + this._retryMs;
+                                }
+                            } else {
+                                this._priorityNeedsSave = false;
                             }
                         }
                     } else {
@@ -339,18 +371,19 @@ class ProfileSync extends EventEmitter {
         return p;
     }
 
-    /* In the background, use the renderer's read-only status snapshot to
-     * decide whether to connect. The socket confirms the live value before
-     * any write, including after a restart or a handoff from Maps on Cluster. */
-    _hudPriorityLost() {
-        if (this._stopped) return false;
+    /* A fresh snapshot can confirm normal operation without claiming the
+     * renderer's single control socket. Probe live after restart or if the
+     * snapshot cannot confirm BMW's priority. */
+    _stockHudHasPriority() {
         const control = this._control;
         if (control && control.render.connected()) {
-            return !!control.renderStatus && control.renderStatus.hud_keep_shown === 1;
+            return !!control.renderStatus && control.renderStatus.hud_keep_shown === 0;
         }
         try {
+            const age = Date.now() - fs.statSync(this._renderStatusPath).mtimeMs;
+            if (age < 0 || age > RENDER_STATUS_MAX_AGE_MS) return false;
             const status = JSON.parse(fs.readFileSync(this._renderStatusPath, 'utf8'));
-            return status.ev === 'status' && status.hud_keep_shown === 1;
+            return status.ev === 'status' && status.hud_keep_shown === 0;
         } catch (e) {
             return false;
         }
@@ -375,7 +408,11 @@ class ProfileSync extends EventEmitter {
             if (!changes.length && !hudCoversStock) return true;
             if (!sent) {
                 sent = true;
-                if (hudCoversStock) send({ cmd: 'hud', hud_keep_shown: '0' });
+                if (hudCoversStock) {
+                    this._priorityNeedsSave = true;
+                    this._log.info('navigation HUD was covering BMW pop-ups; restoring priority');
+                    send({ cmd: 'hud', hud_keep_shown: '0' });
+                }
                 for (const display of changes) send({ cmd: display, on: String(settings[display]) });
             }
             return false; // wait for the renderer to report the requested state
@@ -397,13 +434,7 @@ class ProfileSync extends EventEmitter {
      * switch from one display to the other never passes through neither,
      * then the HUD's size and place. Let BMW's pop-ups take priority. */
     _toRender(s) {
-        const on = (v) => (v ? '1' : '0');
-        const shows = ['cluster', 'hud'].sort((a, b) => s[b] - s[a]);
-        const hud = { cmd: 'hud', hud_width_pct: String(s.hud_width_pct), hud_x: String(s.hud_offset_x), hud_y: String(s.hud_offset_y) };
-        if (s.hud_keep_shown === 0 || s.hud_keep_shown === 1) {
-            hud.hud_keep_shown = '0';
-        }
-        const cmds = shows.map((d) => ({ cmd: d, on: on(s[d]) })).concat([hud]);
+        const cmds = renderMapSettings(s);
         const c = this._control;
         if (c && c.render && c.render.connected()) {
             cmds.forEach((m) => c.render.send(m));

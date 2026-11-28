@@ -234,6 +234,7 @@ class FakePatch extends LineServer {
         this.active = null;
         this.current = undefined;
         this.profileMute = false;
+        this.profileWriteGuards = false;
         this._rebooting = false;
         this._timer = null;
     }
@@ -252,7 +253,11 @@ class FakePatch extends LineServer {
             pending: this.pending, conflict: this.conflict, recovered: this.recovered, aa: this.aa,
             removable: this.removable !== null ? this.removable : this.pending === 'apply' || (!this.pending && ['patched', 'unknown', 'error'].includes(this.state)),
             busy: this.busy ? 'carplay' : this.aa.state === 'busy' ? 'aa' : this._rebooting ? 'restart' : null,
-            restart: this.restart, wifi: this.wifi };
+            restart: this.restart, wifi: this.wifi, ...this._profileCapabilities() };
+    }
+
+    _profileCapabilities() {
+        return this.profileWriteGuards ? { own_settings: Object.keys(this.own).length > 0 } : {};
     }
 
     /* patchd's profileCmd: the settings in effect saved into the entry they
@@ -274,7 +279,7 @@ class FakePatch extends LineServer {
         const changed = JSON.stringify(want) !== JSON.stringify(this.map);
         this.active = target;
         this.map = want;
-        this._send(socket, { ev: `${msg.cmd}-reply`, ok: true, id, own: !!target, changed, settings: want });
+        this._send(socket, { ev: `${msg.cmd}-reply`, ok: true, id, own: !!target, changed, settings: want, ...this._profileCapabilities() });
     }
 
     /* CarPlay's Wi-Fi band changes, as patchd sends it: a status. */
@@ -309,16 +314,21 @@ class FakePatch extends LineServer {
         const MAP = { cluster: ['cluster'], hud: ['hud'], 'hud-size': ['hud_width_pct'], 'hud-pos': ['hud_offset_x', 'hud_offset_y'],
             'hud-keep-shown': ['hud_keep_shown'] };
         if (MAP[msg.cmd]) {
-            if (msg.cmd === 'hud-keep-shown' && 'profile' in msg &&
-                    (msg.profile !== this.current || msg.own !== Number(!!this.active))) {
-                this._send(socket, { ev: 'hud-keep-shown-reply', ok: false, reason: 'not the profile settings in effect' });
-                return;
+            if (this.profileWriteGuards) {
+                const named = 'profile' in msg;
+                const matches = msg.profile === this.current && msg.own === Number(!!this.active);
+                const capabilities = this._profileCapabilities();
+                if ((named && !matches) || (!named && capabilities.own_settings)) {
+                    this._send(socket, { ev: msg.cmd + '-reply', ok: false, refused: 'profile',
+                        reason: 'not the profile settings in effect', settings: this.map, ...capabilities });
+                    return;
+                }
             }
             const v = msg.cmd === 'hud-pos' ? [msg.hud_x, msg.hud_y] : [msg.cmd === 'hud-size' ? msg.hud_width_pct : msg.on];
             this.map = Object.assign({}, this.map);
             MAP[msg.cmd].forEach((k, i) => { this.map[k] = v[i]; });
             if (msg.cmd === 'hud-keep-shown') {
-                this._send(socket, { ev: 'hud-keep-shown-reply', ok: true, settings: this.map });
+                this._send(socket, { ev: 'hud-keep-shown-reply', ok: true, hud_keep_shown: this.map.hud_keep_shown });
             }
             return;
         }

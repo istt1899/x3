@@ -265,6 +265,16 @@ function shownOnOf(rs) {
     return cluster && hud ? 'both' : cluster ? 'cluster' : hud ? 'hud' : 'off';
 }
 
+/* Apply saved map settings with the destination coming on first. The map
+ * yields to BMW's HUD pop-ups on renderers that support that preference. */
+function renderMapSettings(settings) {
+    const displays = ['cluster', 'hud'].sort((a, b) => settings[b] - settings[a]);
+    const hud = { cmd: 'hud', hud_width_pct: String(settings.hud_width_pct),
+        hud_x: String(settings.hud_offset_x), hud_y: String(settings.hud_offset_y) };
+    if (settings.hud_keep_shown === 0 || settings.hud_keep_shown === 1) hud.hud_keep_shown = '0';
+    return displays.map((display) => ({ cmd: display, on: String(settings[display]) })).concat([hud]);
+}
+
 /* After a zoom or turn-card value that waits for the next head-unit start. */
 function afterRestart(waits) {
     return waits ? ` ${t('(after restart)')}` : '';
@@ -278,6 +288,10 @@ class WazeClusterControl extends EventEmitter {
         super();
         const o = options || {};
         this._log = o.log || { info() {}, warn() {} };
+        this._mapWriteTarget = o.mapWriteTarget || (() => null);
+        this._confirmMapWrite = o.confirmMapWrite || (() => Promise.resolve(false));
+        this._profileMapWrites = false;
+        this._mapWriteChain = Promise.resolve();
         this._pendingPath = o.pendingPath || PENDING_PATH;
         this._aaPendingPath = o.aaPendingPath || AA_PENDING_PATH;
         this._bootIdPath = o.bootIdPath || BOOT_ID_PATH;
@@ -395,7 +409,34 @@ class WazeClusterControl extends EventEmitter {
 
     /* A choice goes to the render and is saved by patchd: both connected. */
     canChooseShownOn() {
-        return this.render.connected() && this.connectedPatch() && this.clusterOn() !== null && this.hudOn() !== null;
+        return this.render.connected() && this.connectedPatch() && this.clusterOn() !== null && this.hudOn() !== null &&
+            (!this._profileMapWrites || this._mapWriteTarget() !== null);
+    }
+
+    setProfileMapWrites(ownSettings) {
+        if (typeof ownSettings === 'boolean') this._profileMapWrites = ownSettings;
+    }
+
+    _withMapWrite(change) {
+        if (!this._profileMapWrites) {
+            change({});
+            return;
+        }
+        const target = this._mapWriteTarget();
+        if (!target) return;
+        const run = async () => {
+            if (!this.canChooseShownOn()) return;
+            const confirmed = await this._confirmMapWrite(target);
+            if (!this.canChooseShownOn()) return;
+            if (confirmed) {
+                change(target);
+            } else {
+                this.mapSaveError = 'Дождитесь загрузки настроек водителя';
+                this.emit('change');
+            }
+        };
+        this._mapWriteChain = this._mapWriteChain.then(run, run);
+        return this._mapWriteChain;
     }
 
     _clearAskedOutput() {
@@ -419,6 +460,10 @@ class WazeClusterControl extends EventEmitter {
         if (!SHOWN_ON.includes(choice) || !this.canChooseShownOn()) {
             return;
         }
+        return this._withMapWrite((target) => this._showOn(choice, target));
+    }
+
+    _showOn(choice, target) {
         this.outputRevision++;
         this.mapSaveError = '';
         const want = { cluster: choice === 'cluster' || choice === 'both', hud: choice === 'hud' || choice === 'both' };
@@ -427,7 +472,7 @@ class WazeClusterControl extends EventEmitter {
         // The renderer reports live outputs. Save the complete choice even when
         // those outputs already match, since patchd owns the next boot's settings.
         for (const display of destinations) {
-            this.patch.send({ cmd: display, on: want[display] ? 1 : 0 });
+            this.patch.send(Object.assign({ cmd: display, on: want[display] ? 1 : 0 }, target));
         }
         if (changes.length) {
             this._clearAskedOutput();
@@ -516,6 +561,12 @@ class WazeClusterControl extends EventEmitter {
         if (!Number.isInteger(step) || step < 0 || step > HUD_SIZE_STEPS || !this.canChangeHudSize() || step === this.hudSizeStep()) {
             return;
         }
+        return this._withMapWrite((target) => {
+            if (this.canChangeHudSize()) this._setHudSize(step, target);
+        });
+    }
+
+    _setHudSize(step, target) {
         this.mapSaveError = '';
         const pct = HUD_MIN_PCT + step * HUD_STEP_PCT;
         this._askedHud = pct;
@@ -525,7 +576,7 @@ class WazeClusterControl extends EventEmitter {
             this.emit('change');
         }, HUD_ASKED_MS);
         this.render.send({ cmd: 'hud', hud_width_pct: String(pct) });
-        this.patch.send({ cmd: 'hud-size', hud_width_pct: pct });
+        this.patch.send(Object.assign({ cmd: 'hud-size', hud_width_pct: pct }, target));
         this.emit('change');
     }
 
@@ -545,12 +596,13 @@ class WazeClusterControl extends EventEmitter {
     /* Moves it a step (left / right / up / down): the render moves it at once, patchd saves it. */
     moveHud(dir) {
         const d = MOVES[dir];
-        const at = this.hudOffset();
-        if (!d || !at || !this.canChangeHudSize()) {
-            return;
-        }
-        const clamp = (v) => Math.max(-HUD_MOVE_MAX, Math.min(HUD_MOVE_MAX, v));
-        this._setHudPos(clamp(at[0] + d[0] * HUD_MOVE_PX), clamp(at[1] + d[1] * HUD_MOVE_PX));
+        if (!d || !this.canChangeHudSize()) return;
+        return this._withMapWrite((target) => {
+            const at = this.hudOffset();
+            if (!at || !this.canChangeHudSize()) return;
+            const clamp = (v) => Math.max(-HUD_MOVE_MAX, Math.min(HUD_MOVE_MAX, v));
+            this._setHudPos(clamp(at[0] + d[0] * HUD_MOVE_PX), clamp(at[1] + d[1] * HUD_MOVE_PX), target);
+        });
     }
     canCentreHud() {
         const at = this.hudOffset();
@@ -558,10 +610,12 @@ class WazeClusterControl extends EventEmitter {
     }
     centreHud() {
         if (this.canCentreHud()) {
-            this._setHudPos(0, 0);
+            return this._withMapWrite((target) => {
+                if (this.canCentreHud()) this._setHudPos(0, 0, target);
+            });
         }
     }
-    _setHudPos(x, y) {
+    _setHudPos(x, y, target) {
         this.mapSaveError = '';
         this._askedPos = [x, y];
         clearTimeout(this._askedPosTimer);
@@ -570,7 +624,7 @@ class WazeClusterControl extends EventEmitter {
             this.emit('change');
         }, HUD_ASKED_MS);
         this.render.send({ cmd: 'hud', hud_x: String(x), hud_y: String(y) });
-        this.patch.send({ cmd: 'hud-pos', hud_x: x, hud_y: y });
+        this.patch.send(Object.assign({ cmd: 'hud-pos', hud_x: x, hud_y: y }, target));
         this.emit('change');
     }
     hudPositionText() {
@@ -1067,12 +1121,22 @@ class WazeClusterControl extends EventEmitter {
             const prev = this.patchStatus;
             const status = this._fromOlder(msg, prev);
             this.patchStatus = !status.aa && prev && prev.aa ? Object.assign({}, status, { aa: prev.aa }) : status;
+            this.setProfileMapWrites(msg.own_settings);
             this._noteInEffect();
             this._noteCardAsked(msg);
             this._wake();
             this.emit('change');
         } else if (/^(cluster|hud|hud-size|hud-pos|hud-keep-shown)-reply$/.test(msg.ev)) {
+            this.setProfileMapWrites(msg.own_settings);
             if (!msg.ok) {
+                if (msg.refused === 'profile') this.emit('profile-map-write-refused');
+                if (msg.refused === 'profile' && msg.settings && shownOnOf(msg.settings) && this.render.connected()) {
+                    this._clearAskedOutput();
+                    this._clearAskedHud();
+                    clearTimeout(this._askedPosTimer);
+                    this._askedPos = null;
+                    renderMapSettings(msg.settings).forEach((cmd) => this.render.send(cmd));
+                }
                 this.mapSaveError = 'Сервис не сохранил изменение для следующего запуска';
                 this._log.info(`patchd did not save the setting: ${msg.reason || 'refused'}`);
                 this.emit('change');
@@ -1102,5 +1166,5 @@ class WazeClusterControl extends EventEmitter {
 module.exports = {
     WazeClusterControl, LineSocket,
     RENDER_PATH, PATCH_PATH, PENDING_PATH, AA_PENDING_PATH, BOOT_ID_PATH,
-    SIZE, SAFE, ZOOM_STEP, RESTART_FAILED, SHOWN_ON, HUD_SIZE_STEPS
+    SIZE, SAFE, ZOOM_STEP, RESTART_FAILED, SHOWN_ON, HUD_SIZE_STEPS, renderMapSettings
 };

@@ -69,6 +69,7 @@ function builders(value, opts) {
     b.buildTypedProxy = (iface, instance) => {
         b.built.push(`${iface} ${instance}`);
         if (o.buildFails) return Promise.reject(new Error('no interface configuration'));
+        if (b.built.length <= (o.buildUnavailable || 0)) return Promise.reject(new Error('service setup in progress'));
         if (b.built.length <= (o.buildHangs || 0)) return new Promise(() => {});
         const slow = b.built.length <= (o.initHangs || 0), fails = b.built.length <= (o.initFails || 0);
         const proxy = { init: () => (slow ? new Promise(() => {}) : fails ? Promise.reject(new Error('not offered')) : Promise.resolve()),
@@ -132,7 +133,7 @@ async function main() {
         await assert.rejects(read());
     });
     await check('the reader: a proxy slow to set up, or failing to start, is rejected and set up again later, with backoff', async () => {
-        for (const opts of [{ buildHangs: 2 }, { initHangs: 2 }, { initFails: 2 }]) {
+        for (const opts of [{ buildUnavailable: 2 }, { buildHangs: 2 }, { initHangs: 2 }, { initFails: 2 }]) {
             const b = builders(() => 'driverA', opts);
             const read = sessionReader(b, quiet(), { readMs: 40, retryMs: 200, retryMaxMs: 2000 });
             await assert.rejects(read(), JSON.stringify(opts));
@@ -401,15 +402,22 @@ async function main() {
         sync.start();
         try {
             await until('initial driver and renderer agree', () => sync.profile === 'driverB' && sync._checkOutputs === false);
-            for (const foreground of [true, false]) {
-                if (!foreground) control.close();
+            for (const snapshot of ['live', 'missing', 'stale']) {
+                if (snapshot !== 'live') control.close();
                 await renderer.close();
                 renderer = new FakeRender(RSOCK);
                 renderer.hud = 1;
                 renderer.hudKeep = 1;
-                fs.writeFileSync(statusFile, JSON.stringify(renderer._status()));
+                if (snapshot === 'live') {
+                    fs.writeFileSync(statusFile, JSON.stringify(renderer._status()));
+                } else if (snapshot === 'missing') {
+                    fs.unlinkSync(statusFile);
+                } else {
+                    fs.writeFileSync(statusFile, JSON.stringify(Object.assign({}, renderer._status(), { hud_keep_shown: 0 })));
+                    fs.utimesSync(statusFile, new Date(0), new Date(0));
+                }
                 await renderer.listen();
-                await until('BMW priority after renderer restart (' + (foreground ? 'foreground' : 'background') + ')',
+                await until('BMW priority after renderer restart (' + snapshot + ')',
                     () => renderer.hudKeep === 0);
                 await sleep(POLL * 4);
                 assert.deepStrictEqual(renderer.received, [{ cmd: 'hud', hud_keep_shown: '0' }]);
@@ -421,8 +429,95 @@ async function main() {
             control.close();
             await renderer.close();
             await saved.close();
-            fs.unlinkSync(statusFile);
+            if (fs.existsSync(statusFile)) fs.unlinkSync(statusFile);
             fs.rmdirSync(dir);
+        }
+    });
+    await check('live BMW priority is saved after the driver profile becomes readable again', async () => {
+        const patch = new FakePatch(PSOCK);
+        const renderer = new FakeRender(RSOCK);
+        renderer.hudKeep = 0;
+        await patch.listen();
+        await renderer.listen();
+        let profileAvailable = true;
+        const sync = new ProfileSync({
+            readProfile: () => profileAvailable ? Promise.resolve('driverB') : Promise.reject(new Error('profile unavailable')),
+            patchPath: PSOCK, renderPath: RSOCK, pollMs: POLL, replyMs: 150
+        });
+        sync.start();
+        try {
+            await until('initial profile synchronized', () => sync.profile === 'driverB' && sync._checkOutputs === false);
+            profileAvailable = false;
+            patch.map.hud_keep_shown = 1;
+            renderer.hudKeep = 1;
+            await until('live HUD gives way without a driver profile', () => renderer.hudKeep === 0);
+            assert.strictEqual(patch.map.hud_keep_shown, 1);
+            profileAvailable = true;
+            await until('BMW priority saved for the next boot', () => patch.map.hud_keep_shown === 0);
+            assert.deepStrictEqual(renderer.received, [{ cmd: 'hud', hud_keep_shown: '0' }]);
+        } finally {
+            sync.stop();
+            await renderer.close();
+            await patch.close();
+        }
+    });
+    await check('profile-aware patchd saves map changes for the current driver and rejects a stale driver', async () => {
+        const patch = new FakePatch(PSOCK);
+        patch.profileWriteGuards = true;
+        patch.own.driverB = settings(0, 1, 60, -40, 0, 0);
+        const renderer = new FakeRender(RSOCK);
+        let driver = 'driverB';
+        let afterConfirm = () => {};
+        const control = new WazeClusterControl({
+            patchPath: PSOCK, renderPath: RSOCK, retryMs: POLL,
+            mapWriteTarget: () => sync.mapWriteTarget(),
+            confirmMapWrite: async (target) => {
+                const confirmed = await sync.confirmMapWrite(target);
+                afterConfirm();
+                return confirmed;
+            }
+        });
+        const sync = new ProfileSync({
+            control, readProfile: () => Promise.resolve(driver), patchPath: PSOCK, renderPath: RSOCK, pollMs: POLL
+        });
+        control.patch.on('connect', () => sync.invalidatePatchProfile());
+        control.on('profile-map-write-refused', () => sync.invalidatePatchProfile());
+        await patch.listen();
+        await renderer.listen();
+        control.open();
+        sync.start();
+        try {
+            await until('driver and HUD ready', () => sync.profile === 'driverB' && control.canChangeHudSize());
+            await control.showOn('both');
+            await until('both displays saved', () => patch.map.cluster === 1 && patch.map.hud === 1 && renderer.cluster === 1);
+            await control.setHudSizeStep(4);
+            await control.moveHud('right');
+            await until('size and position saved', () => patch.count('hud-size') === 1 && patch.map.hud_offset_x === -30);
+            for (const cmd of ['cluster', 'hud', 'hud-size', 'hud-pos']) {
+                const write = patch.received.find((m) => m.cmd === cmd);
+                assert.strictEqual(write.profile, 'driverB');
+                assert.strictEqual(write.own, 1);
+            }
+            const before = patch.map;
+            afterConfirm = () => { patch.current = 'driverA'; };
+            await control.showOn('off');
+            await until('the refused change is rolled back', () => control.mapSaveError && renderer.cluster === 1 && renderer.hud === 1);
+            assert.deepStrictEqual(patch.map, before);
+            afterConfirm = () => {};
+            patch.current = undefined;
+            patch.dropClients();
+            await until('an independently restarted patchd knows the driver', () => patch.current === 'driverB' && control.canChangeHudSize());
+            driver = 'driverA';
+            const writes = patch.count('cluster');
+            await control.showOn('off');
+            assert.strictEqual(patch.count('cluster'), writes, 'a fresh read refuses a gesture for the previous driver');
+            await until('the new driver is in effect', () => sync.profile === 'driverA' && renderer.hud === 0);
+            assert.deepStrictEqual(patch.own.driverB, before);
+        } finally {
+            sync.stop();
+            control.close();
+            await renderer.close();
+            await patch.close();
         }
     });
     await check('busy renderer is retried after Maps on Cluster releases the control socket', async () => {
