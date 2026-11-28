@@ -28,10 +28,12 @@
 'use strict';
 
 const EventEmitter = require('events');
+const fs = require('fs');
 const net = require('net');
 const { RENDER_PATH, PATCH_PATH } = require('./waze_cluster_control.js');
 
 const POLL_MS = 5000;
+const RENDER_STATUS_PATH = '/run/waze-on-cluster/status.json';
 const READ_MS = 3000;
 /* a proxy that failed to start: set up again after this, then less often */
 const SETUP_RETRY_MS = 10000;
@@ -179,7 +181,7 @@ function askOnce(path, obj, done, ms) {
 
 class ProfileSync extends EventEmitter {
     /* options: control (the page's WazeClusterControl), log, readProfile,
-     * patchPath, renderPath, pollMs, replyMs, retryMs. Emits 'change' when
+     * patchPath, renderPath, renderStatusPath, pollMs, replyMs, retryMs. Emits 'change' when
      * profile, own or canChooseOwn() may have changed. */
     constructor(options) {
         super();
@@ -189,6 +191,7 @@ class ProfileSync extends EventEmitter {
         this._read = o.readProfile;
         this._patchPath = o.patchPath || PATCH_PATH;
         this._renderPath = o.renderPath || RENDER_PATH;
+        this._renderStatusPath = o.renderStatusPath || RENDER_STATUS_PATH;
         this._pollMs = o.pollMs || POLL_MS;
         this._replyMs = o.replyMs || REPLY_MS;
         this._retryMs = o.retryMs || RETRY_MS;
@@ -250,7 +253,11 @@ class ProfileSync extends EventEmitter {
     }
 
     _poll() {
-        Promise.resolve().then(() => this._read()).then((id) => {
+        Promise.resolve().then(async () => {
+            const priorityLost = this._hudPriorityLost();
+            if (priorityLost) await this._restoreOutputs();
+            return { id: await this._read(), priorityLost };
+        }).then(({ id, priorityLost }) => {
             const agreed = id === NONE || id === this._seen;
             this._seen = id === NONE ? undefined : id;
             const differs = !agreed && id !== this._confirmed;
@@ -260,7 +267,7 @@ class ProfileSync extends EventEmitter {
             }
             if (agreed) {
                 this._confirmed = id;
-                if ((id !== this.profile || this._checkOutputs) && Date.now() >= this._retryAt) {
+                if ((id !== this.profile || this._checkOutputs || priorityLost) && Date.now() >= this._retryAt) {
                     return this._ask({ cmd: 'profile', id });
                 }
             }
@@ -332,19 +339,36 @@ class ProfileSync extends EventEmitter {
         return p;
     }
 
-    /* The saved profile can be unchanged while a newly started renderer has
-     * different outputs. Compare actual status with the driver's choice.
-     * A renderer that starts late is checked on the next regular poll. */
+    /* In the background, use the renderer's read-only status snapshot to
+     * decide whether to connect. The socket confirms the live value before
+     * any write, including after a restart or a handoff from Maps on Cluster. */
+    _hudPriorityLost() {
+        if (this._stopped) return false;
+        const control = this._control;
+        if (control && control.render.connected()) {
+            return !!control.renderStatus && control.renderStatus.hud_keep_shown === 1;
+        }
+        try {
+            const status = JSON.parse(fs.readFileSync(this._renderStatusPath, 'utf8'));
+            return status.ev === 'status' && status.hud_keep_shown === 1;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /* A missing settings argument checks only the priority flag. Saved
+     * output choices are reconciled separately on startup or profile change. */
     async _restoreOutputs(settings) {
         const control = this._control;
         const outputsSuperseded = () => control && control.outputRevision !== this._startupRevision;
         const known = (s) => s && [s.cluster, s.hud].every((v) => v === 0 || v === 1);
-        if (this._stopped || !settings) return true;
-        const order = settings.hud && !settings.cluster ? ['hud', 'cluster'] : ['cluster', 'hud'];
+        if (this._stopped) return true;
+        const busy = (status) => status.ev === 'status' && status.state === 'error' && status.reason === 'busy';
+        const order = settings && settings.hud && !settings.cluster ? ['hud', 'cluster'] : ['cluster', 'hud'];
         let sent = false;
         const reconcile = (status, send) => {
             if (this._stopped) return true;
-            if (!status || status.ev !== 'status') return false;
+            if (!status || status.ev !== 'status' || busy(status)) return false;
             const changes = !outputsSuperseded() && known(settings) && known(status)
                 ? order.filter((display) => status[display] !== settings[display]) : [];
             const hudCoversStock = status.hud_keep_shown === 1;
@@ -364,9 +388,9 @@ class ProfileSync extends EventEmitter {
         let pageOpened = false;
         const reply = await askOnce(this._renderPath, null, (status, socket) => {
             pageOpened = control && control.render.connected();
-            return pageOpened || reconcile(status, (cmd) => socket.write(JSON.stringify(cmd) + '\n'));
+            return pageOpened || busy(status) || reconcile(status, (cmd) => socket.write(JSON.stringify(cmd) + '\n'));
         }, this._replyMs);
-        return !!reply && !pageOpened;
+        return !!reply && !pageOpened && !busy(reply);
     }
 
     /* The render to the settings in effect: a display turned on first, so a

@@ -26,6 +26,8 @@
  */
 const assert = require('assert');
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { ProfileSync, sessionReader, IFACE, INSTANCE, FIELD } = require('../src/profile_sync.js');
 const { WazeClusterControl } = require('../src/waze_cluster_control.js');
 const { FakeRender, FakePatch } = require('./fakes.js');
@@ -376,6 +378,79 @@ async function main() {
         } finally {
             boot.stop();
             await late.close();
+            await saved.close();
+        }
+    });
+    await check('a renderer restart restores BMW HUD priority in foreground and background', async () => {
+        const saved = new FakePatch(PSOCK);
+        saved.map = settings(1, 1, 0, 0, 0, 0);
+        const initial = new FakeRender(RSOCK);
+        initial.hud = 1;
+        let renderer = initial;
+        await saved.listen();
+        await renderer.listen();
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'strelka-media-'));
+        const statusFile = path.join(dir, 'status.json');
+        fs.writeFileSync(statusFile, '{}');
+        const control = new WazeClusterControl({ patchPath: PSOCK, renderPath: RSOCK, retryMs: POLL });
+        const sync = new ProfileSync({
+            control, readProfile: () => Promise.resolve('driverB'), patchPath: PSOCK, renderPath: RSOCK,
+            renderStatusPath: statusFile, pollMs: POLL, replyMs: 150
+        });
+        control.open();
+        sync.start();
+        try {
+            await until('initial driver and renderer agree', () => sync.profile === 'driverB' && sync._checkOutputs === false);
+            for (const foreground of [true, false]) {
+                if (!foreground) control.close();
+                await renderer.close();
+                renderer = new FakeRender(RSOCK);
+                renderer.hud = 1;
+                renderer.hudKeep = 1;
+                fs.writeFileSync(statusFile, JSON.stringify(renderer._status()));
+                await renderer.listen();
+                await until('BMW priority after renderer restart (' + (foreground ? 'foreground' : 'background') + ')',
+                    () => renderer.hudKeep === 0);
+                await sleep(POLL * 4);
+                assert.deepStrictEqual(renderer.received, [{ cmd: 'hud', hud_keep_shown: '0' }]);
+                assert.deepStrictEqual([renderer.cluster, renderer.hud], [1, 1]);
+                assert.strictEqual(saved.map.hud_keep_shown, 0);
+            }
+        } finally {
+            sync.stop();
+            control.close();
+            await renderer.close();
+            await saved.close();
+            fs.unlinkSync(statusFile);
+            fs.rmdirSync(dir);
+        }
+    });
+    await check('busy renderer is retried after Maps on Cluster releases the control socket', async () => {
+        const saved = new FakePatch(PSOCK);
+        const renderer = new FakeRender(RSOCK);
+        renderer.hudKeep = 1;
+        const sendStatus = renderer._onConnect.bind(renderer);
+        let owned = true;
+        let refusals = 0;
+        renderer._onConnect = (socket) => {
+            if (!owned) return sendStatus(socket);
+            refusals++;
+            socket.end(JSON.stringify({ ev: 'status', state: 'error', target: null, page: null, reason: 'busy' }) + '\n');
+        };
+        await saved.listen();
+        await renderer.listen();
+        const sync = new ProfileSync({ readProfile: () => Promise.resolve(null), patchPath: PSOCK, renderPath: RSOCK,
+            pollMs: POLL, replyMs: 150 });
+        sync.start();
+        try {
+            await until('another app owns the renderer', () => refusals >= 2);
+            assert.deepStrictEqual(renderer.received, []);
+            owned = false;
+            await until('BMW HUD priority confirmed after handoff', () => renderer.hudKeep === 0 && sync._checkOutputs === false);
+            assert.deepStrictEqual(renderer.received, [{ cmd: 'hud', hud_keep_shown: '0' }]);
+        } finally {
+            sync.stop();
+            await renderer.close();
             await saved.close();
         }
     });
